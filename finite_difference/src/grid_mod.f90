@@ -52,6 +52,8 @@ module grid_mod
      !> Extent of T-point grid in y. Note that this is the whole grid,
      !! not just the region that is simulated.
      integer :: ny
+     !> Number of vertical levels that the grid has
+     integer :: nlevels
      !> Grid spacing in x (m)
      real(wp) :: dx
      !> Grid spacing in y (m)
@@ -105,6 +107,12 @@ module grid_mod
   interface grid_type
      module procedure grid_constructor
   end interface grid_type
+
+  !> Single interface to the grid-initialisation routines
+  !! for both 2D and 3D
+  interface grid_init
+     module procedure grid_init2d, grid_init3d
+  end interface grid_init
 
   public grid_init
 
@@ -214,7 +222,7 @@ contains
   !! @param[in] tmask Array holding the T-point mask which defines
   !!                  the contents of the domain. Need not be
   !!                  supplied if domain is all wet and has PBCs.
-  subroutine grid_init(grid, m, n, dxarg, dyarg, tmask)
+  subroutine grid_init2d(grid, m, n, dxarg, dyarg, tmask)
     use global_parameters_mod, only: ALIGNMENT
     implicit none
     type(grid_type), intent(inout) :: grid
@@ -410,7 +418,228 @@ contains
       grid%yt(xstart:xstop,jj) = grid%yt(xstart:xstop, jj-1) + grid%dy
     END DO
 
-  end subroutine grid_init
+  end subroutine grid_init2d
+
+  !============================================
+
+  !> Initialise the supplied grid object for a 3D model
+  !! consisting of m x n points and nlevel vertical levels. Ultimately,
+  !! this routine should be general purpose but it is not there yet.
+  !! N.B. the definition of m and n (the grid extents) depends on
+  !! the type of boundary conditions that the model is subject to.
+  !! For periodic boundary conditions they specify the extent of the
+  !! simulated region (since we don't require the user to specify 
+  !! the halos required to *implement* the PBCs). However, when a
+  !! T-mask is used to define the model domain, m and n give the
+  !! extents of that mask/grid. This, of necessity, includes boundary
+  !! points. Therefore, the actual simulated region has an extent
+  !! which is less than m x n.
+  !! @param[inout] grid The object to initialise
+  !! @param[in] m Extent in x of domain for which we have information
+  !! @param[in] n Extent in y of domain for which we have information
+  !! @param[in] nlevel No. of vertical levels in the domain
+  !! @param[in] dxarg Grid spacing in x dimension
+  !! @param[in] dyarg Grid spacing in y dimension
+  !! @param[in] tmask Array holding the T-point mask which defines
+  !!                  the contents of the domain. Need not be
+  !!                  supplied if domain is all wet and has PBCs.
+  subroutine grid_init3d(grid, m, n, nlevel, dxarg, dyarg, tmask)
+    use global_parameters_mod, only: ALIGNMENT
+    implicit none
+    type(grid_type), intent(inout) :: grid
+    integer,         intent(in)    :: m, n, nlevel
+    real(wp),        intent(in)    :: dxarg, dyarg
+    integer, dimension(m,n), intent(in), optional :: tmask
+    ! Locals
+    integer :: mlocal
+    integer :: ierr(5)
+    integer :: ji, jj
+    integer :: xstart, ystart ! Start of internal region of T-pts
+    integer :: xstop, ystop ! End of internal region of T-pts
+
+    ! Store the global dimensions of the grid.
+    if( present(tmask) )then
+       ! A T-mask has been supplied and that tells us everything
+       ! about the extent of this model.
+       ! Extend the domain by unity in each dimension to allow
+       ! for staggering of variables. All fields will be
+       ! allocated with extent (nx,ny).
+       mlocal = m + 1
+       if( mod(mlocal, ALIGNMENT) > 0 )then
+          ! Since this is the dimension of the array and not that of
+          ! the internal region, we add two lots of 'ALIGNMENT'. This
+          ! allows us to subsequently extend the loop over the internal
+          ! region so that it too is aligned without array accesses of
+          ! the form a(i+1,j) going out of bounds.
+          grid%nx = (mlocal/ALIGNMENT + 2)*ALIGNMENT
+       else
+          grid%nx = mlocal
+       end if
+       grid%ny = n + 1
+    else
+       ! No T-mask has been supplied so we assume we're implementing
+       ! periodic boundary conditions and allow for halos of width
+       ! HALO_WIDTH_{X,Y} here.  Currently we put a halo on all four
+       ! sides of our rectangular domain. This is actually unnecessary
+       ! - depending on the variable staggering used only one of the
+       ! E/W halos and one of the N/S halos are required. However,
+       ! that is an optimisation and this framework must be developed
+       ! in such a way that that optimisation is supported.
+       mlocal = m + 2*HALO_WIDTH_X
+       if( mod(mlocal, ALIGNMENT) > 0 )then
+          ! Since this is the dimension of the array and not that of
+          ! the internal region, we add two lots of 'ALIGNMENT'. This
+          ! allows us to subsequently extend the loop over the internal
+          ! region so that it too is aligned without array accesses of
+          ! the form a(i+1,j) going out of bounds.
+          grid%nx = (mlocal/ALIGNMENT + 2)*ALIGNMENT
+       else
+          grid%nx = mlocal
+       end if
+
+       grid%ny = n + 2*HALO_WIDTH_Y
+    end if
+
+    ! Copy-in the externally-supplied T-mask, if any. If using OpenMP
+    ! then apply first-touch policy for data locality.
+    if( present(tmask) )then
+       allocate(grid%tmask(grid%nx,grid%ny), stat=ierr(1))
+       if( ierr(1) /= 0 )then
+          call gocean_stop('grid_init: failed to allocate array for T mask')
+       end if
+!$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
+!$OMP shared(m, n, grid, tmask)
+       do jj = 1, n
+          grid%tmask(1:m,jj) = tmask(1:m,jj)
+          ! Our saved mask is padded for alignment purposes so set
+          ! any additional points to be outside the domain
+          do ji = m+1, grid%nx
+             grid%tmask(ji,jj) = tmask(m,jj)
+          end do
+       end do
+!$OMP END PARALLEL DO
+       ! Additional rows
+       do jj = n+1, grid%ny
+          do ji = 1, m
+             grid%tmask(ji, jj) = tmask(ji, n)
+          end do
+       end do
+       ! Additional corner points
+       do jj = n+1, grid%ny
+          do ji = m+1, grid%nx
+             grid%tmask(ji,jj) = tmask(m,n)
+          end do
+       end do
+    else
+       ! No T-mask supplied. Check that grid has PBCs in both
+       ! x and y dimensions otherwise we won't know what to do.
+       if( .not. ( (grid%boundary_conditions(1) == BC_PERIODIC) .and. &
+                   (grid%boundary_conditions(2) == BC_PERIODIC) ) )then
+          call gocean_stop('grid_init: ERROR: No T-mask supplied and '// &
+                           'grid does not have periodic boundary conditions!')
+       end if
+    end if ! T-mask supplied
+
+    ! Use the T mask to determine the dimensions of the
+    ! internal, simulated region of the grid.
+    ! This call sets grid%simulation_domain.
+    call compute_internal_region(grid, m, n)
+
+    ! For a regular, orthogonal mesh the spatial resolution is constant
+    grid%dx = dxarg
+    grid%dy = dyarg
+
+    allocate(grid%dx_t(grid%nx,grid%ny), grid%dy_t(grid%nx,grid%ny), &
+             grid%dx_u(grid%nx,grid%ny), grid%dy_u(grid%nx,grid%ny), &
+             stat=ierr(1))
+    allocate(grid%dx_f(grid%nx,grid%ny), grid%dy_f(grid%nx,grid%ny), &
+             grid%dx_v(grid%nx,grid%ny), grid%dy_v(grid%nx,grid%ny), &
+             stat=ierr(2)) 
+    allocate(grid%area_t(grid%nx,grid%ny), grid%area_u(grid%nx,grid%ny), &
+             grid%area_v(grid%nx,grid%ny), stat=ierr(3))
+    allocate(grid%gphiu(grid%nx,grid%ny), grid%gphiv(grid%nx,grid%ny), &
+             grid%gphif(grid%nx,grid%ny), stat=ierr(4))
+    allocate(grid%xt(grid%nx,grid%ny), grid%yt(grid%nx,grid%ny), stat=ierr(5))
+
+    if( any(ierr /= 0, 1) )then
+       call gocean_stop('grid_init: failed to allocate arrays')
+    end if
+
+    ! Initialise the horizontal scale factors for a regular,
+    ! orthogonal mesh. (Constant spatial resolution.)
+!$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
+!$OMP shared(grid)
+    do jj = 1, grid%ny
+       do ji = 1, grid%nx
+          grid%dx_t(ji, jj)   = grid%dx
+          grid%dy_t(ji, jj)   = grid%dy
+
+          grid%dx_u(ji, jj)   = grid%dx
+          grid%dy_u(ji, jj)   = grid%dy
+
+          grid%dx_v(ji, jj)   = grid%dx
+          grid%dy_v(ji, jj)   = grid%dy
+
+          grid%dx_f(ji, jj)   = grid%dx
+          grid%dy_f(ji, jj)   = grid%dy
+       end do
+    end do
+!$OMP END PARALLEL DO
+
+    ! calculate t,u,v cell area
+!$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
+!$OMP shared(grid)
+    do jj = 1, grid%ny
+       do ji = 1, grid%nx
+          grid%area_t(ji,jj) = grid%dx_t(ji,jj) * grid%dy_t(ji,jj)
+
+          grid%area_u(ji,jj) = grid%dx_u(ji,jj) * grid%dy_u(ji,jj)
+
+          grid%area_v(ji,jj) = grid%dx_v(ji,jj) * grid%dy_v(ji,jj)
+       END DO
+    END DO
+!$OMP END PARALLEL DO
+
+    ! -here is an f-plane testing case
+    ! i.e. the Coriolis parameter is set to a constant value.
+!$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
+!$OMP shared(grid)
+    do jj = 1, grid%ny
+       do ji = 1, grid%nx
+          grid%gphiu(ji, jj) = 50._wp
+          grid%gphiv(ji, jj) = 50._wp
+          grid%gphif(ji, jj) = 50._wp
+       end do
+    end do
+!$OMP END PARALLEL DO
+
+    ! Co-ordinates of the T points
+    ! Do first-touch initialisation before setting actual values
+!$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
+!$OMP shared(grid)
+    do jj = 1, grid%ny
+       do ji = 1, grid%nx
+          grid%xt(ji,jj) = 0.0
+          grid%yt(ji,jj) = 0.0
+       end do
+    end do
+
+    xstart = grid%simulation_domain%xstart
+    xstop  = grid%simulation_domain%xstop
+    ystart = grid%simulation_domain%ystart
+    ystop  = grid%simulation_domain%ystop
+    grid%xt(xstart, :) = 0.0_wp + 0.5_wp * grid%dx_t(xstart,:)
+    grid%yt(:,ystart)  = 0.0_wp + 0.5_wp * grid%dy_t(:,ystart)
+
+    DO ji = xstart+1, xstop
+      grid%xt(ji,ystart:ystop) = grid%xt(ji-1, ystart:ystop) + grid%dx
+    END DO
+            
+    DO jj = ystart+1, ystop
+      grid%yt(xstart:xstop,jj) = grid%yt(xstart:xstop, jj-1) + grid%dy
+    END DO
+
+  end subroutine grid_init3d
 
   !================================================
 
