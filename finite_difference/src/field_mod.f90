@@ -52,6 +52,12 @@ module field_mod
      logical :: data_on_device
   end type field_type
 
+  !> A real, 1D field. Currently assumed to be in the depth dimension.
+  type, public, extends(field_type) :: r1d_field
+     !> Array holding the actual field values
+     real(wp), dimension(:), allocatable :: data
+  end type r1d_field
+
   !> A real, 2D field.
   type, public, extends(field_type) :: r2d_field
      integer :: ntiles
@@ -62,6 +68,16 @@ module field_mod
      real(wp), dimension(:,:), allocatable :: data
   end type r2d_field
 
+  !> A real, 3D field.
+  type, public, extends(field_type) :: r3d_field
+     integer :: ntiles
+     !> The dimensions of the (2D) tiles into which the field
+     !! is sub-divided.
+     type(tile_type), dimension(:), allocatable :: tile
+     !> Array holding the actual field values
+     real(wp), dimension(:,:,:), allocatable :: data
+  end type r3d_field
+
   !> Interface for the copy_field operation. Overloaded to take
   !! an array or an r2d_field type.
   !! \todo Remove support for raw arrays from this interface.
@@ -70,10 +86,20 @@ module field_mod
                       copy_2dfield, copy_2dfield_patch
   end interface copy_field
 
+  ! User-defined constructor for r1d_field type objects
+  interface r1d_field
+     module procedure r1d_field_constructor
+  end interface r1d_field
+
   ! User-defined constructor for r2d_field type objects
   interface r2d_field
      module procedure r2d_field_constructor
   end interface r2d_field
+
+  ! User-defined constructor for r3d_field type objects
+  interface r3d_field
+     module procedure r3d_field_constructor
+  end interface r3d_field
 
   !> Interface for the field checksum operation. Overloaded to take either
   !! a field object or a 2D, real(wp) array.
@@ -129,6 +155,29 @@ contains
 
   !===================================================
 
+  function r1d_field_constructor(grid) result(self)
+    implicit none
+    ! Arguments
+    !> Pointer to the grid on which this field lives
+    type(grid_type), intent(in), target  :: grid
+    ! Local declarations
+    type(r1d_field) :: self
+
+    ! Set this field's grid pointer to point to the grid pointed to
+    ! by the supplied grid_ptr argument
+    self%grid => grid
+
+    ! A 1D field is currently assumed to be over levels
+    allocate(self%data(1:grid%nlevels), Stat=ierr)
+    if(ierr /= 0)then
+       call gocean_stop('r1d_field_constructor: ERROR: failed to '// &
+                        'allocate field')
+    end if
+
+  end function r1d_field_constructor
+
+  !===================================================
+
   function r2d_field_constructor(grid,    &
                                  grid_points) result(self)
     implicit none
@@ -179,7 +228,8 @@ contains
 
     ! Allocating with a lower bound != 1 causes problems whenever
     ! array passed as assumed-shape dummy argument because lower
-    ! bounds default to 1 in called unit.
+    ! bounds default to 1 in called unit (unless dummy arg is declared
+    ! with the ALLOCATABLE attribute).
     ! However, all loops will be in the generated, middle layer and
     ! the generator knows the array bounds. This may give us the
     ! ability to solve this problem (by passing array bounds to the
@@ -207,6 +257,21 @@ contains
 !$OMP END PARALLEL DO
 
   end function r2d_field_constructor
+
+  !===================================================
+
+  function r3d_field_constructor(grid,    &
+                                 grid_points) result(self)
+    implicit none
+    ! Arguments
+    !> Pointer to the grid on which this field lives
+    type(grid_type), intent(in), target  :: grid
+    !> Which grid-point type the field is defined on
+    integer,         intent(in)          :: grid_points
+    ! Local declarations
+    type(r3d_field) :: self
+
+  end function r3d_field_constructor
 
   !===================================================
 
