@@ -54,21 +54,23 @@ module grid_mod
      integer :: ny
      !> Number of vertical levels that the grid has
      integer :: nlevels
-     !> Grid spacing in x (m)
+     !> Uniform grid spacing in x (m)
      real(wp) :: dx
-     !> Grid spacing in y (m)
+     !> Uniform grid spacing in y (m)
      real(wp) :: dy
+     !> Uniform grid spacing in z (m)
+     real(wp) :: dz
 
-     !> Nature of each T point: 1 == wet inside simulated region
-     !!                         0 == land
-     !!                        -1 == wet outside simulated region
+     !> Nature of each T point: 1.0 == wet inside simulated region
+     !!                         0.0 == land
+     !!                        -1.0 == wet outside simulated region
      !! This is the key quantity that determines the region that
      !! is actually simulated. However, we also support the
      !! specification of a model consisting entirely of wet points
      !! with periodic boundary conditions. Since this does not
      !! require a T-mask, we do not allocate this array for that
      !! case.
-     integer, allocatable :: tmask(:,:)
+     real(wp), allocatable :: tmask(:,:,:)
 
      !> The type of boundary conditions applied to the model domain
      !! in the x, y and z dimensions. Note that at this stage
@@ -122,7 +124,7 @@ contains
   function get_tmask(self) result(tmask)
     implicit none
     class (grid_type), target, intent(in) :: self
-    integer, pointer :: tmask(:,:)
+    real(wp), pointer :: tmask(:,:,:)
 
     tmask => self%tmask
 
@@ -282,31 +284,31 @@ contains
     ! Copy-in the externally-supplied T-mask, if any. If using OpenMP
     ! then apply first-touch policy for data locality.
     if( present(tmask) )then
-       allocate(grid%tmask(grid%nx,grid%ny), stat=ierr(1))
+       allocate(grid%tmask(grid%nx,grid%ny,1), stat=ierr(1))
        if( ierr(1) /= 0 )then
           call gocean_stop('grid_init: failed to allocate array for T mask')
        end if
 !$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
 !$OMP shared(m, n, grid, tmask)
        do jj = 1, n
-          grid%tmask(1:m,jj) = tmask(1:m,jj)
+          grid%tmask(1:m,jj,1) = REAL(tmask(1:m,jj), wp)
           ! Our saved mask is padded for alignment purposes so set
           ! any additional points to be outside the domain
           do ji = m+1, grid%nx
-             grid%tmask(ji,jj) = tmask(m,jj)
+             grid%tmask(ji,jj,1) = REAL(tmask(m,jj), wp)
           end do
        end do
 !$OMP END PARALLEL DO
        ! Additional rows
        do jj = n+1, grid%ny
           do ji = 1, m
-             grid%tmask(ji, jj) = tmask(ji, n)
+             grid%tmask(ji,jj,1) = REAL(tmask(ji, n), wp)
           end do
        end do
        ! Additional corner points
        do jj = n+1, grid%ny
           do ji = m+1, grid%nx
-             grid%tmask(ji,jj) = tmask(m,n)
+             grid%tmask(ji,jj,1) = REAL(tmask(m,n), wp)
           end do
        end do
     else
@@ -440,20 +442,21 @@ contains
   !! @param[in] nlevel No. of vertical levels in the domain
   !! @param[in] dxarg Grid spacing in x dimension
   !! @param[in] dyarg Grid spacing in y dimension
+  !! @param[in] dzarg Grid spacing in z dimension
   !! @param[in] tmask Array holding the T-point mask which defines
   !!                  the contents of the domain. Need not be
   !!                  supplied if domain is all wet and has PBCs.
-  subroutine grid_init3d(grid, m, n, nlevel, dxarg, dyarg, tmask)
+  subroutine grid_init3d(grid, m, n, nlevel, dxarg, dyarg, dzarg, tmask)
     use global_parameters_mod, only: ALIGNMENT
     implicit none
     type(grid_type), intent(inout) :: grid
     integer,         intent(in)    :: m, n, nlevel
-    real(wp),        intent(in)    :: dxarg, dyarg
-    integer, dimension(m,n), intent(in), optional :: tmask
+    real(wp),        intent(in)    :: dxarg, dyarg, dzarg
+    real(wp), dimension(m,n,nlevel), intent(in), optional :: tmask
     ! Locals
     integer :: mlocal
     integer :: ierr(5)
-    integer :: ji, jj
+    integer :: ji, jj, jk
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
 
@@ -499,35 +502,40 @@ contains
 
        grid%ny = n + 2*HALO_WIDTH_Y
     end if
+    grid%nlevels = nlevel
 
     ! Copy-in the externally-supplied T-mask, if any. If using OpenMP
     ! then apply first-touch policy for data locality.
     if( present(tmask) )then
-       allocate(grid%tmask(grid%nx,grid%ny), stat=ierr(1))
+       allocate(grid%tmask(grid%nx,grid%ny,grid%nlevels), stat=ierr(1))
        if( ierr(1) /= 0 )then
           call gocean_stop('grid_init: failed to allocate array for T mask')
        end if
-!$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
-!$OMP shared(m, n, grid, tmask)
-       do jj = 1, n
-          grid%tmask(1:m,jj) = tmask(1:m,jj)
-          ! Our saved mask is padded for alignment purposes so set
-          ! any additional points to be outside the domain
-          do ji = m+1, grid%nx
-             grid%tmask(ji,jj) = tmask(m,jj)
+!$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj,jk), &
+!$OMP shared(m, n, nlevel, grid, tmask)
+       do jk = 1, nlevel
+          do jj = 1, n
+             grid%tmask(1:m,jj,jk) = tmask(1:m,jj,jk)
+             ! Our saved mask is padded for alignment purposes so set
+             ! any additional points to be outside the domain
+             do ji = m+1, grid%nx
+                grid%tmask(ji,jj,jk) = tmask(m,jj,jk)
+             end do
           end do
        end do
 !$OMP END PARALLEL DO
        ! Additional rows
-       do jj = n+1, grid%ny
-          do ji = 1, m
-             grid%tmask(ji, jj) = tmask(ji, n)
+       do jk = 1, nlevel
+          do jj = n+1, grid%ny
+             do ji = 1, m
+                grid%tmask(ji,jj,jk) = tmask(ji,n,jk)
+             end do
           end do
-       end do
-       ! Additional corner points
-       do jj = n+1, grid%ny
-          do ji = m+1, grid%nx
-             grid%tmask(ji,jj) = tmask(m,n)
+          ! Additional corner points
+          do jj = n+1, grid%ny
+             do ji = m+1, grid%nx
+                grid%tmask(ji,jj,jk) = tmask(m,n,jk)
+             end do
           end do
        end do
     else
