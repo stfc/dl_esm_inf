@@ -162,6 +162,7 @@ contains
     type(grid_type), intent(in), target  :: grid
     ! Local declarations
     type(r1d_field) :: self
+    integer :: ierr
 
     ! Set this field's grid pointer to point to the grid pointed to
     ! by the supplied grid_ptr argument

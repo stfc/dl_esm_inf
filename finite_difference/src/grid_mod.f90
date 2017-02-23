@@ -71,6 +71,8 @@ module grid_mod
      !! require a T-mask, we do not allocate this array for that
      !! case.
      real(wp), allocatable :: tmask(:,:,:)
+     real(wp), allocatable :: umask(:,:,:)
+     real(wp), allocatable :: vmask(:,:,:)
 
      !> The type of boundary conditions applied to the model domain
      !! in the x, y and z dimensions. Note that at this stage
