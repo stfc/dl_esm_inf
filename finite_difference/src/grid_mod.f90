@@ -227,7 +227,6 @@ contains
   !!                  the contents of the domain. Need not be
   !!                  supplied if domain is all wet and has PBCs.
   subroutine grid_init2d(grid, m, n, dxarg, dyarg, tmask)
-    use global_parameters_mod, only: ALIGNMENT
     implicit none
     type(grid_type), intent(inout) :: grid
     integer,         intent(in)    :: m, n
@@ -240,48 +239,9 @@ contains
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
 
-    ! Store the global dimensions of the grid.
-    if( present(tmask) )then
-       ! A T-mask has been supplied and that tells us everything
-       ! about the extent of this model.
-       ! Extend the domain by unity in each dimension to allow
-       ! for staggering of variables. All fields will be
-       ! allocated with extent (nx,ny).
-       mlocal = m + 1
-       if( mod(mlocal, ALIGNMENT) > 0 )then
-          ! Since this is the dimension of the array and not that of
-          ! the internal region, we add two lots of 'ALIGNMENT'. This
-          ! allows us to subsequently extend the loop over the internal
-          ! region so that it too is aligned without array accesses of
-          ! the form a(i+1,j) going out of bounds.
-          grid%nx = (mlocal/ALIGNMENT + 2)*ALIGNMENT
-       else
-          grid%nx = mlocal
-       end if
-       grid%ny = n + 1
-    else
-       ! No T-mask has been supplied so we assume we're implementing
-       ! periodic boundary conditions and allow for halos of width
-       ! HALO_WIDTH_{X,Y} here.  Currently we put a halo on all four
-       ! sides of our rectangular domain. This is actually unnecessary
-       ! - depending on the variable staggering used only one of the
-       ! E/W halos and one of the N/S halos are required. However,
-       ! that is an optimisation and this framework must be developed
-       ! in such a way that that optimisation is supported.
-       mlocal = m + 2*HALO_WIDTH_X
-       if( mod(mlocal, ALIGNMENT) > 0 )then
-          ! Since this is the dimension of the array and not that of
-          ! the internal region, we add two lots of 'ALIGNMENT'. This
-          ! allows us to subsequently extend the loop over the internal
-          ! region so that it too is aligned without array accesses of
-          ! the form a(i+1,j) going out of bounds.
-          grid%nx = (mlocal/ALIGNMENT + 2)*ALIGNMENT
-       else
-          grid%nx = mlocal
-       end if
-
-       grid%ny = n + 2*HALO_WIDTH_Y
-    end if
+    ! Set-up the global x-y dimensions of the grid. If no T-mask has
+    ! been supplied then we assume that we have periodic boundary conditions
+    call set_2d_global_dims(grid, m, n, pbcs=(.not. present(tmask)))
 
     ! Copy-in the externally-supplied T-mask, if any. If using OpenMP
     ! then apply first-touch policy for data locality.
@@ -313,6 +273,13 @@ contains
              grid%tmask(ji,jj,1) = REAL(tmask(m,n), wp)
           end do
        end do
+
+       ! Compute masks that are derived from the T-point mask
+       !> \todo Rather than carry around extra arrays, it might
+       !! be better to just compute these quantities as
+       !! required.
+       call compute_derived_masks(grid)
+
     else
        ! No T-mask supplied. Check that grid has PBCs in both
        ! x and y dimensions otherwise we won't know what to do.
@@ -449,7 +416,6 @@ contains
   !!                  the contents of the domain. Need not be
   !!                  supplied if domain is all wet and has PBCs.
   subroutine grid_init3d(grid, m, n, nlevel, dxarg, dyarg, dzarg, tmask)
-    use global_parameters_mod, only: ALIGNMENT
     implicit none
     type(grid_type), intent(inout) :: grid
     integer,         intent(in)    :: m, n, nlevel
@@ -462,48 +428,11 @@ contains
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
 
-    ! Store the global dimensions of the grid.
-    if( present(tmask) )then
-       ! A T-mask has been supplied and that tells us everything
-       ! about the extent of this model.
-       ! Extend the domain by unity in each dimension to allow
-       ! for staggering of variables. All fields will be
-       ! allocated with extent (nx,ny).
-       mlocal = m + 1
-       if( mod(mlocal, ALIGNMENT) > 0 )then
-          ! Since this is the dimension of the array and not that of
-          ! the internal region, we add two lots of 'ALIGNMENT'. This
-          ! allows us to subsequently extend the loop over the internal
-          ! region so that it too is aligned without array accesses of
-          ! the form a(i+1,j) going out of bounds.
-          grid%nx = (mlocal/ALIGNMENT + 2)*ALIGNMENT
-       else
-          grid%nx = mlocal
-       end if
-       grid%ny = n + 1
-    else
-       ! No T-mask has been supplied so we assume we're implementing
-       ! periodic boundary conditions and allow for halos of width
-       ! HALO_WIDTH_{X,Y} here.  Currently we put a halo on all four
-       ! sides of our rectangular domain. This is actually unnecessary
-       ! - depending on the variable staggering used only one of the
-       ! E/W halos and one of the N/S halos are required. However,
-       ! that is an optimisation and this framework must be developed
-       ! in such a way that that optimisation is supported.
-       mlocal = m + 2*HALO_WIDTH_X
-       if( mod(mlocal, ALIGNMENT) > 0 )then
-          ! Since this is the dimension of the array and not that of
-          ! the internal region, we add two lots of 'ALIGNMENT'. This
-          ! allows us to subsequently extend the loop over the internal
-          ! region so that it too is aligned without array accesses of
-          ! the form a(i+1,j) going out of bounds.
-          grid%nx = (mlocal/ALIGNMENT + 2)*ALIGNMENT
-       else
-          grid%nx = mlocal
-       end if
+    ! Set-up the global x-y dimensions of the grid. If no T-mask has
+    ! been supplied then we assume that we have periodic boundary conditions
+    call set_2d_global_dims(grid, m, n, pbcs=(.not. present(tmask)))
 
-       grid%ny = n + 2*HALO_WIDTH_Y
-    end if
+    ! Store the global vertical dimension of the grid.
     grid%nlevels = nlevel
 
     ! Copy-in the externally-supplied T-mask, if any. If using OpenMP
@@ -558,6 +487,7 @@ contains
     ! For a regular, orthogonal mesh the spatial resolution is constant
     grid%dx = dxarg
     grid%dy = dyarg
+    grid%dz = dzarg
 
     allocate(grid%dx_t(grid%nx,grid%ny), grid%dy_t(grid%nx,grid%ny), &
              grid%dx_u(grid%nx,grid%ny), grid%dy_u(grid%nx,grid%ny), &
@@ -572,7 +502,7 @@ contains
     allocate(grid%xt(grid%nx,grid%ny), grid%yt(grid%nx,grid%ny), stat=ierr(5))
 
     if( any(ierr /= 0, 1) )then
-       call gocean_stop('grid_init: failed to allocate arrays')
+       call gocean_stop('grid_init3d: failed to allocate arrays')
     end if
 
     ! Initialise the horizontal scale factors for a regular,
@@ -653,6 +583,64 @@ contains
 
   !================================================
 
+  subroutine set_2d_global_dims(grid, m, n, pbcs)
+    use global_parameters_mod, only: ALIGNMENT
+    implicit none
+    !> Store the global x-y dimensions of the grid (the nx and ny
+    !! components of the grid object).
+    type(grid_type), intent(inout) :: grid
+    integer, intent(in) :: m, n
+    !> Whether or not we apply periodic boundary conditions
+    logical, intent(in) :: pbcs
+    ! Locals
+    integer :: mlocal, nlocal
+
+    if( .not. pbcs )then
+       ! A T-mask has been supplied and that tells us everything
+       ! about the extent of this model.
+       ! Extend the domain by unity in each dimension to allow
+       ! for staggering of variables. All fields will be
+       ! allocated with extent (nx,ny).
+       mlocal = m + 1
+       if( mod(mlocal, ALIGNMENT) > 0 )then
+          ! Since this is the dimension of the array and not that of
+          ! the internal region, we add two lots of 'ALIGNMENT'. This
+          ! allows us to subsequently extend the loop over the internal
+          ! region so that it too is aligned without array accesses of
+          ! the form a(i+1,j) going out of bounds.
+          grid%nx = (mlocal/ALIGNMENT + 2)*ALIGNMENT
+       else
+          grid%nx = mlocal
+       end if
+       grid%ny = n + 1
+    else
+       ! No T-mask has been supplied so we assume we're implementing
+       ! periodic boundary conditions and allow for halos of width
+       ! HALO_WIDTH_{X,Y} here.  Currently we put a halo on all four
+       ! sides of our rectangular domain. This is actually unnecessary
+       ! - depending on the variable staggering used only one of the
+       ! E/W halos and one of the N/S halos are required. However,
+       ! that is an optimisation and this framework must be developed
+       ! in such a way that that optimisation is supported.
+       mlocal = m + 2*HALO_WIDTH_X
+       if( mod(mlocal, ALIGNMENT) > 0 )then
+          ! Since this is the dimension of the array and not that of
+          ! the internal region, we add two lots of 'ALIGNMENT'. This
+          ! allows us to subsequently extend the loop over the internal
+          ! region so that it too is aligned without array accesses of
+          ! the form a(i+1,j) going out of bounds.
+          grid%nx = (mlocal/ALIGNMENT + 2)*ALIGNMENT
+       else
+          grid%nx = mlocal
+       end if
+
+       grid%ny = n + 2*HALO_WIDTH_Y
+    end if
+
+  end subroutine set_2d_global_dims
+
+  !================================================
+
   !> Use the T-mask to deduce the inner or simulated region
   !! of the supplied grid.
   subroutine compute_internal_region(grid, morig, norig)
@@ -721,5 +709,42 @@ contains
   end subroutine compute_internal_region
 
   !================================================
+
+  subroutine compute_derived_masks(grid)
+    implicit none
+    type(grid_type), intent(inout) :: grid
+    ! Locals
+    integer :: ji, jj, jk, ierr
+    integer :: nx, ny, nz
+
+    if(.not. allocated(grid%tmask))then
+       call gocean_stop('compute_derived_masks: T-mask not yet allocated.')
+    end if
+
+    nx = grid%nx
+    ny = grid%ny
+    nz = grid%nlevels
+
+    allocate(grid%umask(nx, ny, nz), grid%vmask(nx,ny,nz), Stat=ierr)
+    if(ierr /= 0)then
+       call gocean_stop('compute_derived_masks: failed to allocate masks')
+    end if
+
+    ! This code is taken from dommsk.F90 in NEMO
+    DO jk = 1, nz
+       DO jj = 1, ny-1
+          DO ji = 1, nx-1
+             grid%umask(ji,jj,jk) = grid%tmask(ji,jj,jk)*grid%tmask(ji+1,jj  ,jk)
+             grid%vmask(ji,jj,jk) = grid%tmask(ji,jj,jk)*grid%tmask(ji  ,jj+1,jk)
+          END DO
+! We don't support an f-mask just yet
+!          DO ji = 1, jpi-1
+!             grid%fmask(ji,jj,jk) = grid%tmask(ji,jj,jk)*grid%tmask(ji+1,jj  ,jk)   &
+!                  &            * grid%tmask(ji,jj+1,jk)*grid%tmask(ji+1,jj+1,jk)
+!          END DO
+       END DO
+    END DO
+
+  end subroutine compute_derived_masks
 
 end module grid_mod
