@@ -243,6 +243,9 @@ contains
     ! been supplied then we assume that we have periodic boundary conditions
     call set_2d_global_dims(grid, m, n, pbcs=(.not. present(tmask)))
 
+    ! A 2D model has just a single level
+    grid%nlevels = 1
+
     ! Copy-in the externally-supplied T-mask, if any. If using OpenMP
     ! then apply first-touch policy for data locality.
     if( present(tmask) )then
@@ -296,98 +299,10 @@ contains
     call compute_internal_region(grid, m, n)
 
     ! For a regular, orthogonal mesh the spatial resolution is constant
-    grid%dx = dxarg
-    grid%dy = dyarg
-
-    allocate(grid%dx_t(grid%nx,grid%ny), grid%dy_t(grid%nx,grid%ny), &
-             grid%dx_u(grid%nx,grid%ny), grid%dy_u(grid%nx,grid%ny), &
-             stat=ierr(1))
-    allocate(grid%dx_f(grid%nx,grid%ny), grid%dy_f(grid%nx,grid%ny), &
-             grid%dx_v(grid%nx,grid%ny), grid%dy_v(grid%nx,grid%ny), &
-             stat=ierr(2)) 
-    allocate(grid%area_t(grid%nx,grid%ny), grid%area_u(grid%nx,grid%ny), &
-             grid%area_v(grid%nx,grid%ny), stat=ierr(3))
-    allocate(grid%gphiu(grid%nx,grid%ny), grid%gphiv(grid%nx,grid%ny), &
-             grid%gphif(grid%nx,grid%ny), stat=ierr(4))
-    allocate(grid%xt(grid%nx,grid%ny), grid%yt(grid%nx,grid%ny), stat=ierr(5))
-
-    if( any(ierr /= 0, 1) )then
-       call gocean_stop('grid_init: failed to allocate arrays')
-    end if
-
-    ! Initialise the horizontal scale factors for a regular,
-    ! orthogonal mesh. (Constant spatial resolution.)
-!$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
-!$OMP shared(grid)
-    do jj = 1, grid%ny
-       do ji = 1, grid%nx
-          grid%dx_t(ji, jj)   = grid%dx
-          grid%dy_t(ji, jj)   = grid%dy
-
-          grid%dx_u(ji, jj)   = grid%dx
-          grid%dy_u(ji, jj)   = grid%dy
-
-          grid%dx_v(ji, jj)   = grid%dx
-          grid%dy_v(ji, jj)   = grid%dy
-
-          grid%dx_f(ji, jj)   = grid%dx
-          grid%dy_f(ji, jj)   = grid%dy
-       end do
-    end do
-!$OMP END PARALLEL DO
-
-    ! calculate t,u,v cell area
-!$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
-!$OMP shared(grid)
-    do jj = 1, grid%ny
-       do ji = 1, grid%nx
-          grid%area_t(ji,jj) = grid%dx_t(ji,jj) * grid%dy_t(ji,jj)
-
-          grid%area_u(ji,jj) = grid%dx_u(ji,jj) * grid%dy_u(ji,jj)
-
-          grid%area_v(ji,jj) = grid%dx_v(ji,jj) * grid%dy_v(ji,jj)
-       END DO
-    END DO
-!$OMP END PARALLEL DO
-
-    ! -here is an f-plane testing case
-    ! i.e. the Coriolis parameter is set to a constant value.
-!$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
-!$OMP shared(grid)
-    do jj = 1, grid%ny
-       do ji = 1, grid%nx
-          grid%gphiu(ji, jj) = 50._wp
-          grid%gphiv(ji, jj) = 50._wp
-          grid%gphif(ji, jj) = 50._wp
-       end do
-    end do
-!$OMP END PARALLEL DO
+    call setup_xy_scalefactors(grid, dxarg, dyarg)
 
     ! Co-ordinates of the T points
-    ! Do first-touch initialisation before setting actual values
-!$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
-!$OMP shared(grid)
-    do jj = 1, grid%ny
-       do ji = 1, grid%nx
-          grid%xt(ji,jj) = 0.0
-          grid%yt(ji,jj) = 0.0
-       end do
-    end do
-
-    xstart = grid%simulation_domain%xstart
-    xstop  = grid%simulation_domain%xstop
-    ystart = grid%simulation_domain%ystart
-    ystop  = grid%simulation_domain%ystop
-    grid%xt(xstart, :) = 0.0_wp + 0.5_wp * grid%dx_t(xstart,:)
-    grid%yt(:,ystart)  = 0.0_wp + 0.5_wp * grid%dy_t(:,ystart)
-
-    DO ji = xstart+1, xstop
-      grid%xt(ji,ystart:ystop) = grid%xt(ji-1, ystart:ystop) + grid%dx
-    END DO
-            
-    DO jj = ystart+1, ystop
-      grid%yt(xstart:xstop,jj) = grid%yt(xstart:xstop, jj-1) + grid%dy
-    END DO
+    call set_tpt_coords(grid)
 
   end subroutine grid_init2d
 
@@ -455,8 +370,8 @@ contains
           end do
        end do
 !$OMP END PARALLEL DO
-       ! Additional rows
        do jk = 1, nlevel
+          ! Additional rows
           do jj = n+1, grid%ny
              do ji = 1, m
                 grid%tmask(ji,jj,jk) = tmask(ji,n,jk)
@@ -469,6 +384,13 @@ contains
              end do
           end do
        end do
+
+       ! Compute masks that are derived from the T-point mask
+       !> \todo Rather than carry around extra arrays, it might
+       !! be better to just compute these quantities as
+       !! required.
+       call compute_derived_masks(grid)
+
     else
        ! No T-mask supplied. Check that grid has PBCs in both
        ! x and y dimensions otherwise we won't know what to do.
@@ -485,9 +407,26 @@ contains
     call compute_internal_region(grid, m, n)
 
     ! For a regular, orthogonal mesh the spatial resolution is constant
-    grid%dx = dxarg
-    grid%dy = dyarg
+    call setup_xy_scalefactors(grid, dxarg, dyarg)
     grid%dz = dzarg
+
+    ! Co-ordinates of the T points
+    call set_tpt_coords(grid)
+
+  end subroutine grid_init3d
+
+  !================================================
+
+  subroutine setup_xy_scalefactors(grid, dx, dy)
+    !> Computes x/y-related scale factors for the grid
+    implicit none
+    type(grid_type), intent(inout) :: grid
+    real(wp), intent(in) :: dx, dy
+    ! Locals
+    integer :: ji, jj, ierr(5)
+
+    grid%dx = dx
+    grid%dy = dy
 
     allocate(grid%dx_t(grid%nx,grid%ny), grid%dy_t(grid%nx,grid%ny), &
              grid%dx_u(grid%nx,grid%ny), grid%dy_u(grid%nx,grid%ny), &
@@ -502,7 +441,7 @@ contains
     allocate(grid%xt(grid%nx,grid%ny), grid%yt(grid%nx,grid%ny), stat=ierr(5))
 
     if( any(ierr /= 0, 1) )then
-       call gocean_stop('grid_init3d: failed to allocate arrays')
+       call gocean_stop('setup_xy_scalefactors: failed to allocate arrays')
     end if
 
     ! Initialise the horizontal scale factors for a regular,
@@ -553,7 +492,18 @@ contains
     end do
 !$OMP END PARALLEL DO
 
-    ! Co-ordinates of the T points
+  end subroutine setup_xy_scalefactors
+
+  !================================================
+
+  subroutine set_tpt_coords(grid)
+    !> Set the locations of the T points in 2D
+    implicit none
+    type(grid_type), intent(inout) :: grid
+    ! Locals
+    integer :: ji, jj
+    integer :: xstart, xstop, ystart, ystop
+
     ! Do first-touch initialisation before setting actual values
 !$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
 !$OMP shared(grid)
@@ -578,8 +528,7 @@ contains
     DO jj = ystart+1, ystop
       grid%yt(xstart:xstop,jj) = grid%yt(xstart:xstop, jj-1) + grid%dy
     END DO
-
-  end subroutine grid_init3d
+  end subroutine set_tpt_coords
 
   !================================================
 
