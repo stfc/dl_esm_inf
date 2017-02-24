@@ -50,6 +50,14 @@ module field_mod
      !> Whether the data for this field lives in a remote memory space
      !! (e.g. on a GPU)
      logical :: data_on_device
+     !> No. of tiles into which field is sub-divided
+     !! \todo This is only supported for 2- and 3D fields which then
+     !! implies that the tile-related information shouldn't be
+     !! in this base class.
+     integer :: ntiles
+     !> The dimensions of the (2D) tiles into which the field
+     !! is sub-divided. Only applicable to 2- and 3D fields.
+     type(tile_type), dimension(:), allocatable :: tile
   end type field_type
 
   !> A real, 1D field. Currently assumed to be in the depth dimension.
@@ -60,20 +68,12 @@ module field_mod
 
   !> A real, 2D field.
   type, public, extends(field_type) :: r2d_field
-     integer :: ntiles
-     !> The dimensions of the tiles into which the field
-     !! is sub-divided.
-     type(tile_type), dimension(:), allocatable :: tile
      !> Array holding the actual field values
      real(wp), dimension(:,:), allocatable :: data
   end type r2d_field
 
   !> A real, 3D field.
   type, public, extends(field_type) :: r3d_field
-     integer :: ntiles
-     !> The dimensions of the (2D) tiles into which the field
-     !! is sub-divided.
-     type(tile_type), dimension(:), allocatable :: tile
      !> Array holding the actual field values
      real(wp), dimension(:,:,:), allocatable :: data
   end type r3d_field
@@ -162,10 +162,11 @@ contains
     type(grid_type), intent(in), target  :: grid
     ! Local declarations
     type(r1d_field) :: self
+    character(len=8) :: fld_type
     integer :: ierr
 
     ! Set this field's grid pointer to point to the grid pointed to
-    ! by the supplied grid_ptr argument
+    ! by the supplied grid argument
     self%grid => grid
 
     ! A 1D field is currently assumed to be over levels
@@ -174,6 +175,15 @@ contains
        call gocean_stop('r1d_field_constructor: ERROR: failed to '// &
                         'allocate field')
     end if
+
+    !> The data associated with this device is currently local
+    !! to where we're executing
+    self%data_on_device = .FALSE.
+
+    ! Set-up the limits of the 'internal' region of this field
+    !> \todo Specify the type of grid-points for such a field or remove
+    !! 3rd argument if not relevant.
+    call set_field_bounds(self,fld_type,-1)
 
   end function r1d_field_constructor
 
@@ -197,7 +207,7 @@ contains
     integer :: upper_x_bound, upper_y_bound
 
     ! Set this field's grid pointer to point to the grid pointed to
-    ! by the supplied grid_ptr argument
+    ! by the supplied grid argument
     self%grid => grid
 
     !> The data associated with this device is currently local
@@ -218,7 +228,8 @@ contains
     upper_x_bound = self%grid%nx
     upper_y_bound = self%grid%ny
 
-    write(*,"('Allocating ',(A),' field with bounds: (',I1,':',I3, ',',I1,':',I3,')')") &
+    write(*,"('Allocating ',(A),' field with bounds: (',"// &
+            "I1,':',I3, ',',I1,':',I3,')')") &
                TRIM(ADJUSTL(fld_type)), &
                1, upper_x_bound, 1, upper_y_bound
     write(*,"('Internal region is:(',I1,':',I3, ',',I1,':',I3,')' )") &
@@ -265,18 +276,105 @@ contains
                                  grid_points) result(self)
     implicit none
     ! Arguments
-    !> Pointer to the grid on which this field lives
+    !> The grid on which this field lives
     type(grid_type), intent(in), target  :: grid
     !> Which grid-point type the field is defined on
     integer,         intent(in)          :: grid_points
     ! Local declarations
     type(r3d_field) :: self
+    character(len=8) :: fld_type
+    integer :: ji, jj, jk, ierr
+
+    ! Store a pointer to the grid object
+    self%grid => grid
+
+    !> The data associated with this device is currently local
+    !! to where we're executing
+    self%data_on_device = .FALSE.
+
+    ! Set-up the limits of the 'internal' region of this field
+    !
+    call set_field_bounds(self,fld_type,grid_points)
+
+    call tile_setup(self)
+
+    allocate(self%data(1:self%grid%nx, 1:self%grid%ny, &
+                       1:self%grid%nlevels), Stat=ierr)
+    if(ierr /= 0)then
+       call gocean_stop('r3d_field_constructor: ERROR: failed to '// &
+                        'allocate field')
+    end if
+
+    ! Since we're allocating the arrays to be larger than strictly
+    ! required we explicitly set all elements to -999 in case the code
+    ! does access 'out-of-bounds' elements during speculative
+    ! execution. If we're running with OpenMP this also gives
+    ! us the opportunity to do a 'first touch' policy to aid with
+    ! memory<->thread locality...
+!$OMP PARALLEL DO schedule(runtime), default(none), &
+!$OMP private(ji,jj,jk), shared(self)
+    do jk = 1, self%grid%nlevels, 1
+       do jj = 1, self%grid%ny, 1
+          do ji = 1, self%grid%nx, 1
+             self%data(ji,jj,jk) = -999.0
+          end do
+       end do
+    end do
+!$OMP END PARALLEL DO
 
   end function r3d_field_constructor
 
   !===================================================
 
   subroutine set_field_bounds(fld, fld_type, grid_points)
+    implicit none
+    !> The field we're working on. We use class as we want this
+    ! to be polymorphic as this routine doesn't care whether the
+    ! field is 1/2/3D and whether it is tiled or not.
+    class(field_type), intent(inout) :: fld
+    !> Which grid-point type the field is defined on
+    integer,          intent(in)    :: grid_points
+    !> Character string describing the grid-point type
+    character(len=8), intent(out)   :: fld_type
+
+    select type(fld)
+       type is(r1d_field)
+          call set_field_bounds_1d(fld, grid_points)
+          WRITE (fld_type, "('1D-Z')")
+       type is(r2d_field)
+          call set_field_bounds_2d(fld, fld_type, grid_points)
+       type is(r3d_field)
+          call set_field_bounds_2d(fld, fld_type, grid_points)
+          call set_field_bounds_1d(fld, grid_points)
+    end select
+
+  end subroutine set_field_bounds
+
+  !===================================================
+
+  subroutine set_field_bounds_1d(fld, grid_points)
+    implicit none
+    !> The field we're working on. We use class as we want this
+    ! to be polymorphic as this routine doesn't care whether the
+    ! field is tiled or not.
+    class(field_type), intent(inout) :: fld
+    !> Which grid-point type the field is defined on
+    integer,          intent(in)    :: grid_points
+
+    fld%whole%nz = fld%grid%nlevels
+    fld%whole%zstart = 1
+    fld%whole%zstop = fld%whole%nz
+    ! Assume that the surface and bottom levels are boundaries
+    ! and therefore not part of the 'internal' region
+    fld%internal%zstart = 2
+    fld%internal%zstop = fld%whole%zstop - 1
+    fld%internal%nz = fld%internal%zstop - fld%internal%zstart + 1
+
+  end subroutine set_field_bounds_1d
+
+  !===================================================
+
+  subroutine set_field_bounds_2d(fld, fld_type, grid_points)
     implicit none
     !> The field we're working on. We use class as we want this
     ! to be polymorphic as this routine doesn't care whether the
@@ -337,7 +435,7 @@ contains
     fld%whole%nx = fld%whole%xstop - fld%whole%xstart + 1
     fld%whole%ny = fld%whole%ystop - fld%whole%ystart + 1
 
-  end subroutine set_field_bounds
+  end subroutine set_field_bounds_2d
 
   !===================================================
 
@@ -1100,8 +1198,8 @@ contains
   SUBROUTINE tile_setup(fld, nx_arg, ny_arg)
     use omp_lib, only: omp_get_max_threads
     implicit none
-    !> Dimensions of the model mesh
-    type(r2d_field), intent(inout) :: fld
+    !> The field to set-up tiles for. Can be 2- or 3D.
+    class(field_type), intent(inout) :: fld
     !> Optional specification of the dimensions of the tiling grid
     integer, intent(in), optional :: nx_arg, ny_arg
     integer :: nx, ny
