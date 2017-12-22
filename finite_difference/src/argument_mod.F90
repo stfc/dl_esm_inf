@@ -20,18 +20,18 @@ private
 
 enum, bind(c) 
    ! The following value is valid for any arg.
-   enumerator :: READ
+   enumerator :: GO_READ
    ! The following values are only valid for fields.
-   enumerator :: WRITE, READWRITE, INC
+   enumerator :: GO_WRITE, GO_READWRITE, GO_INC
    ! The following values are only valid for globals.
-   enumerator :: MIN, MAX, SUM
+   enumerator :: GO_MIN, GO_MAX, GO_SUM
 end enum
 
   !args(fs,stencil,arg_intent) ! this need defining
 type :: arg
-  integer(kind(READ)) :: arg_intent
+  integer :: arg_intent
   integer :: element
-  integer(kind(FE)) :: stencil=0
+  integer :: stencil=0
 end type arg
 
 
@@ -40,8 +40,8 @@ end type arg
 !-------------------------------------------------------------------------------
 
 ! Types to enable declarations of elements.
-integer, public, parameter :: R_SCALAR=0, I_SCALAR=1
-integer, public, parameter :: EVERY=1
+integer, public, parameter :: GO_R_SCALAR=0, GO_I_SCALAR=1
+integer, public, parameter :: GO_EVERY=1
 ! The four types of grid-point on an Arakawa C-grid
 integer, public, parameter :: CU=1, CV=2, CT=3, CF=4
 ! Arguments that a kernel can request that are supported/provided by
@@ -80,8 +80,8 @@ integer, public, parameter :: GRID_DX_CONST = 14
 integer, public, parameter :: GRID_DY_CONST = 15
 
 public :: arg
-public :: READ, WRITE, READWRITE, INC
-public :: SUM, MIN, MAX
+public :: GO_READ, GO_WRITE, GO_READWRITE, GO_INC
+public :: GO_SUM, GO_MIN, GO_MAX
 
 !-------------------------------------------------------------------------------
 ! Member subroutines

@@ -16,17 +16,17 @@ module global_parameters_mod
   integer, parameter, public :: ALIGNMENT = 4
 
   ! Iteration spaces for kernels.
-  public :: CELLS, EDGES, VERTICES
+  public :: GO_CELLS, GO_EDGES, GO_VERTICES
   enum, bind(c)
      ! This is the 2D entity at the base of the columns over which the kernel
      !  is to iterate.
-     enumerator :: CELLS=2, EDGES=1, VERTICES=0
+     enumerator :: GO_CELLS=2, GO_EDGES=1, GO_VERTICES=0
   end enum
   
   ! Stencils for kernels
-  public :: FE
+  public :: GO_FE
   enum, bind(c)
-     enumerator :: FE
+     enumerator :: GO_FE
   end enum
   
 end module global_parameters_mod
