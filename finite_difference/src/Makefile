@@ -26,8 +26,5 @@ grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o
 
 halo_mod.o: region_mod.o
 
-%.o: %.f90
-	$(F90) $(F90FLAGS) -c $<
-
-%.o: %.F90
+%.o: %.[Ff]90
 	$(F90) $(F90FLAGS) -c $<
