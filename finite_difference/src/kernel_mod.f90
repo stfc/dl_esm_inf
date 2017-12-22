@@ -25,12 +25,12 @@ public GO_SUM, GO_MIN, GO_MAX
 !> These quantities should be defined somewhere in the lfric
 !! infrastructure but at the moment they are not!
 !! \todo Work out where POINTWISE and DOFS should be declared.
-integer, public, parameter :: GO_POINTWISE = 2, GO_DOFS = 5
+integer, public, parameter :: POINTWISE = 2, DOFS = 5
 
 !> The points in the domain that a kernel will update
-integer, public, parameter :: GO_INTERNAL_PTS = 0, &
-                              GO_EXTERNAL_PTS = 1, &
-                              GO_ALL_PTS = 2
+integer, public, parameter :: INTERNAL_PTS = 0, &
+                              EXTERNAL_PTS = 1, &
+                              ALL_PTS = 2
 
 !> The type of grid that a kernel is written to operate on.
 !! NEMO uses an orthogonal, curvilinear mesh while
