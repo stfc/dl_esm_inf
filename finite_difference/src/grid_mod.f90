@@ -49,13 +49,19 @@ module grid_mod
      !> Extent of T-point grid in x. Note that this is the whole grid,
      !! not just the region that is simulated.
      integer :: nx
+     !> Extent in x of the grid held on the local PE
+     integer :: nx_local
      !> Extent of T-point grid in y. Note that this is the whole grid,
      !! not just the region that is simulated.
      integer :: ny
+     !> Extent in y of the grid held on the local PE
+     integer :: ny_local
      !> Grid spacing in x (m)
      real(wp) :: dx
      !> Grid spacing in y (m)
      real(wp) :: dy
+     !> Position in global mesh of bottom left corner of local domain
+     integer :: xidx_global, yidx_global
 
      !> Nature of each T point: 1 == wet inside simulated region
      !!                         0 == land
