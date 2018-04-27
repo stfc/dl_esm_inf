@@ -127,8 +127,8 @@ contains
     return
   end function get_tmask
 
-  !> Basic constructor for the grid type. Full details
-  !! are fleshed-out by the grid_init() routine.
+  !> Basic constructor for the grid type. Full details, including domain
+  !! decomposition, are fleshed-out by the grid_init() routine.
   function grid_constructor(grid_name, &
                             boundary_conditions, grid_offsets) result(self)
     implicit none
@@ -222,6 +222,8 @@ contains
   !!                  supplied if domain is all wet and has PBCs.
   subroutine grid_init(grid, m, n, dxarg, dyarg, tmask)
     use global_parameters_mod, only: ALIGNMENT
+    use tile_mod, only: tile_type
+    use parallel_mod
     implicit none
     type(grid_type), intent(inout) :: grid
     integer,         intent(in)    :: m, n
@@ -233,15 +235,22 @@ contains
     integer :: ji, jj
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
+    type(tile_type), allocatable, target :: tile_list(:)
+    type(tile_type), pointer :: my_tile
+    integer :: rank
 
     ! Store the global dimensions of the grid.
     if( present(tmask) )then
-       ! A T-mask has been supplied and that tells us everything
+       ! A global T-mask has been supplied and that tells us everything
        ! about the extent of this model.
        ! Extend the domain by unity in each dimension to allow
        ! for staggering of variables. All fields will be
        ! allocated with extent (nx,ny).
-       mlocal = m + 1
+       tile_list = decompose(m, n)
+       rank = get_rank()
+       my_tile => tile_list(rank+1)
+
+       mlocal = my_tile%whole%nx + 1
        if( mod(mlocal, ALIGNMENT) > 0 )then
           ! Since this is the dimension of the array and not that of
           ! the internal region, we add two lots of 'ALIGNMENT'. This
@@ -252,7 +261,7 @@ contains
        else
           grid%nx = mlocal
        end if
-       grid%ny = n + 1
+       grid%ny = my_tile%whole%ny + 1
     else
        ! No T-mask has been supplied so we assume we're implementing
        ! periodic boundary conditions and allow for halos of width
@@ -262,7 +271,7 @@ contains
        ! E/W halos and one of the N/S halos are required. However,
        ! that is an optimisation and this framework must be developed
        ! in such a way that that optimisation is supported.
-       mlocal = m + 2*HALO_WIDTH_X
+       mlocal = my_tile%whole%nx !+ 2*HALO_WIDTH_X
        if( mod(mlocal, ALIGNMENT) > 0 )then
           ! Since this is the dimension of the array and not that of
           ! the internal region, we add two lots of 'ALIGNMENT'. This
@@ -274,37 +283,38 @@ contains
           grid%nx = mlocal
        end if
 
-       grid%ny = n + 2*HALO_WIDTH_Y
+       grid%ny = my_tile%whole%ny !+ 2*HALO_WIDTH_Y
     end if
 
     ! Copy-in the externally-supplied T-mask, if any. If using OpenMP
     ! then apply first-touch policy for data locality.
     if( present(tmask) )then
-       allocate(grid%tmask(grid%nx,grid%ny), stat=ierr(1))
+       allocate(grid%tmask(grid%nx, grid%ny), stat=ierr(1))
        if( ierr(1) /= 0 )then
           call gocean_stop('grid_init: failed to allocate array for T mask')
        end if
 !$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
 !$OMP shared(m, n, grid, tmask)
        do jj = 1, n
-          grid%tmask(1:m,jj) = tmask(1:m,jj)
+          grid%tmask(1:mlocal,jj) = tmask(my_tile%whole%xstart:my_tile%whole%xstop, &
+                                     my_tile%whole%ystart+jj-1)
           ! Our saved mask is padded for alignment purposes so set
           ! any additional points to be outside the domain
-          do ji = m+1, grid%nx
-             grid%tmask(ji,jj) = tmask(m,jj)
+          do ji = mlocal+1, grid%nx
+             grid%tmask(ji,jj) = tmask(mlocal,jj)
           end do
        end do
 !$OMP END PARALLEL DO
        ! Additional rows
        do jj = n+1, grid%ny
-          do ji = 1, m
+          do ji = 1, mlocal
              grid%tmask(ji, jj) = tmask(ji, n)
           end do
        end do
        ! Additional corner points
        do jj = n+1, grid%ny
-          do ji = m+1, grid%nx
-             grid%tmask(ji,jj) = tmask(m,n)
+          do ji = mlocal+1, grid%nx
+             grid%tmask(ji, jj) = tmask(mlocal, n)
           end do
        end do
     else
@@ -320,7 +330,7 @@ contains
     ! Use the T mask to determine the dimensions of the
     ! internal, simulated region of the grid.
     ! This call sets grid%simulation_domain.
-    call compute_internal_region(grid, m, n)
+    call compute_internal_region(grid, mlocal, n)
 
     ! For a regular, orthogonal mesh the spatial resolution is constant
     grid%dx = dxarg
