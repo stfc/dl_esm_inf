@@ -42,6 +42,8 @@ module parallel_mod
   !> Total no. of MPI processes
   integer :: nranks
 
+  public parallel_init, parallel_finalise
+
 contains
 
   !================================================
