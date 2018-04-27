@@ -119,11 +119,12 @@ contains
        if(.not. present(ndomainx) .and. .not. present(ndomainy))then
           ! Automatically use the number of MPI processes
           ndom = nranks
-       else if(.not. present(ndomainx) .or. .not. present(ndomainy))then
+       else if(present(ndomainx) .and. present(ndomainy))then
+          ndom = ndomainx * ndomainy
+          auto_tile = .FALSE.
+       else
           call parallel_abort('decompose: invalid arguments supplied')
        end if
-       ndom = ndomainx * ndomainy
-       auto_tile = .FALSE.
     else
        ndom = ndomains
        auto_tile = .TRUE.
