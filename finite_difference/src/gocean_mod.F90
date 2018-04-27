@@ -18,7 +18,10 @@ contains
 #if _OPENACC
     use openacc
 #endif
+    use parallel_mod, only: parallel_init
     implicit none
+
+    call parallel_init()
 
 #if _OPENACC
     call acc_init(acc_device_nvidia)
@@ -27,16 +30,14 @@ contains
 
   !===================================================
 
-  !> Stop the model run. Currently simply does
-  !! a Fortran STOP.
+  !> Stop the model run. Passes message on down to parallel_abort().
   !! @param[in] msg Message to print - reason we're stopping
   subroutine gocean_stop(msg)
-    use iso_fortran_env, only : error_unit ! access computing environment
+    use parallel_mod, only: parallel_abort
     implicit none
     character(len=*), intent(in) :: msg
 
-    write(error_unit, *) msg
-    stop 1
+    call parallel_abort(msg)
 
   end subroutine gocean_stop
 

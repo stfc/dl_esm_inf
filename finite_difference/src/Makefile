@@ -24,6 +24,8 @@ argument_mod.o: global_parameters_mod.o
 field_mod.o: kind_params_mod.o tile_mod.o grid_mod.o \
              halo_mod.o region_mod.o gocean_mod.o
 
+gocean_mod.o: parallel_mod.o
+
 grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o parallel_mod.o
 
 halo_mod.o: region_mod.o

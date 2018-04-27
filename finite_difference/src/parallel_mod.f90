@@ -42,7 +42,7 @@ module parallel_mod
   !> Total no. of MPI processes
   integer :: nranks
 
-  public parallel_init, parallel_finalise, decompose
+  public parallel_init, parallel_finalise, parallel_abort, decompose
   public get_rank
 
 contains
@@ -120,7 +120,7 @@ contains
           ! Automatically use the number of MPI processes
           ndom = nranks
        else if(.not. present(ndomainx) .or. .not. present(ndomainy))then
-          call gocean_stop('decompose: invalid arguments supplied')
+          call parallel_abort('decompose: invalid arguments supplied')
        end if
        ndom = ndomainx * ndomainy
        auto_tile = .FALSE.
@@ -131,7 +131,7 @@ contains
 
     allocate(subdomains(ndom), Stat=ierr)
     if(ierr /= 0)then
-       call gocean_stop('decompose: failed to allocate tiles array')
+       call parallel_abort('decompose: failed to allocate tiles array')
     end if
 
     xlen = domainx
@@ -338,5 +338,19 @@ contains
 !!$    end if
 
   end function decompose
+
+  !> Stop a parallel model run. Currently simply does
+  !! an MPI abort.
+  !! @param[in] msg Message to print - reason we're stopping
+  subroutine parallel_abort(msg)
+    use iso_fortran_env, only : error_unit ! access computing environment
+    implicit none
+    character(len=*), intent(in) :: msg
+    integer :: ierr
+
+    write(error_unit, *) msg
+    call mpi_abort(comm, 1, ierr)
+
+  end subroutine parallel_abort
 
 end module parallel_mod
