@@ -204,9 +204,6 @@ contains
        iunder = 0
     END IF
 
-    ! For AVX (256-bit vector) instructions, I think we want
-    ! MOD(idx,4) == 0 idx = idx + (4 - MOD(idx,4))
-
     if(print_tiles)then
        WRITE(*,"('Tile width = ',I4,', tile height = ',I4)") &
             internal_width, internal_height
@@ -323,17 +320,18 @@ contains
        jval = subdomains(ith-1)%ystop + 1
     END DO
 
-!!$    ! Print tile-size statistics
-!!$    if(print_tiles)then
-!!$       WRITE(*,"(/'Mean tile size = ',F8.1,' pts = ',F7.1,' KB')") &
-!!$            REAL(nvects_sum)/REAL(fld%ntiles), &
-!!$            REAL(8*nvects_sum)/REAL(fld%ntiles*1024)
-!!$       WRITE(*,"('Min,max tile size (pts) = ',I6,',',I6)") nvects_min,nvects_max
-!!$       WRITE(*,"('Tile load imbalance (%) =',F6.2)") &
-!!$            100.0*(nvects_max-nvects_min)/REAL(nvects_min)
-!!$       WRITE (*,"('Max tile dims are ',I4,'x',I4/)") max_tile_width, &
-!!$            max_tile_height
-!!$    end if
+    ! Print tile-size statistics
+    if(print_tiles)then
+       WRITE(*,"(/'Mean sub-domain size = ',F8.1,' pts = ',F7.1,' KB')") &
+            REAL(nvects_sum)/REAL(ndom), &
+            REAL(8*nvects_sum)/REAL(ndom*1024)
+       WRITE(*,"('Min,max sub-domain size (pts) = ',I6,',',I6)") &
+            nvects_min, nvects_max
+       WRITE(*,"('Domain load imbalance (%) =',F6.2)") &
+            100.0*(nvects_max-nvects_min)/REAL(nvects_min)
+       WRITE (*,"('Max sub-domain dims are ',I4,'x',I4/)") max_tile_width, &
+            max_tile_height
+    end if
 
   end function decompose
 
