@@ -37,7 +37,7 @@ module parallel_mod
 
   !> Our MPI communicator
   integer :: comm
-  !> MPI rank of current process
+  !> MPI rank + 1 of current process
   integer :: rank
   !> Total no. of MPI processes
   integer :: nranks
@@ -56,7 +56,8 @@ contains
     call mpi_comm_size(comm, nranks, mpierr)
     call mpi_comm_rank(comm, rank, mpierr)
 
-    if(rank == 0)then
+    rank = rank + 1
+    if(rank == 1)then
        write (*,*) "Number of MPI ranks: ", nranks
     end if
   end subroutine parallel_init
@@ -78,14 +79,14 @@ contains
   function decompose(domainx, domainy,   &
                      ndomains, ndomainx, &
                      ndomainy) result(subdomains)
-    use tile_mod, only: tile_type
+    use subdomain_mod, only: subdomain_type
     implicit none
     !! Decompose a domain consisting of domainx x domainy points
     !! into a 2D grid.
     !! Returns an array of tiles describing each of the subdomains.
     
     !> The array of tiles this function will return
-    type(tile_type), allocatable :: subdomains(:)
+    type(subdomain_type), allocatable :: subdomains(:)
     !> Dimensions of the domain to decompose
     integer, intent(in) :: domainx, domainy
     !> No. of domains to decompose into
@@ -102,7 +103,7 @@ contains
     INTEGER :: iover, iunder, width
     ! For doing stats on tile sizes
     INTEGER :: nvects, nvects_sum, nvects_min, nvects_max 
-    LOGICAL, PARAMETER :: print_tiles = .FALSE.
+    LOGICAL, PARAMETER :: print_tiles = .TRUE.
     ! Whether to automatically compute the dimensions of the tiling grid
     logical :: auto_tile
     integer :: xlen, ylen
@@ -119,6 +120,7 @@ contains
        if(.not. present(ndomainx) .and. .not. present(ndomainy))then
           ! Automatically use the number of MPI processes
           ndom = nranks
+          auto_tile = .TRUE.
        else if(present(ndomainx) .and. present(ndomainy))then
           ndom = ndomainx * ndomainy
           auto_tile = .FALSE.
@@ -276,54 +278,49 @@ contains
 
           subdomains(ith)%internal%xstart = halo_width+1
           subdomains(ith)%internal%xstop = &
-                    MIN(subdomains(ith)%internal%xstart+width-1, domainx)
+                                 subdomains(ith)%internal%xstart+width-1
           subdomains(ith)%internal%nx = subdomains(ith)%internal%xstop - &
                                         subdomains(ith)%internal%xstart + 1
           ! Which part of the global domain this represents
-          subdomains(ith)%whole%xstart = ival
-          subdomains(ith)%whole%nx  = 2*halo_width + subdomains(ith)%internal%nx
-          subdomains(ith)%whole%xstop = min(ival+subdomains(ith)%whole%nx-1, &
-                                            domainx)
+          subdomains(ith)%xstart = ival
+          subdomains(ith)%xstop = ival + subdomains(ith)%internal%nx - 1
+          subdomains(ith)%nx  = 2*halo_width + subdomains(ith)%internal%nx
 
           subdomains(ith)%internal%ystart = halo_width+1
           subdomains(ith)%internal%ystop = &
-                    MIN(subdomains(ith)%internal%ystart+height-1, domainy)
-          subdomains(ith)%internal%nx = subdomains(ith)%internal%ystop - &
+                    subdomains(ith)%internal%ystart+height-1
+          subdomains(ith)%internal%ny = subdomains(ith)%internal%ystop - &
                                         subdomains(ith)%internal%ystart + 1
           ! Which part of the global domain this represents
-          subdomains(ith)%whole%ystart = jval
-          subdomains(ith)%whole%ny  = 2*halo_width + subdomains(ith)%internal%ny
-          subdomains(ith)%whole%ystop  = min(jval+subdomains(ith)%whole%ny-1, &
-                                             domainy)
+          subdomains(ith)%ystart = jval
+          subdomains(ith)%ystop = jval + subdomains(ith)%internal%ny - 1
+          subdomains(ith)%ny = 2*halo_width + subdomains(ith)%internal%ny
 
           IF(print_tiles)THEN
-             WRITE(*,"('tile[',I4,'](',I4,':',I4,')(',I4,':',I4,'), "// &
+             WRITE(*,"('subdomain[',I4,'](',I4,':',I4,')(',I4,':',I4,'), "// &
                   & "interior:(',I4,':',I4,')(',I4,':',I4,') ')")       &
                   ith,                                                  &
-                  subdomains(ith)%whole%xstart, subdomains(ith)%whole%xstop,       &
-                  subdomains(ith)%whole%ystart, subdomains(ith)%whole%ystop,       &
+                  subdomains(ith)%xstart, subdomains(ith)%xstop,        &
+                  subdomains(ith)%ystart, subdomains(ith)%ystop,        &
                   subdomains(ith)%internal%xstart, subdomains(ith)%internal%xstop, &
                   subdomains(ith)%internal%ystart, subdomains(ith)%internal%ystop
           END IF
 
           ! Collect some data on the distribution of tile sizes for 
           ! loadbalance info
-          nvects = (subdomains(ith)%internal%xstop - subdomains(ith)%internal%xstart + 1) &
-                  * (subdomains(ith)%internal%ystop - subdomains(ith)%internal%ystart + 1)
+          nvects = subdomains(ith)%internal%nx * subdomains(ith)%internal%ny
           nvects_sum = nvects_sum + nvects
           nvects_min = MIN(nvects_min, nvects)
           nvects_max = MAX(nvects_max, nvects)
 
           ! For use when allocating tile-'private' work arrays
-          max_tile_width  = MAX(max_tile_width, &
-                  (subdomains(ith)%whole%xstop - subdomains(ith)%whole%xstart + 1) )
-          max_tile_height = MAX(max_tile_height, &
-                  (subdomains(ith)%whole%ystop - subdomains(ith)%whole%ystart + 1) )
+          max_tile_width  = MAX(max_tile_width, subdomains(ith)%nx)
+          max_tile_height = MAX(max_tile_height, subdomains(ith)%ny)
 
-          ival = subdomains(ith)%whole%xstop
+          ival = subdomains(ith)%xstop + 1
           ith = ith + 1
        END DO
-       jval = subdomains(ith-1)%whole%ystop
+       jval = subdomains(ith-1)%ystop + 1
     END DO
 
 !!$    ! Print tile-size statistics

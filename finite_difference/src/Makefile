@@ -8,6 +8,7 @@ MODULES = argument_mod.o \
           field_mod.o \
           region_mod.o \
           tile_mod.o \
+          subdomain_mod.o \
           parallel_mod.o
 
 all: ${API_LIB}
@@ -26,13 +27,15 @@ field_mod.o: kind_params_mod.o tile_mod.o grid_mod.o \
 
 gocean_mod.o: parallel_mod.o
 
-grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o parallel_mod.o
+grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o parallel_mod.o subdomain_mod.o
 
 halo_mod.o: region_mod.o
 
-parallel_mod.o: tile_mod.o
+parallel_mod.o: subdomain_mod.o
 
 tile_mod.o: region_mod.o
+
+subdomain_mod.o: region_mod.o
 
 %.o: %.f90
 	$(F90) $(F90FLAGS) -c $<
