@@ -2,6 +2,7 @@ module grid_mod
   use kind_params_mod
   use region_mod
   use gocean_mod
+  use subdomain_mod
   implicit none
 
   private
@@ -44,24 +45,16 @@ module grid_mod
      !> Specifies the convention by which grid-point
      !! types are indexed relative to a T point.
      integer :: offset
-     !> Total number of grid points
-     integer :: npts
      !> Extent of T-point grid in x. Note that this is the whole grid,
      !! not just the region that is simulated.
      integer :: nx
-     !> Extent in x of the grid held on the local PE
-     integer :: nx_local
      !> Extent of T-point grid in y. Note that this is the whole grid,
      !! not just the region that is simulated.
      integer :: ny
-     !> Extent in y of the grid held on the local PE
-     integer :: ny_local
      !> Grid spacing in x (m)
      real(wp) :: dx
      !> Grid spacing in y (m)
      real(wp) :: dy
-     !> Position in global mesh of bottom left corner of local domain
-     integer :: xidx_global, yidx_global
 
      !> Nature of each T point: 1 == wet inside simulated region
      !!                         0 == land
@@ -80,9 +73,9 @@ module grid_mod
      !! conditions.
      integer, dimension(3) :: boundary_conditions
 
-     !> Where on the grid our simulated domain sits.
-     !! \todo Decide whether this is useful.
-     type(region_type) :: simulation_domain
+     !> The definition of the subdomain that this process is
+     !! responsible for
+     type(subdomain_type) :: subdomain
 
      !> Horizontal scale factors at t point (m)
      real(wp), allocatable :: dx_t(:,:), dy_t(:,:)
@@ -218,11 +211,11 @@ contains
   !! @param[in] dxarg Grid spacing in x dimension
   !! @param[in] dyarg Grid spacing in y dimension
   !! @param[in] tmask Array holding the T-point mask which defines
-  !!                  the contents of the domain. Need not be
+  !!                  the contents of the global domain. Need not be
   !!                  supplied if domain is all wet and has PBCs.
   subroutine grid_init(grid, m, n, dxarg, dyarg, tmask)
     use global_parameters_mod, only: ALIGNMENT
-    use tile_mod, only: tile_type
+    use subdomain_mod, only: subdomain_type
     use parallel_mod
     implicit none
     type(grid_type), intent(inout) :: grid
@@ -235,22 +228,27 @@ contains
     integer :: ji, jj
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
-    type(tile_type), allocatable, target :: tile_list(:)
-    type(tile_type), pointer :: my_tile
+    integer :: localj, globalj
+    type(subdomain_type), allocatable :: tile_list(:)
     integer :: rank
+
+    ! Work out the decomposition (uses the number of MPI ranks by
+    ! default)
+    tile_list = decompose(m, n)
+
+    rank = get_rank()
+    ! Take a copy of this process' subdomain definition
+    grid%subdomain = tile_list(rank)
 
     ! Store the global dimensions of the grid.
     if( present(tmask) )then
        ! A global T-mask has been supplied and that tells us everything
        ! about the extent of this model.
+
        ! Extend the domain by unity in each dimension to allow
        ! for staggering of variables. All fields will be
        ! allocated with extent (nx,ny).
-       tile_list = decompose(m, n)
-       rank = get_rank()
-       my_tile => tile_list(rank+1)
-
-       mlocal = my_tile%whole%nx + 1
+       mlocal = grid%subdomain%nx + 1
        if( mod(mlocal, ALIGNMENT) > 0 )then
           ! Since this is the dimension of the array and not that of
           ! the internal region, we add two lots of 'ALIGNMENT'. This
@@ -261,7 +259,7 @@ contains
        else
           grid%nx = mlocal
        end if
-       grid%ny = my_tile%whole%ny + 1
+       grid%ny = grid%subdomain%ny + 1
     else
        ! No T-mask has been supplied so we assume we're implementing
        ! periodic boundary conditions and allow for halos of width
@@ -271,7 +269,7 @@ contains
        ! E/W halos and one of the N/S halos are required. However,
        ! that is an optimisation and this framework must be developed
        ! in such a way that that optimisation is supported.
-       mlocal = my_tile%whole%nx !+ 2*HALO_WIDTH_X
+       mlocal = grid%subdomain%nx
        if( mod(mlocal, ALIGNMENT) > 0 )then
           ! Since this is the dimension of the array and not that of
           ! the internal region, we add two lots of 'ALIGNMENT'. This
@@ -283,7 +281,7 @@ contains
           grid%nx = mlocal
        end if
 
-       grid%ny = my_tile%whole%ny !+ 2*HALO_WIDTH_Y
+       grid%ny = grid%subdomain%ny
     end if
 
     ! Copy-in the externally-supplied T-mask, if any. If using OpenMP
@@ -294,29 +292,24 @@ contains
           call gocean_stop('grid_init: failed to allocate array for T mask')
        end if
 !$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
-!$OMP shared(m, n, grid, tmask)
-       do jj = 1, n
-          grid%tmask(1:mlocal,jj) = tmask(my_tile%whole%xstart:my_tile%whole%xstop, &
-                                     my_tile%whole%ystart+jj-1)
-          ! Our saved mask is padded for alignment purposes so set
-          ! any additional points to be outside the domain
-          do ji = mlocal+1, grid%nx
-             grid%tmask(ji,jj) = tmask(mlocal,jj)
+!$OMP shared(grid, tmask)
+       do jj = 1, grid%ny
+          do ji = 1, grid%nx
+             ! Initially flag all points as being outside the domain
+             grid%tmask(ji,jj) = -1
           end do
+       end do
+
+!$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
+!$OMP shared(m, n, grid, tmask)
+       do jj = 1, grid%subdomain%internal%ny
+          localj = grid%subdomain%internal%ystart + jj - 1
+          globalj = grid%subdomain%ystart + jj - 1
+          grid%tmask(grid%subdomain%internal%xstart: &
+                     grid%subdomain%internal%xstop, localj) = &
+               tmask(grid%subdomain%xstart:grid%subdomain%xstop, globalj)
        end do
 !$OMP END PARALLEL DO
-       ! Additional rows
-       do jj = n+1, grid%ny
-          do ji = 1, mlocal
-             grid%tmask(ji, jj) = tmask(ji, n)
-          end do
-       end do
-       ! Additional corner points
-       do jj = n+1, grid%ny
-          do ji = mlocal+1, grid%nx
-             grid%tmask(ji, jj) = tmask(mlocal, n)
-          end do
-       end do
     else
        ! No T-mask supplied. Check that grid has PBCs in both
        ! x and y dimensions otherwise we won't know what to do.
@@ -411,12 +404,13 @@ contains
        end do
     end do
 
-    xstart = grid%simulation_domain%xstart
-    xstop  = grid%simulation_domain%xstop
-    ystart = grid%simulation_domain%ystart
-    ystop  = grid%simulation_domain%ystop
-    grid%xt(xstart, :) = 0.0_wp + 0.5_wp * grid%dx_t(xstart,:)
-    grid%yt(:,ystart)  = 0.0_wp + 0.5_wp * grid%dy_t(:,ystart)
+    xstart = grid%subdomain%internal%xstart
+    xstop  = grid%subdomain%internal%xstop
+    ystart = grid%subdomain%internal%ystart
+    ystop  = grid%subdomain%internal%ystop
+
+    grid%xt(xstart, :) = (grid%subdomain%xstart - 0.5_wp) * grid%dx_t(xstart,:)
+    grid%yt(:,ystart)  = (grid%subdomain%ystart - 0.5_wp) * grid%dy_t(:,ystart)
 
     DO ji = xstart+1, xstop
       grid%xt(ji,ystart:ystop) = grid%xt(ji-1, ystart:ystop) + grid%dx
@@ -430,13 +424,13 @@ contains
 
   !================================================
 
-  !> Use the T-mask to deduce the inner or simulated region
+  !> Use the global T-mask to deduce the inner or simulated region
   !! of the supplied grid.
   subroutine compute_internal_region(grid, morig, norig)
     implicit none
     type(grid_type), intent(inout) :: grid
     !> The original dimensions of the supplied T-mask (before we
-    !! padded for alignment). This is a bit of a hack to the 
+    !! padded for alignment and decomposed). This is a bit of a hack to the 
     !! interface but it will do for now (in the absence of an 
     !! algorithm to determine the internal region).
     integer,         intent(in) :: morig, norig
@@ -463,37 +457,55 @@ contains
        !> \todo Generate the bounds of the simulation domain by
        !! examining the T-point mask.
        ! This defines the internal region of any T-point field.
-       grid%simulation_domain%xstart = 2
-       grid%simulation_domain%xstop  = morig - 1
-       grid%simulation_domain%ystart = 2
-       grid%simulation_domain%ystop  = norig - 1
-
+!!$       if(grid%subdomain%xstart == 1)then
+!!$          grid%simulation_domain%xstart = grid%subdomain%xstart + 1
+!!$       else
+!!$          grid%simulation_domain%xstart = grid%subdomain%xstart
+!!$       endif
+!!$       if(grid%subdomain%xstop == morig)then
+!!$          grid%simulation_domain%xstop  = grid%subdomain%xstop - 1
+!!$       else
+!!$          grid%simulation_domain%xstop  = grid%subdomain%xstop
+!!$       endif
+!!$
+!!$       if(grid%subdomain%ystart == 1)then
+!!$          grid%simulation_domain%ystart = grid%subdomain%ystart + 1
+!!$       else
+!!$          grid%simulation_domain%ystart = grid%subdomain%ystart
+!!$       endif
+!!$       if(grid%subdomain%ystop == norig)then
+!!$          grid%simulation_domain%ystop  = grid%subdomain%ystop - 1
+!!$       else
+!!$          grid%simulation_domain%ystop  = grid%subdomain%ystop
+!!$       endif
+!!$
     else
-
-       ! We don't have a T mask so we must have PBCs in both x and y
-       ! dimensions. In this case, the grid dimensions stored in grid%{nx,ny}
-       ! may have been padded for alignment and so we use morig,norig from
-       ! the namelist file. These are taken to specify the dimension of the
-       ! *simulated* domain, excluding halos.
-       grid%simulation_domain%xstart = 2
-       grid%simulation_domain%xstop  = grid%simulation_domain%xstart + &
-                                         morig - 1
-       grid%simulation_domain%ystart = 2
-       grid%simulation_domain%ystop  = grid%simulation_domain%ystart + &
-                                         norig - 1
-
+!!$
+!!$       call gocean_stop("PBCs not implemented in parallel case yet!")
+!!$       ! We don't have a T mask so we must have PBCs in both x and y
+!!$       ! dimensions. In this case, the grid dimensions stored in grid%{nx,ny}
+!!$       ! may have been padded for alignment and so we use morig,norig from
+!!$       ! the namelist file. These are taken to specify the dimension of the
+!!$       ! *simulated* domain, excluding halos.
+!!$       grid%simulation_domain%xstart = 2
+!!$       grid%simulation_domain%xstop  = grid%simulation_domain%xstart + &
+!!$                                         morig - 1
+!!$       grid%simulation_domain%ystart = 2
+!!$       grid%simulation_domain%ystop  = grid%simulation_domain%ystart + &
+!!$                                         norig - 1
+!!$
     end if
-
-    grid%simulation_domain%nx =  grid%simulation_domain%xstop -  &
-                                 grid%simulation_domain%xstart + 1
-    grid%simulation_domain%ny =  grid%simulation_domain%ystop -  &
-                                 grid%simulation_domain%ystart + 1
-
-    write(*,"('GRID: Simulation domain = [',I4,':',I4,',',I4,':',I4,']')") &
-         grid%simulation_domain%xstart, &
-         grid%simulation_domain%xstop,  &
-         grid%simulation_domain%ystart, &
-         grid%simulation_domain%ystop
+!!$
+!!$    grid%simulation_domain%nx =  grid%simulation_domain%xstop -  &
+!!$                                 grid%simulation_domain%xstart + 1
+!!$    grid%simulation_domain%ny =  grid%simulation_domain%ystop -  &
+!!$                                 grid%simulation_domain%ystart + 1
+!!$
+!!$    write(*,"('GRID: Simulation domain = [',I4,':',I4,',',I4,':',I4,']')") &
+!!$         grid%simulation_domain%xstart, &
+!!$         grid%simulation_domain%xstop,  &
+!!$         grid%simulation_domain%ystart, &
+!!$         grid%simulation_domain%ystop
 
   end subroutine compute_internal_region
 

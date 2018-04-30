@@ -375,8 +375,8 @@ contains
        !  o  x  x  x  a  j=ystart
        !  a  a  a  a  a
 
-       fld%internal%xstart = fld%grid%simulation_domain%xstart
-       fld%internal%xstop  = fld%grid%simulation_domain%xstop
+       fld%internal%xstart = fld%grid%subdomain%internal%xstart
+       fld%internal%xstop  = fld%grid%subdomain%internal%xstop
     else
        ! When updating a quantity on U points with this offset convention
        ! we write to (using 'x' to indicate a location that is written,
@@ -389,12 +389,12 @@ contains
        !  o  b  x  x  b
        !  o  b  x  x  b
        !  o  b  b  b  b   j=1
-       fld%internal%xstart = fld%grid%simulation_domain%xstart + 1
-       fld%internal%xstop  = fld%grid%simulation_domain%xstop
+       fld%internal%xstart = fld%grid%subdomain%internal%xstart + 1
+       fld%internal%xstop  = fld%grid%subdomain%internal%xstop
     end if
 
-    fld%internal%ystart = fld%grid%simulation_domain%ystart
-    fld%internal%ystop  = fld%grid%simulation_domain%ystop
+    fld%internal%ystart = fld%grid%subdomain%internal%ystart
+    fld%internal%ystop  = fld%grid%subdomain%internal%ystop
 
     ! When applying periodic (wrap-around) boundary conditions (PBCs)
     ! we must fill the regions marked with 'b' above.
@@ -466,17 +466,17 @@ contains
       ! If we do not have periodic boundary conditions then we do
       ! not need to allow for boundary points here - they are
       ! already contained within the region defined by T mask.
-      ! The T mask has been used to determine the grid%simulation_domain
+      ! The T mask has been used to determine the grid%subdomain
       ! which describes the area on the grid that is actually being
       ! modelled (as opposed to having values supplied from B.C.'s etc.)
-      fld%internal%xstart = fld%grid%simulation_domain%xstart
-      fld%internal%xstop  = fld%grid%simulation_domain%xstop - 1
+      fld%internal%xstart = fld%grid%subdomain%internal%xstart
+      fld%internal%xstop  = fld%grid%subdomain%internal%xstop - 1
     else
       call gocean_stop('ERROR: cu_ne_init: implement periodic boundary conditions!')
     end if
     if(fld%grid%boundary_conditions(2) /= BC_PERIODIC)then
-      fld%internal%ystart = fld%grid%simulation_domain%ystart
-      fld%internal%ystop  = fld%grid%simulation_domain%ystop
+      fld%internal%ystart = fld%grid%subdomain%internal%ystart
+      fld%internal%ystop  = fld%grid%subdomain%internal%ystop
     else
       call gocean_stop('ERROR: cu_ne_init: implement periodic BCs!')
     end if
@@ -520,11 +520,11 @@ contains
        ! mesh point types have the same extents as the grid of
        ! T points. We then have a halo of width 1 on either side
        ! of the domain.
-       fld%internal%xstart = fld%grid%simulation_domain%xstart
-       fld%internal%xstop  = fld%grid%simulation_domain%xstop
+       fld%internal%xstart = fld%grid%subdomain%internal%xstart
+       fld%internal%xstop  = fld%grid%subdomain%internal%xstop
 
-       fld%internal%ystart = fld%grid%simulation_domain%ystart
-       fld%internal%ystop  = fld%grid%simulation_domain%ystop
+       fld%internal%ystart = fld%grid%subdomain%internal%ystart
+       fld%internal%ystop  = fld%grid%subdomain%internal%ystop
     else
        ! When updating a quantity on V points we write to:
        ! (using x to indicate a location that is written):
@@ -537,11 +537,11 @@ contains
        !  o  o  o  o   j=1
        ! We're not offset from the T points in the x dimension so
        ! we have the same x bounds.
-       fld%internal%xstart = fld%grid%simulation_domain%xstart
-       fld%internal%xstop  = fld%grid%simulation_domain%xstop
+       fld%internal%xstart = fld%grid%subdomain%internal%xstart
+       fld%internal%xstop  = fld%grid%subdomain%internal%xstop
 
-       fld%internal%ystart = fld%grid%simulation_domain%ystart + 1
-       fld%internal%ystop  = fld%grid%simulation_domain%ystop
+       fld%internal%ystart = fld%grid%subdomain%internal%ystart + 1
+       fld%internal%ystop  = fld%grid%subdomain%internal%ystop
        call gocean_stop('cv_sw_init: IMPLEMENT non-periodic BCs!')
     endif
 
@@ -603,15 +603,15 @@ contains
       ! If we do not have periodic boundary conditions then we do
       ! not need to allow for boundary points here - they are
       ! already contained within the region.
-      fld%internal%xstart = fld%grid%simulation_domain%xstart
-      fld%internal%xstop  = fld%grid%simulation_domain%xstop
+      fld%internal%xstart = fld%grid%subdomain%internal%xstart
+      fld%internal%xstop  = fld%grid%subdomain%internal%xstop
     else
       call gocean_stop('ERROR: cv_ne_init: implement periodic BCs!')
     end if
 
     if(fld%grid%boundary_conditions(2) /= BC_PERIODIC)then
-      fld%internal%ystart = fld%grid%simulation_domain%ystart
-      fld%internal%ystop  = fld%grid%simulation_domain%ystop - 1
+      fld%internal%ystart = fld%grid%subdomain%internal%ystart
+      fld%internal%ystop  = fld%grid%subdomain%internal%ystop - 1
     else
       call gocean_stop('ERROR: cv_ne_init: implement periodic BCs!')
     end if
@@ -656,10 +656,10 @@ contains
     !  b  x  x  b
     !  b  b  b  b   j=1
 
-    fld%internal%xstart = fld%grid%simulation_domain%xstart
-    fld%internal%xstop  = fld%grid%simulation_domain%xstop
-    fld%internal%ystart = fld%grid%simulation_domain%ystart
-    fld%internal%ystop  = fld%grid%simulation_domain%ystop
+    fld%internal%xstart = fld%grid%subdomain%internal%xstart
+    fld%internal%xstop  = fld%grid%subdomain%internal%xstop
+    fld%internal%ystart = fld%grid%subdomain%internal%ystart
+    fld%internal%ystop  = fld%grid%subdomain%internal%ystop
 
     ! When applying periodic (wrap-around) boundary conditions
     ! (PBCs) we must fill the regions marked with 'b' above.
@@ -706,8 +706,8 @@ contains
       ! already contained within the region.
       ! Start and stop are just the same as those calculated from the T mask
       ! earlier because this is a field on T points.
-      fld%internal%xstart = fld%grid%simulation_domain%xstart
-      fld%internal%xstop  = fld%grid%simulation_domain%xstop
+      fld%internal%xstart = fld%grid%subdomain%internal%xstart
+      fld%internal%xstop  = fld%grid%subdomain%internal%xstop
     else
       call gocean_stop('ERROR: ct_ne_init: implement periodic BCs!')
     end if
@@ -715,8 +715,8 @@ contains
     if(fld%grid%boundary_conditions(2) /= BC_PERIODIC)then
       ! Start and stop are just the same as those calculated from the T mask
       ! earlier because this is a field on T points.
-      fld%internal%ystart = fld%grid%simulation_domain%ystart
-      fld%internal%ystop  = fld%grid%simulation_domain%ystop
+      fld%internal%ystart = fld%grid%subdomain%internal%ystart
+      fld%internal%ystop  = fld%grid%subdomain%internal%ystop
     else
       call gocean_stop('ERROR: ct_ne_init: implement periodic BCs!')
     end if
@@ -762,22 +762,22 @@ contains
     !  o  b  b  b  b
     !  o  o  o  o  o   j=1
     if(fld%grid%boundary_conditions(1) == BC_PERIODIC)then
-       fld%internal%xstart = fld%grid%simulation_domain%xstart
-       fld%internal%xstop  = fld%internal%xstart + fld%grid%simulation_domain%nx - 1
+       fld%internal%xstart = fld%grid%subdomain%internal%xstart
+       fld%internal%xstop  = fld%grid%subdomain%internal%xstop !internal%xstart + fld%grid%simulation_domain%nx - 1
     else
-       fld%internal%xstart = fld%grid%simulation_domain%xstart + 1
-       fld%internal%xstop  = fld%grid%simulation_domain%xstop
+       fld%internal%xstart = fld%grid%subdomain%internal%xstart + 1
+       fld%internal%xstop  = fld%grid%subdomain%internal%xstop
        ! I think these are correct but we stop because I've not properly
        ! gone through the coding.
        call gocean_stop('cf_sw_init: CHECK non-periodic BCs!')
     end if
 
     if(fld%grid%boundary_conditions(2) == BC_PERIODIC)then
-       fld%internal%ystart = fld%grid%simulation_domain%ystart
-       fld%internal%ystop  = fld%internal%ystart + fld%grid%simulation_domain%ny - 1
+       fld%internal%ystart = fld%grid%subdomain%internal%ystart
+       fld%internal%ystop  = fld%grid%subdomain%internal%ystop !fld%internal%ystart + fld%grid%simulation_domain%ny - 1
     else
-       fld%internal%ystart = fld%grid%simulation_domain%ystart + 1
-       fld%internal%ystop  = fld%grid%simulation_domain%ystop
+       fld%internal%ystart = fld%grid%subdomain%internal%ystart + 1
+       fld%internal%ystop  = fld%grid%subdomain%internal%ystop
        ! I think these are correct but we stop because I've not properly
        ! gone through the coding.
        call gocean_stop('cf_sw_init: CHECK non-periodic BCs!')
@@ -829,16 +829,16 @@ contains
       ! If we do not have periodic boundary conditions then we do
       ! not need to allow for boundary points here - they are
       ! already contained within the region.
-      fld%internal%xstart = fld%grid%simulation_domain%xstart
-      fld%internal%xstop  = fld%grid%simulation_domain%xstop - 1
+      fld%internal%xstart = fld%grid%subdomain%internal%xstart
+      fld%internal%xstop  = fld%grid%subdomain%internal%xstop - 1
     else
       call gocean_stop('ERROR: cf_ne_init: implement periodic BCs!')
       stop
     end if
 
     if(fld%grid%boundary_conditions(2) /= BC_PERIODIC)then
-      fld%internal%ystart = fld%grid%simulation_domain%ystart
-      fld%internal%ystop  = fld%grid%simulation_domain%ystop - 1
+      fld%internal%ystart = fld%grid%subdomain%internal%ystart
+      fld%internal%ystop  = fld%grid%subdomain%internal%ystop - 1
     else
       call gocean_stop('ERROR: cf_ne_init: implement periodic BCs!')
     end if
