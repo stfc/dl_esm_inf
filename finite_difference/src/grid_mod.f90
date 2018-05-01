@@ -211,7 +211,7 @@ contains
   !! @param[in] dxarg Grid spacing in x dimension
   !! @param[in] dyarg Grid spacing in y dimension
   !! @param[in] tmask Array holding the T-point mask which defines
-  !!                  the contents of the global domain. Need not be
+  !!                  the contents of the local domain. Need not be
   !!                  supplied if domain is all wet and has PBCs.
   subroutine grid_init(grid, m, n, dxarg, dyarg, tmask)
     use global_parameters_mod, only: ALIGNMENT
@@ -231,14 +231,6 @@ contains
     integer :: localj, globalj
     type(subdomain_type), allocatable :: tile_list(:)
     integer :: rank
-
-    ! Work out the decomposition (uses the number of MPI ranks by
-    ! default)
-    tile_list = decompose(m, n)
-
-    rank = get_rank()
-    ! Take a copy of this process' subdomain definition
-    grid%subdomain = tile_list(rank)
 
     ! Store the global dimensions of the grid.
     if( present(tmask) )then
@@ -261,6 +253,9 @@ contains
        end if
        grid%ny = grid%subdomain%ny + 1
     else
+       if(get_num_ranks() > 1)then
+          call gocean_stop('grid_init: PBCs not yet implemented with MPI')
+       end if
        ! No T-mask has been supplied so we assume we're implementing
        ! periodic boundary conditions and allow for halos of width
        ! HALO_WIDTH_{X,Y} here.  Currently we put a halo on all four
