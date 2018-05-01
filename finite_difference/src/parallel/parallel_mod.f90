@@ -43,7 +43,7 @@ module parallel_mod
   integer :: nranks
 
   public parallel_init, parallel_finalise, parallel_abort
-  public get_rank
+  public get_rank, get_num_ranks
 
 contains
 
@@ -80,7 +80,7 @@ contains
   function get_num_ranks()
     integer :: get_num_ranks
     get_num_ranks = nranks
-  end function get_rank
+  end function get_num_ranks
 
   !================================================
 

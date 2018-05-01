@@ -21,6 +21,7 @@ contains
   function decompose(domainx, domainy,   &
                      ndomains, ndomainx, &
                      ndomainy) result(subdomains)
+    use parallel_mod, only: get_num_ranks, parallel_abort
     implicit none
     !! Decompose a domain consisting of domainx x domainy points
     !! into a 2D grid.
@@ -60,7 +61,7 @@ contains
     if(.not. present(ndomains))then
        if(.not. present(ndomainx) .and. .not. present(ndomainy))then
           ! Automatically use the number of MPI processes
-          ndom = nranks
+          ndom = get_num_ranks()
           auto_tile = .TRUE.
        else if(present(ndomainx) .and. present(ndomainy))then
           ndom = ndomainx * ndomainy

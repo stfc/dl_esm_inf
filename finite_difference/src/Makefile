@@ -16,6 +16,14 @@ all: ${API_LIB}
 ${API_LIB}: ${MODULES}
 	${AR} ${ARFLAGS} ${API_LIB} ${MODULES}
 
+.PHONY: parallel
+parallel:
+	ln -sf parallel/parallel_mod.f90 .
+
+.PHONY: fake_parallel
+fake_parallel:
+	ln -sf parallel/parallel_stub_mod.f90 parallel_mod.f90
+
 clean:
 	rm -f *.o *.mod *.a
 
@@ -31,7 +39,7 @@ grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o parallel_mod.o subdomain
 
 halo_mod.o: region_mod.o
 
-parallel_mod.o: subdomain_mod.o
+subdomain_mod.o: parallel_mod.o
 
 tile_mod.o: region_mod.o
 
