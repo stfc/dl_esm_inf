@@ -229,8 +229,6 @@ contains
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
     integer :: localj, globalj
-    type(subdomain_type), allocatable :: tile_list(:)
-    integer :: rank
 
     ! Store the global dimensions of the grid.
     if( present(tmask) )then

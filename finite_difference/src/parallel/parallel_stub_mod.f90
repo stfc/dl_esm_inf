@@ -35,9 +35,11 @@ module parallel_mod
   private
 
   !> MPI rank + 1 of current process
-  integer, parameter :: rank = 1
+  integer :: rank
   !> Total no. of MPI processes
-  integer, parameter :: nranks = 1
+  integer :: nranks
+  !> The dimensions of the (regular) processor grid
+  integer :: nprocx, nprocy
 
   public parallel_init, parallel_finalise, parallel_abort, decompose
   public get_rank
@@ -49,6 +51,10 @@ contains
   subroutine parallel_init()
 
     write (*,*) "parallel_init: Not running with MPI"
+    rank = 1
+    nranks = 1
+    nprocx = 1
+    nprocy = 1
 
   end subroutine parallel_init
 

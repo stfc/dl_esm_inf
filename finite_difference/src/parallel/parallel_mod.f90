@@ -41,6 +41,8 @@ module parallel_mod
   integer :: rank
   !> Total no. of MPI processes
   integer :: nranks
+  !> The dimensions of the (regular) processor grid
+  integer :: nprocx, nprocy
 
   public parallel_init, parallel_finalise, parallel_abort
   public get_rank, get_num_ranks
@@ -60,6 +62,12 @@ contains
     if(rank == 1)then
        write (*,*) "Number of MPI ranks: ", nranks
     end if
+
+    ! Initialise to meaningless values since we don't
+    ! yet know what our processor grid will look like.
+    nprocx = 0
+    nprocy = 0
+
   end subroutine parallel_init
 
   !================================================
