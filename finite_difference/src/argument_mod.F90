@@ -27,13 +27,15 @@ enum, bind(c)
    enumerator :: MIN, MAX, SUM
 end enum
 
+! Fake array to enable us to provide stencil meta-data in the args() array
+integer, public, parameter :: stencil(0:111,0:111,0:111) = 0
+
   !args(fs,stencil,arg_intent) ! this need defining
 type :: arg
   integer(kind(READ)) :: arg_intent
   integer :: element
-  integer(kind(FE)) :: stencil=0
+  integer :: stencil=0
 end type arg
-
 
 !-------------------------------------------------------------------------------
 ! Expose public types
