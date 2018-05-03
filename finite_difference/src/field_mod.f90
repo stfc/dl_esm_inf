@@ -149,6 +149,7 @@ contains
 
   function r2d_field_constructor(grid,    &
                                  grid_points) result(self)
+    use subdomain_mod, only: decompose, subdomain_type
     implicit none
     ! Arguments
     !> Pointer to the grid on which this field lives
@@ -163,6 +164,8 @@ contains
     !> The upper bounds actually used to allocate arrays (as opposed
     !! to the limits carried around with the field)
     integer :: upper_x_bound, upper_y_bound
+    integer :: itile, nthreads, ntilex, ntiley
+    type(subdomain_type), allocatable :: subdomains(:)
 
     ! Set this field's grid pointer to point to the grid pointed to
     ! by the supplied grid_ptr argument
@@ -176,7 +179,29 @@ contains
     !
     call set_field_bounds(self,fld_type,grid_points)
 
-    call tile_setup(self)
+    ! Dimensions of the grid of tiles. 
+    if(.not. get_grid_dims(ntilex, ntiley) )then
+       ntilex = 1
+       ntiley = 1
+    end if
+    nthreads = 1
+!$  nthreads = omp_get_max_threads()
+    WRITE (*,"(/'Have ',I3,' OpenMP threads available.')") nthreads
+    subdomains = decompose(self%internal%nx, self%internal%ny, &
+                           nthreads, ntilex, ntiley)
+    self%ntiles = nthreads
+    allocate(self%tile(self%ntiles), Stat=ierr)
+    if(ierr /= 0)then
+       call gocean_stop('r2d constructor failed to allocate tiling structures')
+    end if
+    do itile = 1, nthreads
+       self%tile(itile)%whole%xstart = subdomains(itile)%xstart
+       self%tile(itile)%whole%xstop = subdomains(itile)%xstop
+       self%tile(itile)%whole%ystart = subdomains(itile)%ystart
+       self%tile(itile)%whole%ystop = subdomains(itile)%ystop
+       self%tile(itile)%internal = subdomains(itile)%internal
+    end do
+    deallocate(subdomains)
 
     ! We allocate *all* fields to have the same extent as that
     ! of the grid. This enables the (Cray) compiler
