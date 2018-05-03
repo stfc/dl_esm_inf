@@ -213,15 +213,15 @@ contains
   !! @param[in] tmask Array holding the T-point mask which defines
   !!                  the contents of the local domain. Need not be
   !!                  supplied if domain is all wet and has PBCs.
-  subroutine grid_init(grid, m, n, dxarg, dyarg, tmask)
+  subroutine grid_init(grid, dxarg, dyarg, tmask)
     use global_parameters_mod, only: ALIGNMENT
     use subdomain_mod, only: subdomain_type
     use parallel_mod
     implicit none
     type(grid_type), intent(inout) :: grid
-    integer,         intent(in)    :: m, n
+    !integer,         intent(in)    :: m, n
     real(wp),        intent(in)    :: dxarg, dyarg
-    integer, dimension(m,n), intent(in), optional :: tmask
+    integer, allocatable, dimension(:,:), intent(in), optional :: tmask
     ! Locals
     integer :: mlocal
     integer :: ierr(5)
@@ -293,16 +293,13 @@ contains
           end do
        end do
 
-!$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
-!$OMP shared(m, n, grid, tmask)
-       do jj = 1, grid%subdomain%internal%ny
-          localj = grid%subdomain%internal%ystart + jj - 1
-          globalj = grid%subdomain%ystart + jj - 1
-          grid%tmask(grid%subdomain%internal%xstart: &
-                     grid%subdomain%internal%xstop, localj) = &
-               tmask(grid%subdomain%xstart:grid%subdomain%xstop, globalj)
-       end do
-!$OMP END PARALLEL DO
+       ! Copy of actual values
+       xstart = grid%subdomain%internal%xstart
+       xstop = grid%subdomain%internal%xstop
+       ystart = grid%subdomain%internal%ystart
+       ystop = grid%subdomain%internal%ystop
+       grid%tmask(xstart:xstop, ystart:ystop) = &
+                      tmask(xstart:xstop, ystart:ystop)
     else
        ! No T-mask supplied. Check that grid has PBCs in both
        ! x and y dimensions otherwise we won't know what to do.
@@ -316,7 +313,7 @@ contains
     ! Use the T mask to determine the dimensions of the
     ! internal, simulated region of the grid.
     ! This call sets grid%simulation_domain.
-    call compute_internal_region(grid, mlocal, n)
+    !call compute_internal_region(grid, mlocal, n)
 
     ! For a regular, orthogonal mesh the spatial resolution is constant
     grid%dx = dxarg
