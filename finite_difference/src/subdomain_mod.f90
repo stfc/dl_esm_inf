@@ -35,17 +35,15 @@ contains
     integer, intent(in), optional :: ndomains
     !> Optional specification of the dimensions of the tiling grid
     integer, intent(in), optional :: ndomainx, ndomainy
-    integer :: nx, ny
-    INTEGER :: ival, jval ! For tile extent calculation
+    integer :: ival, jval ! For tile extent calculation
     integer :: internal_width, internal_height
-    INTEGER :: ierr, nwidth
-    INTEGER :: ji,jj, ith
-    INTEGER :: nthreads       ! No. of OpenMP threads being used
-    INTEGER :: jover, junder, height
-    INTEGER :: iover, iunder, width
+    integer :: ierr, nwidth
+    integer :: ji,jj, ith
+    integer :: jover, junder, height
+    integer :: iover, iunder, width
     ! For doing stats on tile sizes
-    INTEGER :: nvects, nvects_sum, nvects_min, nvects_max 
-    LOGICAL, PARAMETER :: print_tiles = .TRUE.
+    integer :: nvects, nvects_sum, nvects_min, nvects_max 
+    logical, parameter :: print_tiles = .TRUE.
     ! Whether to automatically compute the dimensions of the tiling grid
     logical :: auto_tile
     integer :: xlen, ylen
@@ -82,32 +80,34 @@ contains
     xlen = domainx
     ylen = domainy
     
-    IF(auto_tile)THEN
+    if(auto_tile)then
 
        ntilex = INT( SQRT(REAL(ndom)) )
-       DO WHILE(MOD(ndom, ntilex) /= 0)
+       do WHILE(MOD(ndom, ntilex) /= 0)
           ntilex = ntilex - 1
-       END DO
+       end do
        ntiley = ndom/ntilex
 
        ! Match longest dimension of domain to longest dimension of 
        ! process grid
-       IF(xlen > ylen)THEN
-          IF( ntilex < ntiley )THEN
+       if(xlen > ylen)then
+          if( ntilex < ntiley )then
              ierr   = ntiley
              ntiley = ntilex
              ntilex = ierr
-          END IF
-       ELSE
+          end if
+       else
           ! N >= M so want nprocy >= nprocx
-          IF( ntiley < ntilex )THEN
+          if( ntiley < ntilex )then
              ierr   = ntiley
              ntiley = ntilex
              ntilex = ierr
-          END IF
-       END IF
-
-    END IF ! automatic determination of tiling grid
+          end if
+       end if
+    else
+       ntilex = ndomainx
+       ntiley = ndomainy
+    end if ! automatic determination of tiling grid
 
     WRITE (*,"('decompose: using grid of ',I3,'x',I3)") ntilex, ntiley
 
@@ -122,29 +122,29 @@ contains
     ! for the <jover> extra rows.
     !nwidth = (ntiley-2)*(idy-2) + 2*(idy-1)
     nwidth = ntiley * internal_height
-    IF(nwidth > ylen)THEN
+    if(nwidth > ylen)then
        jover  = nwidth - ylen
        junder = 0
-    ELSE IF(nwidth < ylen)THEN
+    else if(nwidth < ylen)then
        jover  = 0
        junder = ylen - nwidth
-    ELSE
+    else
        jover  = 0
        junder = 0
-    END IF
+    end if
     ! Ditto for x dimension
     !nwidth = (ntilex-2)*(idx-2) + 2*(idx-1)
     nwidth = ntilex * internal_width
-    IF(nwidth > xlen)THEN
+    if(nwidth > xlen)then
        iover  = nwidth - xlen
        iunder = 0
-    ELSE IF(nwidth < xlen)THEN
+    else if(nwidth < xlen)then
        iover  = 0
        iunder = xlen - nwidth
-    ELSE
+    else
        iover  = 0
        iunder = 0
-    END IF
+    end if
 
     if(print_tiles)then
        WRITE(*,"('Tile width = ',I4,', tile height = ',I4)") &
@@ -163,20 +163,20 @@ contains
     max_tile_width  = 0
     max_tile_height = 0
 
-    IF(print_tiles)WRITE(*,"(/'Tile dimensions:')")
+    if(print_tiles)WRITE(*,"(/'Sub-domains:')")
 
-    DO jj = 1, ntiley, 1
+    do jj = 1, ntiley, 1
 
        ! If necessary, correct the height of this tile row
-       IF(jover > 0)THEN
+       if(jover > 0)then
           height = internal_height - 1
           jover = jover - 1
-       ELSE IF(junder > 0)THEN
+       else if(junder > 0)then
           height = internal_height + 1
           junder = junder - 1
-       ELSE
+       else
           height = internal_height
-       END IF
+       end if
 
 !  . . . . . . . .
 !  o o o o o . . .
@@ -202,18 +202,18 @@ contains
        ! The starting point of the tiles in x
        ival = 1
 
-       DO ji = 1, ntilex, 1
+       do ji = 1, ntilex, 1
          
           ! If necessary, correct the width of this tile column
-          IF(iover > 0)THEN
+          if(iover > 0)then
              width = internal_width - 1
              iover = iover - 1
-          ELSE IF(iunder > 0)THEN
+          else if(iunder > 0)then
              width = internal_width + 1
              iunder = iunder - 1
-          ELSE
+          else
              width = internal_width
-          END IF
+          end if
 
           subdomains(ith)%internal%xstart = halo_width+1
           subdomains(ith)%internal%xstop = &
@@ -235,7 +235,7 @@ contains
           subdomains(ith)%ystop = jval + subdomains(ith)%internal%ny - 1
           subdomains(ith)%ny = 2*halo_width + subdomains(ith)%internal%ny
 
-          IF(print_tiles)THEN
+          if(print_tiles)then
              WRITE(*,"('subdomain[',I4,'](',I4,':',I4,')(',I4,':',I4,'), "// &
                   & "interior:(',I4,':',I4,')(',I4,':',I4,') ')")       &
                   ith,                                                  &
@@ -243,7 +243,7 @@ contains
                   subdomains(ith)%ystart, subdomains(ith)%ystop,        &
                   subdomains(ith)%internal%xstart, subdomains(ith)%internal%xstop, &
                   subdomains(ith)%internal%ystart, subdomains(ith)%internal%ystop
-          END IF
+          end if
 
           ! Collect some data on the distribution of tile sizes for 
           ! loadbalance info
@@ -258,9 +258,9 @@ contains
 
           ival = subdomains(ith)%xstop + 1
           ith = ith + 1
-       END DO
+       end do
        jval = subdomains(ith-1)%ystop + 1
-    END DO
+    end do
 
     ! Print tile-size statistics
     if(print_tiles)then
