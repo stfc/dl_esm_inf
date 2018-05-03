@@ -5,3 +5,5 @@
 *~
 *.a
 *.exe
+# This file is a link to either the stub or real parallel module
+finite_difference/src/parallel_mod.f90
