@@ -41,8 +41,8 @@ module parallel_mod
   !> The dimensions of the (regular) processor grid
   integer :: nprocx, nprocy
 
-  public parallel_init, parallel_finalise, parallel_abort, decompose
-  public get_rank
+  public parallel_init, parallel_finalise, parallel_abort
+  public get_rank, get_num_ranks
 
 contains
 
