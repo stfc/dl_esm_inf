@@ -53,6 +53,17 @@ model: inf_lib model.exe
 .PHONY: serial-model
 serial-model: inf_lib_serial model.exe
 
+# Run tests (check both serial and parallel versions are valgrind clean)
+# This is a very basic target and assumes that valgrind and 'mpirun'
+# are available.
+# TODO use a proper testing framework!
+test:
+	${MAKE} serial-model
+	valgrind ./model.exe
+	${MAKE} clean
+	${MAKE} model
+	mpirun -np 2 valgrind ./model.exe
+
 INF_DIR=..
 INF_INC = ${INF_DIR}/src
 INF_LIB = ${INF_DIR}/src/dl_esm_inf_fd.a
