@@ -9,8 +9,8 @@ difference shallow-water models in the GOcean Project.
 
 ## Example ##
 
-The `finite_difference/example` contains a very simple example of how to
-construct a model grid and associate fields with it.
+The `finite_difference/example` directory contains a very simple example
+of how to construct a model grid and associate fields with it.
 
 ## Concepts ##
 
