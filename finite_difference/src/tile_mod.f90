@@ -37,9 +37,6 @@ module tile_mod
      type(region_type) :: internal
      !> Tile region to use when all of a field's points are required
      type(region_type) :: whole
-     ! Could potentially physically divide up an array into 
-     ! distinct tiles and store the data for each separately...
-     !real(wp), dimension(:,:), allocatable :: data
   end type tile_type
 
 end module tile_mod
