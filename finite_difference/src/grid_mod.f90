@@ -194,17 +194,17 @@ contains
   !============================================
 
   !> Initialise the supplied grid object for a 2D model. The extent
-  !! of the model domain must already be defined by the grid object.
+  !! of the model domain is obtained from the supplied decomposition
+  !! object.
   !! Ultimately, this routine should be general purpose but it is not
-  !! there yet.  N.B. the definition of m and n (the grid extents)
-  !! depends on the type of boundary conditions that the model is
-  !! subject to.  For periodic boundary conditions they specify the
-  !! extent of the simulated region (since we don't require the user
-  !! to specify the halos required to *implement* the PBCs). However,
-  !! when a T-mask is used to define the model domain this, of
-  !! necessity, includes boundary points. Therefore, the actual
-  !! simulated region has an extent which is less than that supplied
-  !! in the grid object.
+  !! there yet.  For periodic boundary conditions the decomposition
+  !! exactly specifies the extent of the simulated region (since we
+  !! don't require the user to specify the halos required to
+  !! *implement* the PBCs). However, when a T-mask is used to define
+  !! the model domain this, of necessity, includes boundary
+  !! points. Therefore, the actual simulated region has an extent
+  !! which is less than that size of the subdomain in the
+  !! decomposition.
   !! @param[inout] grid The object to initialise
   !! @param[in] decomp Decomposition of model - gives us our domain size
   !! @param[in] dxarg Grid spacing in x dimension

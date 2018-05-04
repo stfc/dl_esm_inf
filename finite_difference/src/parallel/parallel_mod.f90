@@ -27,6 +27,8 @@
 !------------------------------------------------------------------------------
 ! Author: A. R. Porter, STFC Daresbury Laboratory
 
+!> Implementation of parallel (distributed-memory) support using MPI.
+!! Requires that the compiler be able to find the 'mpi' module.
 module parallel_mod
   use mpi
   use parallel_common_mod
@@ -34,6 +36,9 @@ module parallel_mod
 
   private
 
+  !> Error flag for MPI calls. Note that this module makes no attempt to
+  !! check these since we assume that MPI will abort if an error occurs
+  !! (which is the default behaviour on the majority of systems).
   integer :: mpierr
 
   !> Our MPI communicator
@@ -83,10 +88,9 @@ contains
     use iso_fortran_env, only : error_unit ! access computing environment
     implicit none
     character(len=*), intent(in) :: msg
-    integer :: ierr
 
     write(error_unit, *) msg
-    call mpi_abort(comm, 1, ierr)
+    call mpi_abort(comm, 1, mpierr)
 
   end subroutine parallel_abort
 
