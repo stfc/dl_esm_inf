@@ -14,7 +14,7 @@ contains
   !===================================================
 
   !> Initialise the GOcean environment
-  subroutine gocean_init()
+  subroutine gocean_initialise()
 #if _OPENACC
     use openacc
 #endif
@@ -26,7 +26,17 @@ contains
 #if _OPENACC
     call acc_init(acc_device_nvidia)
 #endif
-  end subroutine gocean_init
+  end subroutine gocean_initialise
+
+  !===================================================
+
+  !> Clean-up the GOcean environment
+  subroutine gocean_finalise()
+    use parallel_mod, only: parallel_finalise
+
+    call parallel_finalise()
+
+  end subroutine gocean_finalise
 
   !===================================================
 
