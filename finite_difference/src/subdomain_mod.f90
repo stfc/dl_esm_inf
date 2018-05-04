@@ -45,11 +45,11 @@ contains
     integer :: nvects, nvects_sum, nvects_min, nvects_max 
     logical, parameter :: print_tiles = .TRUE.
     ! Whether to automatically compute the dimensions of the tiling grid
-    logical :: auto_tile
+    logical :: auto_tile = .TRUE.
     integer :: xlen, ylen
     integer :: ntilex, ntiley
     ! Local var to hold number of sub-domains
-    integer :: ndom
+    integer :: ndom = 1
     ! TODO these need to be stored with the generated decomposition
     ! maybe we need a decomposition_type?
     integer :: max_tile_height
@@ -178,26 +178,15 @@ contains
           height = internal_height
        end if
 
-!  . . . . . . . .
-!  o o o o o . . .
-!  o h h h h
-!  o h h h h
-!  o h h i i
-!  o h h i i
-!  o h h i i
-!  .
-!  .
-!
-! We need to store the global origin of the sub-domain (e.g. the coordinates
-! of its bottom-left corner in the global domain) and the width and height
-! of the region it contains. This is before we worry about halos.
-! global_xpt
-! global_ypt
-! internalx
-! internaly
-! internal%xstart = halo_width+1
-! internal%xstop = internal%xstart + internalx - 1
-! internal%ystart = halo_width+1
+       !  . . . . . . . .
+       !  o o o o o . . .
+       !  o h h h h
+       !  o h h h h
+       !  o h h i i
+       !  o h h i i
+       !  o h h i i
+       !  .
+       !  .
 
        ! The starting point of the tiles in x
        ival = 1
