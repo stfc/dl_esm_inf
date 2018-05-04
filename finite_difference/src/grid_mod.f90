@@ -310,11 +310,6 @@ contains
        end if
     end if ! T-mask supplied
 
-    ! Use the T mask to determine the dimensions of the
-    ! internal, simulated region of the grid.
-    ! This call sets grid%simulation_domain.
-    !call compute_internal_region(grid, mlocal, n)
-
     ! For a regular, orthogonal mesh the spatial resolution is constant
     grid%dx = dxarg
     grid%dy = dyarg
@@ -411,93 +406,6 @@ contains
     END DO
 
   end subroutine grid_init
-
-  !================================================
-
-  !> Use the global T-mask to deduce the inner or simulated region
-  !! of the supplied grid.
-  subroutine compute_internal_region(grid, morig, norig)
-    implicit none
-    type(grid_type), intent(inout) :: grid
-    !> The original dimensions of the supplied T-mask (before we
-    !! padded for alignment and decomposed). This is a bit of a hack to the 
-    !! interface but it will do for now (in the absence of an 
-    !! algorithm to determine the internal region).
-    integer,         intent(in) :: morig, norig
-
-    if( allocated(grid%tmask) )then
-
-       ! Here we will loop over the grid points, looking for
-       ! the first occurrence of wet points.
-       ! However, for the moment we just hardwire the routine
-       ! to return results appropriate for a T mask that has
-       ! a shell of unit depth of boundary/external points:
-
-       ! i= 1           nx 
-       !    b   b   b   b   ny
-       !    b   x   x   b  
-       !    b   x   x   b  
-       !    b   x   x   b   
-       !    b   b   b   b   1
-       !                    j
-
-       ! The actual part of this domain that is simulated. The outer-most 
-       ! rows and columns of T points are not in the domain but are needed
-       ! to specify the type of boundary (whether hard or open).
-       !> \todo Generate the bounds of the simulation domain by
-       !! examining the T-point mask.
-       ! This defines the internal region of any T-point field.
-!!$       if(grid%subdomain%xstart == 1)then
-!!$          grid%simulation_domain%xstart = grid%subdomain%xstart + 1
-!!$       else
-!!$          grid%simulation_domain%xstart = grid%subdomain%xstart
-!!$       endif
-!!$       if(grid%subdomain%xstop == morig)then
-!!$          grid%simulation_domain%xstop  = grid%subdomain%xstop - 1
-!!$       else
-!!$          grid%simulation_domain%xstop  = grid%subdomain%xstop
-!!$       endif
-!!$
-!!$       if(grid%subdomain%ystart == 1)then
-!!$          grid%simulation_domain%ystart = grid%subdomain%ystart + 1
-!!$       else
-!!$          grid%simulation_domain%ystart = grid%subdomain%ystart
-!!$       endif
-!!$       if(grid%subdomain%ystop == norig)then
-!!$          grid%simulation_domain%ystop  = grid%subdomain%ystop - 1
-!!$       else
-!!$          grid%simulation_domain%ystop  = grid%subdomain%ystop
-!!$       endif
-!!$
-    else
-!!$
-!!$       call gocean_stop("PBCs not implemented in parallel case yet!")
-!!$       ! We don't have a T mask so we must have PBCs in both x and y
-!!$       ! dimensions. In this case, the grid dimensions stored in grid%{nx,ny}
-!!$       ! may have been padded for alignment and so we use morig,norig from
-!!$       ! the namelist file. These are taken to specify the dimension of the
-!!$       ! *simulated* domain, excluding halos.
-!!$       grid%simulation_domain%xstart = 2
-!!$       grid%simulation_domain%xstop  = grid%simulation_domain%xstart + &
-!!$                                         morig - 1
-!!$       grid%simulation_domain%ystart = 2
-!!$       grid%simulation_domain%ystop  = grid%simulation_domain%ystart + &
-!!$                                         norig - 1
-!!$
-    end if
-!!$
-!!$    grid%simulation_domain%nx =  grid%simulation_domain%xstop -  &
-!!$                                 grid%simulation_domain%xstart + 1
-!!$    grid%simulation_domain%ny =  grid%simulation_domain%ystop -  &
-!!$                                 grid%simulation_domain%ystart + 1
-!!$
-!!$    write(*,"('GRID: Simulation domain = [',I4,':',I4,',',I4,':',I4,']')") &
-!!$         grid%simulation_domain%xstart, &
-!!$         grid%simulation_domain%xstop,  &
-!!$         grid%simulation_domain%ystart, &
-!!$         grid%simulation_domain%ystop
-
-  end subroutine compute_internal_region
 
   !================================================
 
