@@ -281,6 +281,12 @@ contains
        grid%ny = grid%subdomain%ny
     end if
 
+    ! Shorthand for the definition of the internal region
+    xstart = grid%subdomain%internal%xstart
+    xstop  = grid%subdomain%internal%xstop
+    ystart = grid%subdomain%internal%ystart
+    ystop  = grid%subdomain%internal%ystop
+
     ! Copy-in the externally-supplied T-mask, if any. If using OpenMP
     ! then apply first-touch policy for data locality.
     if( present(tmask) )then
@@ -298,12 +304,8 @@ contains
        end do
 
        ! Copy of actual values
-       xstart = grid%subdomain%internal%xstart
-       xstop = grid%subdomain%internal%xstop
-       ystart = grid%subdomain%internal%ystart
-       ystop = grid%subdomain%internal%ystop
-       grid%tmask(xstart:xstop, ystart:ystop) = &
-                      tmask(xstart:xstop, ystart:ystop)
+       grid%tmask(xstart:xstop, ystart:ystop) = tmask(xstart:xstop, &
+                                                      ystart:ystop)
     else
        ! No T-mask supplied. Check that grid has PBCs in both
        ! x and y dimensions otherwise we won't know what to do.
@@ -392,11 +394,6 @@ contains
           grid%yt(ji,jj) = 0.0
        end do
     end do
-
-    xstart = grid%subdomain%internal%xstart
-    xstop  = grid%subdomain%internal%xstop
-    ystart = grid%subdomain%internal%ystart
-    ystop  = grid%subdomain%internal%ystop
 
     grid%xt(xstart, :) = (grid%subdomain%xstart - 0.5_wp) * grid%dx_t(xstart,:)
     grid%yt(:,ystart)  = (grid%subdomain%ystart - 0.5_wp) * grid%dy_t(:,ystart)
