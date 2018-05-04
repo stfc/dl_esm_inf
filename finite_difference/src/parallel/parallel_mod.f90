@@ -1,7 +1,7 @@
 !------------------------------------------------------------------------------
 ! BSD 2-Clause License
 ! 
-! Copyright (c) 2017-2018, Science and Technology Facilities Council
+! Copyright (c) 2018, Science and Technology Facilities Council.
 ! All rights reserved.
 ! 
 ! Redistribution and use in source and binary forms, with or without
@@ -29,6 +29,7 @@
 
 module parallel_mod
   use mpi
+  use parallel_common_mod
   implicit none
 
   private
@@ -37,15 +38,12 @@ module parallel_mod
 
   !> Our MPI communicator
   integer :: comm
-  !> MPI rank + 1 of current process
-  integer :: rank
-  !> Total no. of MPI processes
-  integer :: nranks
-  !> The dimensions of the (regular) processor grid
-  integer :: nprocx, nprocy
 
   public parallel_init, parallel_finalise, parallel_abort
+  !> Make certain routines from parallel_common available to
+  !! USE'rs of this module.
   public get_rank, get_num_ranks
+  public set_proc_grid, get_proc_grid
 
 contains
 
@@ -75,20 +73,6 @@ contains
   subroutine parallel_finalise()
     call mpi_finalize(mpierr)
   end subroutine parallel_finalise
-
-  !================================================
-
-  function get_rank()
-    integer :: get_rank
-    get_rank = rank
-  end function get_rank
-
-  !================================================
-
-  function get_num_ranks()
-    integer :: get_num_ranks
-    get_num_ranks = nranks
-  end function get_num_ranks
 
   !================================================
 

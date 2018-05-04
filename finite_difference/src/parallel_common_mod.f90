@@ -1,7 +1,7 @@
 !------------------------------------------------------------------------------
 ! BSD 2-Clause License
 ! 
-! Copyright (c) 2017-2018, Science and Technology Facilities Council
+! Copyright (c) 2018, Science and Technology Facilities Council.
 ! All rights reserved.
 ! 
 ! Redistribution and use in source and binary forms, with or without
@@ -27,51 +27,53 @@
 !------------------------------------------------------------------------------
 ! Author: A. R. Porter, STFC Daresbury Laboratory
 
-module parallel_mod
-  !> Stub implementation to be used in place of parallel_mod when NOT
-  !! compiling with MPI
-  use parallel_common_mod
+module parallel_common_mod
+  !> Module holding elements of the parallel infrastructure that
+  !! are independent of whether or not we are building with MPI.
   implicit none
 
-  private
+  ! Everything in this module is public
+  public
 
-  public parallel_init, parallel_finalise, parallel_abort
-  ! Make selected routines from parallel_common available to
-  !! USE'rs of this module.
-  public get_num_ranks, get_rank
-  public set_proc_grid, get_proc_grid
+  !> MPI rank + 1 of current process
+  integer :: rank
+  !> Total no. of MPI processes
+  integer :: nranks
+  !> The dimensions of the (regular) processor grid
+  integer :: nprocx, nprocy
 
 contains
 
   !================================================
 
-  subroutine parallel_init()
-
-    write (*,*) "parallel_init: Not running with MPI"
-    rank = 1
-    nranks = 1
-    nprocx = 1
-    nprocy = 1
-
-  end subroutine parallel_init
+  function get_rank()
+    integer :: get_rank
+    get_rank = rank
+  end function get_rank
 
   !================================================
 
-  subroutine parallel_finalise()
-  end subroutine parallel_finalise
+  function get_num_ranks() result(num)
+    integer :: num
+    num = nranks
+  end function get_num_ranks
 
   !================================================
 
-  !> Stop a serial model run. Prints supplied msg to stderr and calls stop
-  !! @param[in] msg Message to print to stderr - reason we're stopping
-  subroutine parallel_abort(msg)
-    use iso_fortran_env, only : error_unit ! access computing environment
-    implicit none
-    character(len=*), intent(in) :: msg
+  subroutine set_proc_grid(nx, ny)
+    !> Setter for the dimensions of the processor grid
+    integer, intent(in) :: nx, ny
+    nprocx = nx
+    nprocy = ny
+  end subroutine set_proc_grid
 
-    write(error_unit, *) msg
-    stop
+  !================================================
 
-  end subroutine parallel_abort
+  subroutine get_proc_grid(nx, ny)
+    !> Getter for the dimensions of the processor grid
+    integer, intent(out) :: nx, ny
+    nx = nprocx
+    ny = nprocy
+  end subroutine get_proc_grid
 
-end module parallel_mod
+end module parallel_common_mod
