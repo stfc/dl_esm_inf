@@ -193,47 +193,51 @@ contains
 
   !============================================
 
-  !> Initialise the supplied grid object for a 2D model
-  !! consisting of m x n points. Ultimately, this routine should be
-  !! general purpose but it is not there yet.
-  !! N.B. the definition of m and n (the grid extents) depends on
-  !! the type of boundary conditions that the model is subject to.
-  !! For periodic boundary conditions they specify the extent of the
-  !! simulated region (since we don't require the user to specify 
-  !! the halos required to *implement* the PBCs). However, when a
-  !! T-mask is used to define the model domain, m and n give the
-  !! extents of that mask/grid. This, of necessity, includes boundary
-  !! points. Therefore, the actual simulated region has an extent
-  !! which is less than m x n.
+  !> Initialise the supplied grid object for a 2D model. The extent
+  !! of the model domain must already be defined by the grid object.
+  !! Ultimately, this routine should be general purpose but it is not
+  !! there yet.  N.B. the definition of m and n (the grid extents)
+  !! depends on the type of boundary conditions that the model is
+  !! subject to.  For periodic boundary conditions they specify the
+  !! extent of the simulated region (since we don't require the user
+  !! to specify the halos required to *implement* the PBCs). However,
+  !! when a T-mask is used to define the model domain this, of
+  !! necessity, includes boundary points. Therefore, the actual
+  !! simulated region has an extent which is less than that supplied
+  !! in the grid object.
   !! @param[inout] grid The object to initialise
-  !! @param[in] m Extent in x of domain for which we have information
-  !! @param[in] n Extent in y of domain for which we have information
+  !! @param[in] decomp Decomposition of model - gives us our domain size
   !! @param[in] dxarg Grid spacing in x dimension
   !! @param[in] dyarg Grid spacing in y dimension
   !! @param[in] tmask Array holding the T-point mask which defines
   !!                  the contents of the local domain. Need not be
   !!                  supplied if domain is all wet and has PBCs.
-  subroutine grid_init(grid, dxarg, dyarg, tmask)
+  subroutine grid_init(grid, decomp, dxarg, dyarg, tmask)
     use global_parameters_mod, only: ALIGNMENT
-    use subdomain_mod, only: subdomain_type
+    use subdomain_mod, only: subdomain_type, decomposition_type
     use parallel_mod
     implicit none
     type(grid_type), intent(inout) :: grid
-    !integer,         intent(in)    :: m, n
+    type(decomposition_type), intent(in) :: decomp
     real(wp),        intent(in)    :: dxarg, dyarg
     integer, allocatable, dimension(:,:), intent(in), optional :: tmask
     ! Locals
+    integer :: myrank
     integer :: mlocal
     integer :: ierr(5)
     integer :: ji, jj
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
-    integer :: localj, globalj
+
+    ! Copy the definition of the sub-domain for which we are responsible
+    ! into our grid object.
+    myrank = get_rank()
+    grid%subdomain = decomp%subdomains(myrank)
 
     ! Store the global dimensions of the grid.
     if( present(tmask) )then
-       ! A global T-mask has been supplied and that tells us everything
-       ! about the extent of this model.
+       ! A T-mask has been supplied and that tells us everything
+       ! about the extent of this model on this processor.
 
        ! Extend the domain by unity in each dimension to allow
        ! for staggering of variables. All fields will be

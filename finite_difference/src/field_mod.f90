@@ -149,7 +149,7 @@ contains
 
   function r2d_field_constructor(grid,    &
                                  grid_points) result(self)
-    use subdomain_mod, only: decompose, subdomain_type
+    use subdomain_mod, only: decompose, decomposition_type
     implicit none
     ! Arguments
     !> Pointer to the grid on which this field lives
@@ -165,7 +165,7 @@ contains
     !! to the limits carried around with the field)
     integer :: upper_x_bound, upper_y_bound
     integer :: itile, nthreads, ntilex, ntiley
-    type(subdomain_type), allocatable :: subdomains(:)
+    type(decomposition_type) :: decomp
 
     ! Set this field's grid pointer to point to the grid pointed to
     ! by the supplied grid_ptr argument
@@ -187,21 +187,20 @@ contains
     nthreads = 1
 !$  nthreads = omp_get_max_threads()
     WRITE (*,"(/'Have ',I3,' OpenMP threads available.')") nthreads
-    subdomains = decompose(self%internal%nx, self%internal%ny, &
-                           nthreads, ntilex, ntiley)
+    decomp = decompose(self%internal%nx, self%internal%ny, &
+                       nthreads, ntilex, ntiley)
     self%ntiles = nthreads
     allocate(self%tile(self%ntiles), Stat=ierr)
     if(ierr /= 0)then
        call gocean_stop('r2d constructor failed to allocate tiling structures')
     end if
     do itile = 1, nthreads
-       self%tile(itile)%whole%xstart = subdomains(itile)%xstart
-       self%tile(itile)%whole%xstop = subdomains(itile)%xstop
-       self%tile(itile)%whole%ystart = subdomains(itile)%ystart
-       self%tile(itile)%whole%ystop = subdomains(itile)%ystop
-       self%tile(itile)%internal = subdomains(itile)%internal
+       self%tile(itile)%whole%xstart = decomp%subdomains(itile)%xstart
+       self%tile(itile)%whole%xstop = decomp%subdomains(itile)%xstop
+       self%tile(itile)%whole%ystart = decomp%subdomains(itile)%ystart
+       self%tile(itile)%whole%ystop = decomp%subdomains(itile)%ystop
+       self%tile(itile)%internal = decomp%subdomains(itile)%internal
     end do
-    deallocate(subdomains)
 
     ! We allocate *all* fields to have the same extent as that
     ! of the grid. This enables the (Cray) compiler
