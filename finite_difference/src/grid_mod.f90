@@ -2,7 +2,7 @@ module grid_mod
   use kind_params_mod
   use region_mod
   use gocean_mod
-  use subdomain_mod
+  use subdomain_mod, only: subdomain_type
   implicit none
 
   private
@@ -242,7 +242,7 @@ contains
        ! Extend the domain by unity in each dimension to allow
        ! for staggering of variables. All fields will be
        ! allocated with extent (nx,ny).
-       mlocal = grid%subdomain%nx + 1
+       mlocal = grid%subdomain%global%nx + 1
        if( mod(mlocal, ALIGNMENT) > 0 )then
           ! Since this is the dimension of the array and not that of
           ! the internal region, we add two lots of 'ALIGNMENT'. This
@@ -253,7 +253,7 @@ contains
        else
           grid%nx = mlocal
        end if
-       grid%ny = grid%subdomain%ny + 1
+       grid%ny = grid%subdomain%global%ny + 1
     else
        if(get_num_ranks() > 1)then
           call gocean_stop('grid_init: PBCs not yet implemented with MPI')
@@ -266,7 +266,7 @@ contains
        ! E/W halos and one of the N/S halos are required. However,
        ! that is an optimisation and this framework must be developed
        ! in such a way that that optimisation is supported.
-       mlocal = grid%subdomain%nx
+       mlocal = grid%subdomain%global%nx
        if( mod(mlocal, ALIGNMENT) > 0 )then
           ! Since this is the dimension of the array and not that of
           ! the internal region, we add two lots of 'ALIGNMENT'. This
@@ -278,7 +278,7 @@ contains
           grid%nx = mlocal
        end if
 
-       grid%ny = grid%subdomain%ny
+       grid%ny = grid%subdomain%global%ny
     end if
 
     ! Shorthand for the definition of the internal region
@@ -395,8 +395,10 @@ contains
        end do
     end do
 
-    grid%xt(xstart, :) = (grid%subdomain%xstart - 0.5_wp) * grid%dx_t(xstart,:)
-    grid%yt(:,ystart)  = (grid%subdomain%ystart - 0.5_wp) * grid%dy_t(:,ystart)
+    grid%xt(xstart, :) = (grid%subdomain%global%xstart - 0.5_wp) * &
+         grid%dx_t(xstart,:)
+    grid%yt(:,ystart)  = (grid%subdomain%global%ystart - 0.5_wp) * &
+         grid%dy_t(:,ystart)
 
     DO ji = xstart+1, xstop
       grid%xt(ji,ystart:ystop) = grid%xt(ji-1, ystart:ystop) + grid%dx

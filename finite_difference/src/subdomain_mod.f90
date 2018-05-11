@@ -1,19 +1,80 @@
-!> Module containing the definition of the sub-domain type.
+!------------------------------------------------------------------------------
+! BSD 2-Clause License
+! 
+! Copyright (c) 2017-2018, Science and Technology Facilities Council
+! All rights reserved.
+! 
+! Redistribution and use in source and binary forms, with or without
+! modification, are permitted provided that the following conditions are met:
+! 
+! * Redistributions of source code must retain the above copyright notice, this
+!   list of conditions and the following disclaimer.
+! 
+! * Redistributions in binary form must reproduce the above copyright notice,
+!   this list of conditions and the following disclaimer in the documentation
+!   and/or other materials provided with the distribution.
+! 
+! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+! AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+! IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+! DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+! FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+! DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+! SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+! CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+! OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+! OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+!------------------------------------------------------------------------------
+! Author: A. R. Porter, STFC Daresbury Laboratory
+
+!> Module containing the definition of the sub-domain and
+!! domain-decomposition types.
 module subdomain_mod
-  use region_mod
+  use region_mod, only: region_type
   implicit none
+
+  ! The subdomain type captures everything we need to know about
+  ! the definition of a subdomain within a larger, global domain.
+  ! e.g. if '.' indicates a grid point in the global domain that
+  ! does not belong to the current subdomain, 'h' is a halo grid
+  ! point in the current subdomain and 'i' is an 'internal' grid
+  ! point in the current subdomain, then:
+  !
+  ! 14 .  .  .  .  .  .  .  .  .  .  .  .
+  ! 13 .  .  .  .  .  .  .  .  .  .  .  .
+  ! 12 .  .  .  .  .  .  .  .  .  .  .  .
+  ! 11 .  .  .  h  h  h  h  h  h  .  .  .
+  ! 10 .  .  .  h  i  i  i  i  h  .  .  .
+  !  9 .  .  .  h  i  i  i  i  h  .  .  .
+  !  8 .  .  .  h  i  i  i  i  h  .  .  .
+  !  7 .  .  .  h  i  i  i  i  h  .  .  .
+  !  6 .  .  .  h  i  i  i  i  h  .  .  .
+  !  5 .  .  .  h  i  i  i  i  h  .  .  .
+  !  4 .  .  .  h  i  i  i  i  h  .  .  .
+  !  3 .  .  .  h  h  h  h  h  h  .  .  .
+  !  2 .  .  .  .  .  .  .  .  .  .  .  .
+  !  1 .  .  .  .  .  .  .  .  .  .  .  .
+  !    1  2  3  4  5  6  7  8  9  10 11 12
+  !             Global x index -->
+  !
+  ! Position of the internal part of the subdomain in the global domain
+  ! global%(xstart, ystart) = (5, 4), global%(xstop, ystop) = (8, 10)
+  ! Width and height of the *whole* subdomain
+  ! global%nx = 9 - 4 + 1 = 6
+  ! global%ny = 11 - 3 + 1 = 9
+  !
+  ! Position of the 'internal' region (i.e. excluding halos, boundary
+  ! points) within the sub-domain.
+  ! internal%(xstart, ystart) = (2, 2), internal%(xstop, ystop) = (5, 8)
+  ! Width and height of the internal region
+  ! internal%nx = 5 - 2 + 1 = 4
+  ! internal%ny = 8 - 1 + 1 = 7
 
   !> Type encapsulating the information required to define a single
   !! sub-domain
   type :: subdomain_type
-     !> Position of bottom-left and top-right corners of this sub-domain
-     !! in the global domain.
-     integer :: xstart, ystart, xstop, ystop
-     !> Full width and height of this subdomain - includes all halo and
-     !! boundary points. n{x,y} != {x,y}stop - {x,y}start +1 because
-     !! {x,y}start and {x,y}stop are the coordinates of the internal
-     !! region in the global domain.
-     integer :: nx, ny
+     !> The definition of this subdomain in terms of the global domain
+     type(region_type) :: global
      !> The internal region of this subdomain (excluding halo and
      !! boundary points)
      type(region_type) :: internal
@@ -241,29 +302,31 @@ contains
           subdomain => decomp%subdomains(ith)
           subdomain%internal%xstart = hwidth+1
           subdomain%internal%xstop = subdomain%internal%xstart+width-1
-          subdomain%internal%nx = subdomain%internal%xstop - &
-                                  subdomain%internal%xstart + 1
-          ! Which part of the global domain this represents
-          subdomain%xstart = ival
-          subdomain%xstop = ival + subdomain%internal%nx - 1
-          subdomain%nx  = 2*hwidth + subdomain%internal%nx
+          subdomain%internal%nx = width
+          ! Which part of the global domain the internal part of this
+          ! subdomain covers
+          subdomain%global%xstart = ival
+          subdomain%global%xstop = subdomain%global%xstart + width - 1
+          ! Full width of this subdomain (including halo and boundary points)
+          subdomain%global%nx  = 2*hwidth + width
 
           subdomain%internal%ystart = hwidth+1
           subdomain%internal%ystop = subdomain%internal%ystart+height-1
-          subdomain%internal%ny = subdomain%internal%ystop - &
-                                  subdomain%internal%ystart + 1
-          ! Which part of the global domain this represents
-          subdomain%ystart = jval
-          subdomain%ystop = jval + subdomain%internal%ny - 1
-          subdomain%ny = 2*hwidth + subdomain%internal%ny
+          subdomain%internal%ny = height
+          ! Which part of the global domain this subdomain covers
+          subdomain%global%ystart = jval
+          subdomain%global%ystop = subdomain%global%ystart + height - 1
+          ! Full height of this subdomain (incl. halo and boundary points)
+          subdomain%global%ny = 2*hwidth + subdomain%internal%ny
+
 
           if(print_tiles)then
              WRITE(*,"('subdomain[',I4,'](',I4,':',I4,')(',I4,':',I4,'), "// &
                   & "interior:(',I4,':',I4,')(',I4,':',I4,') ')")       &
                   ith,                                                  &
-                  subdomain%xstart, subdomain%xstop,        &
-                  subdomain%ystart, subdomain%ystop,        &
-                  subdomain%internal%xstart, subdomain%internal%xstop, &
+                  subdomain%global%xstart, subdomain%global%xstop,      &
+                  subdomain%global%ystart, subdomain%global%ystop,      &
+                  subdomain%internal%xstart, subdomain%internal%xstop,  &
                   subdomain%internal%ystart, subdomain%internal%ystop
           end if
 
@@ -275,13 +338,13 @@ contains
           nvects_max = MAX(nvects_max, nvects)
 
           ! For use when allocating tile-'private' work arrays
-          decomp%max_width  = MAX(decomp%max_width, subdomain%nx)
-          decomp%max_height = MAX(decomp%max_height, subdomain%ny)
+          decomp%max_width  = MAX(decomp%max_width, subdomain%global%nx)
+          decomp%max_height = MAX(decomp%max_height, subdomain%global%ny)
 
-          ival = subdomain%xstop + 1
+          ival = subdomain%global%xstop + 1
           ith = ith + 1
        end do
-       jval = subdomain%ystop + 1
+       jval = subdomain%global%ystop + 1
     end do
 
     ! Print tile-size statistics

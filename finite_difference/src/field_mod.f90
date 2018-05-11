@@ -195,10 +195,7 @@ contains
        call gocean_stop('r2d constructor failed to allocate tiling structures')
     end if
     do itile = 1, nthreads
-       self%tile(itile)%whole%xstart = decomp%subdomains(itile)%xstart
-       self%tile(itile)%whole%xstop = decomp%subdomains(itile)%xstop
-       self%tile(itile)%whole%ystart = decomp%subdomains(itile)%ystart
-       self%tile(itile)%whole%ystop = decomp%subdomains(itile)%ystop
+       self%tile(itile)%whole = decomp%subdomains(itile)%global
        self%tile(itile)%internal = decomp%subdomains(itile)%internal
     end do
 
@@ -210,7 +207,8 @@ contains
     upper_x_bound = self%grid%nx
     upper_y_bound = self%grid%ny
 
-    write(*,"('Allocating ',(A),' field with bounds: (',I1,':',I3, ',',I1,':',I3,')')") &
+    write(*, "('Allocating ',(A),' field with bounds: (',I1,':',I3, "// &
+             "',',I1,':',I3,')')") &
                TRIM(ADJUSTL(fld_type)), &
                1, upper_x_bound, 1, upper_y_bound
     write(*,"('Internal region is:(',I1,':',I3, ',',I1,':',I3,')' )") &

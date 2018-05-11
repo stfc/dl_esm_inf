@@ -1,3 +1,4 @@
+!> Module defining the region_type
 module region_mod
   implicit none
 
