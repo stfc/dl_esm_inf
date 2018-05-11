@@ -120,8 +120,8 @@ contains
     integer :: internal_width, internal_height
     integer :: ierr, nwidth
     integer :: ji,jj, ith
-    integer :: jover, junder, height
-    integer :: iover, iunder, width
+    integer :: junder, height
+    integer :: iunder, width
     ! For doing stats on tile sizes
     integer :: nvects, nvects_sum, nvects_min, nvects_max 
     logical, parameter :: print_tiles = .TRUE.
@@ -247,14 +247,12 @@ contains
 
     do jj = 1, ntiley, 1
 
-       ! Point to subdomain we are about to define
+       ! Point to subdomain we are about to define (prevents compiler
+       ! warning for assignment following ji-loop below).
        subdomain => decomp%subdomains(ith)
 
        ! If necessary, correct the height of this tile row
-       if(jover > 0)then
-          height = internal_height - 1
-          jover = jover - 1
-       else if(junder > 0)then
+       if(junder > 0)then
           height = internal_height + 1
           junder = junder - 1
        else
@@ -265,12 +263,9 @@ contains
        ival = 1
 
        do ji = 1, ntilex, 1
-         
+
           ! If necessary, correct the width of this tile column
-          if(iover > 0)then
-             width = internal_width - 1
-             iover = iover - 1
-          else if(iunder > 0)then
+          if(iunder > 0)then
              width = internal_width + 1
              iunder = iunder - 1
           else
