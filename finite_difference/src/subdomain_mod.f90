@@ -95,12 +95,12 @@ module subdomain_mod
 
 contains
 
+  !> Decompose a domain consisting of domainx x domainy points
+  !! into a 2D grid.
+  !! Returns an array of tiles describing each of the subdomains.    
   function decompose(domainx, domainy,             &
                      ndomains, ndomainx, ndomainy, &
                      halo_width) result(decomp)
-    !> Decompose a domain consisting of domainx x domainy points
-    !! into a 2D grid.
-    !! Returns an array of tiles describing each of the subdomains.    
     use parallel_mod, only: get_num_ranks, parallel_abort
     implicit none
     !> The decomposition that this function will return
@@ -205,46 +205,34 @@ contains
 
     ! If we think about the internal regions of the tiles,
     ! then they should share the domain between them:
-    internal_width = NINT(REAL(xlen) / REAL(ntilex))
-    internal_height = NINT(REAL(ylen) / REAL(ntiley))
+    internal_width = xlen / ntilex
+    internal_height = ylen / ntiley
 
-    ! Integer arithmetic means that ntiley tiles of height idy might
-    ! actually span a height greater or less than N. If so, we try and
-    ! reduce the height of each row by just one until we've accounted
-    ! for the <jover> extra rows.
-    !nwidth = (ntiley-2)*(idy-2) + 2*(idy-1)
+    ! Integer arithmetic means that ntiley tiles of height
+    ! internal_height might actually span a height less than ylen. If
+    ! so, we try and increase the height of each row by just one until
+    ! we've accounted for the <jover> extra rows.
     nwidth = ntiley * internal_height
-    if(nwidth > ylen)then
-       jover  = nwidth - ylen
-       junder = 0
-    else if(nwidth < ylen)then
-       jover  = 0
+    if(nwidth < ylen)then
        junder = ylen - nwidth
     else
-       jover  = 0
        junder = 0
     end if
     ! Ditto for x dimension
-    !nwidth = (ntilex-2)*(idx-2) + 2*(idx-1)
     nwidth = ntilex * internal_width
-    if(nwidth > xlen)then
-       iover  = nwidth - xlen
-       iunder = 0
-    else if(nwidth < xlen)then
-       iover  = 0
+    if(nwidth < xlen)then
        iunder = xlen - nwidth
     else
-       iover  = 0
        iunder = 0
     end if
 
     if(print_tiles)then
-       WRITE(*,"('Tile width = ',I4,', tile height = ',I4)") &
-            internal_width, internal_height
-       WRITE(*,"('iover = ',I3,', iunder = ',I3)") iover, iunder
-       WRITE(*,"('jover = ',I3,', junder = ',I3)") jover, junder
+       write(*, "('Tile width = ',I4,', tile height = ',I4)") &
+                                  internal_width, internal_height
+       write(*, "('iunder, junder = ', I3, 1x, I3)") iunder, junder
     end if
 
+    ! We start with the first domain (where else?)
     ith = 1
     ! The starting point of the tiles in y
     jval = 1
@@ -255,7 +243,7 @@ contains
     decomp%max_width  = 0
     decomp%max_height = 0
 
-    if(print_tiles)WRITE(*,"(/'Sub-domains:')")
+    if(print_tiles) write(*, "(/'Sub-domains:')")
 
     do jj = 1, ntiley, 1
 
@@ -272,16 +260,6 @@ contains
        else
           height = internal_height
        end if
-
-       !  . . . . . . . .
-       !  o o o o o . . .
-       !  o h h h h
-       !  o h h h h
-       !  o h h i i
-       !  o h h i i
-       !  o h h i i
-       !  .
-       !  .
 
        ! The starting point of the tiles in x
        ival = 1
@@ -319,10 +297,9 @@ contains
           ! Full height of this subdomain (incl. halo and boundary points)
           subdomain%global%ny = 2*hwidth + subdomain%internal%ny
 
-
           if(print_tiles)then
-             WRITE(*,"('subdomain[',I4,'](',I4,':',I4,')(',I4,':',I4,'), "// &
-                  & "interior:(',I4,':',I4,')(',I4,':',I4,') ')")       &
+             write(*, "('subdomain[',I4,'](',I4,':',I4,')(',I4,':',I4,'),"// &
+                  & " interior:(',I4,':',I4,')(',I4,':',I4,') ')")      &
                   ith,                                                  &
                   subdomain%global%xstart, subdomain%global%xstop,      &
                   subdomain%global%ystart, subdomain%global%ystop,      &
@@ -334,12 +311,12 @@ contains
           ! loadbalance info
           nvects = subdomain%internal%nx * subdomain%internal%ny
           nvects_sum = nvects_sum + nvects
-          nvects_min = MIN(nvects_min, nvects)
-          nvects_max = MAX(nvects_max, nvects)
+          nvects_min = min(nvects_min, nvects)
+          nvects_max = max(nvects_max, nvects)
 
           ! For use when allocating tile-'private' work arrays
-          decomp%max_width  = MAX(decomp%max_width, subdomain%global%nx)
-          decomp%max_height = MAX(decomp%max_height, subdomain%global%ny)
+          decomp%max_width  = max(decomp%max_width, subdomain%global%nx)
+          decomp%max_height = max(decomp%max_height, subdomain%global%ny)
 
           ival = subdomain%global%xstop + 1
           ith = ith + 1
@@ -349,14 +326,14 @@ contains
 
     ! Print tile-size statistics
     if(print_tiles)then
-       write(*,"(/'Mean sub-domain size = ',F8.1,' pts = ',F7.1,' KB')") &
-                                     REAL(nvects_sum)/REAL(decomp%ndomains), &
-                              REAL(8*nvects_sum)/REAL(decomp%ndomains*1024)
-       write(*,"('Min,max sub-domain size (pts) = ',I6,',',I6)") &
+       write(*, "(/'Mean sub-domain size = ',F8.1,' pts = ',F7.1,' KB')")    &
+                                   real(nvects_sum) / real(decomp%ndomains), &
+                            real(8*nvects_sum) / real(decomp%ndomains*1024)
+       write(*, "('Min,max sub-domain size (pts) = ',I6,',',I6)") &
                                                       nvects_min, nvects_max
-       write(*,"('Domain load imbalance (%) =',F6.2)") &
-                               100.0*(nvects_max-nvects_min)/REAL(nvects_min)
-       write(*,"('Max sub-domain dims are ',I4,'x',I4/)") decomp%max_width, &
+       write(*, "('Domain load imbalance (%) =',F6.2)") &
+                             100.0*(nvects_max-nvects_min) / real(nvects_min)
+       write(*, "('Max sub-domain dims are ',I4,'x',I4/)") decomp%max_width, &
                                                           decomp%max_height
     end if
 
