@@ -234,52 +234,23 @@ contains
     myrank = get_rank()
     grid%subdomain = decomp%subdomains(myrank)
 
-    ! Store the global dimensions of the grid.
-    if( present(tmask) )then
-       ! A T-mask has been supplied and that tells us everything
-       ! about the extent of this model on this processor.
+    ! Store the global dimensions of the grid...
 
-       ! Extend the domain by unity in each dimension to allow
-       ! for staggering of variables. All fields will be
-       ! allocated with extent (nx,ny).
-       mlocal = grid%subdomain%global%nx + 1
-       if( mod(mlocal, ALIGNMENT) > 0 )then
-          ! Since this is the dimension of the array and not that of
-          ! the internal region, we add two lots of 'ALIGNMENT'. This
-          ! allows us to subsequently extend the loop over the internal
-          ! region so that it too is aligned without array accesses of
-          ! the form a(i+1,j) going out of bounds.
-          grid%nx = (mlocal/ALIGNMENT + 2)*ALIGNMENT
-       else
-          grid%nx = mlocal
-       end if
-       grid%ny = grid%subdomain%global%ny + 1
+    ! Extend the domain by unity in each dimension to allow
+    ! for staggering of variables. All fields will be
+    ! allocated with extent (nx,ny).
+    mlocal = grid%subdomain%global%nx + 1
+    if( mod(mlocal, ALIGNMENT) > 0 )then
+       ! Since this is the dimension of the array and not that of
+       ! the internal region, we add two lots of 'ALIGNMENT'. This
+       ! allows us to subsequently extend the loop over the internal
+       ! region so that it too is aligned without array accesses of
+       ! the form a(i+1,j) going out of bounds.
+       grid%nx = (mlocal/ALIGNMENT + 2)*ALIGNMENT
     else
-       if(get_num_ranks() > 1)then
-          call gocean_stop('grid_init: PBCs not yet implemented with MPI')
-       end if
-       ! No T-mask has been supplied so we assume we're implementing
-       ! periodic boundary conditions and allow for halos of width
-       ! HALO_WIDTH_{X,Y} here.  Currently we put a halo on all four
-       ! sides of our rectangular domain. This is actually unnecessary
-       ! - depending on the variable staggering used only one of the
-       ! E/W halos and one of the N/S halos are required. However,
-       ! that is an optimisation and this framework must be developed
-       ! in such a way that that optimisation is supported.
-       mlocal = grid%subdomain%global%nx
-       if( mod(mlocal, ALIGNMENT) > 0 )then
-          ! Since this is the dimension of the array and not that of
-          ! the internal region, we add two lots of 'ALIGNMENT'. This
-          ! allows us to subsequently extend the loop over the internal
-          ! region so that it too is aligned without array accesses of
-          ! the form a(i+1,j) going out of bounds.
-          grid%nx = (mlocal/ALIGNMENT + 2)*ALIGNMENT
-       else
-          grid%nx = mlocal
-       end if
-
-       grid%ny = grid%subdomain%global%ny
+       grid%nx = mlocal
     end if
+    grid%ny = grid%subdomain%global%ny + 1
 
     ! Shorthand for the definition of the internal region
     xstart = grid%subdomain%internal%xstart
@@ -294,6 +265,8 @@ contains
        if( ierr(1) /= 0 )then
           call gocean_stop('grid_init: failed to allocate array for T mask')
        end if
+!> TODO should use thread tiling here but that is currently only set-up
+!! inside a field object.
 !$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
 !$OMP shared(grid, tmask)
        do jj = 1, grid%ny
@@ -302,6 +275,7 @@ contains
              grid%tmask(ji,jj) = -1
           end do
        end do
+!$OMP END PARALLEL DO
 
        ! Copy of actual values
        grid%tmask(xstart:xstop, ystart:ystop) = tmask(xstart:xstop, &
@@ -313,6 +287,10 @@ contains
                    (grid%boundary_conditions(2) == BC_PERIODIC) ) )then
           call gocean_stop('grid_init: ERROR: No T-mask supplied and '// &
                            'grid does not have periodic boundary conditions!')
+       end if
+       !> TODO add support for PBCs in paralel
+       if(get_num_ranks() > 1)then
+          call gocean_stop('grid_init: PBCs not yet implemented with MPI')
        end if
     end if ! T-mask supplied
 
