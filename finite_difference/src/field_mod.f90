@@ -238,10 +238,12 @@ contains
     ! us the opportunity to do a 'first touch' policy to aid with
     ! memory<->thread locality...
 !$OMP PARALLEL DO schedule(runtime), default(none), &
-!$OMP private(ji,jj), shared(self, upper_x_bound, upper_y_bound)
-    do jj = 1, upper_y_bound, 1
-       do ji = 1, upper_x_bound, 1
-          self%data(ji,jj) = -999.0
+!$OMP private(it,ji,jj), shared(self)
+    do itile = 1, self%ntiles
+       do jj = self%tile(itile)%whole%ystart, self%tile(itile)%whole%ystop
+          do ji = self%tile(itile)%whole%xstart, self%tile(itile)%whole%xstop
+             self%data(ji,jj) = -999.0
+          end do
        end do
     end do
 !$OMP END PARALLEL DO
