@@ -31,7 +31,9 @@
 !! Requires that the compiler be able to find the 'mpi' module.
 module parallel_mod
   use mpi
-  use parallel_common_mod
+  use parallel_common_mod, only: get_rank, get_num_ranks,      &
+                                 set_proc_grid, get_proc_grid, &
+                                 nranks, rank, nprocx, nprocy
   implicit none
 
   private
@@ -54,6 +56,9 @@ contains
 
   !================================================
 
+  !> Initialise the parallel program. Calls mpi_init() and then
+  !! queries and stores the size of the communicator and the
+  !! rank of the current process.
   subroutine parallel_init()
 
     call mpi_init(mpierr)
@@ -75,6 +80,7 @@ contains
 
   !================================================
 
+  !> Finish the parallel part of the program. Calls mpi_finalize().
   subroutine parallel_finalise()
     call mpi_finalize(mpierr)
   end subroutine parallel_finalise

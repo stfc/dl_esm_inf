@@ -1,7 +1,7 @@
 !------------------------------------------------------------------------------
 ! BSD 2-Clause License
 ! 
-! Copyright (c) 2017-2018, Science and Technology Facilities Council
+! Copyright (c) 2018, Science and Technology Facilities Council
 ! All rights reserved.
 ! 
 ! Redistribution and use in source and binary forms, with or without
@@ -27,10 +27,12 @@
 !------------------------------------------------------------------------------
 ! Author: A. R. Porter, STFC Daresbury Laboratory
 
+!> Stub implementation to be used in place of parallel_mod when NOT
+!! compiling with MPI
 module parallel_mod
-  !> Stub implementation to be used in place of parallel_mod when NOT
-  !! compiling with MPI
-  use parallel_common_mod
+  use parallel_common_mod, only: get_rank, get_num_ranks,      &
+                                 set_proc_grid, get_proc_grid, &
+                                 nranks, rank, nprocx, nprocy
   implicit none
 
   private
@@ -45,6 +47,8 @@ contains
 
   !================================================
 
+  !> Fake parallel initialisation routine. Does nothing apart from
+  !! initialise number of ranks to 1 and the rank of this process to 1.
   subroutine parallel_init()
 
     write (*,*) "parallel_init: Not running with MPI"
@@ -57,6 +61,7 @@ contains
 
   !================================================
 
+  !> Empty routine. For compatibility with parallel_mod.
   subroutine parallel_finalise()
   end subroutine parallel_finalise
 
@@ -66,7 +71,6 @@ contains
   !! @param[in] msg Message to print to stderr - reason we're stopping
   subroutine parallel_abort(msg)
     use iso_fortran_env, only : error_unit ! access computing environment
-    implicit none
     character(len=*), intent(in) :: msg
 
     write(error_unit, *) msg
