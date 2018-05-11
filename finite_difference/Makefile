@@ -73,3 +73,7 @@ clean:
 distclean: clean
 	rm -f lib/${API_LIB}
 	rm -f include/*.[Mm][Oo][Dd]
+
+.PHONY: doc
+doc:
+	doxygen src/dl_esm_inf.doxygen
