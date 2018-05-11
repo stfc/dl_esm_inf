@@ -66,8 +66,8 @@ program model
   my_rank = get_rank()
 
   !> Create a T-point mask describing the (local) domain
-  allocate(tmask(decomp%subdomains(my_rank)%nx,  &
-                 decomp%subdomains(my_rank)%nx), Stat=ierr)
+  allocate(tmask(decomp%subdomains(my_rank)%global%nx,  &
+                 decomp%subdomains(my_rank)%global%ny), Stat=ierr)
   if(ierr /= 0)then
      call gocean_stop('Failed to allocate T-mask')
   end if
