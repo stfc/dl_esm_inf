@@ -76,4 +76,4 @@ distclean: clean
 
 .PHONY: doc
 doc:
-	doxygen src/dl_esm_inf.doxygen
+	doxygen src/doxyfile
