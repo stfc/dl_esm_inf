@@ -1,3 +1,5 @@
+!> Module for describing and storing all information related to
+!! a finite-difference grid.
 module grid_mod
   use kind_params_mod
   use region_mod

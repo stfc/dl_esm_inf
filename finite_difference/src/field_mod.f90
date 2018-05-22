@@ -27,6 +27,8 @@
 !------------------------------------------------------------------------------
 ! Author: A. R. Porter, STFC Daresbury Laboratory
 
+!> Module for describing all aspects of a field (which exists on some
+!! grid).
 module field_mod
   use kind_params_mod
   use region_mod

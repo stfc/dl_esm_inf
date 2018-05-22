@@ -1,3 +1,7 @@
+!> This module is for kernels that implement what will one
+!! day be infrastructure calls. For the moment we provide
+!! these in normal kernel form so that they can be included
+!! in a standard invoke().
 module infrastructure_mod
   use kind_params_mod
   use kernel_mod
@@ -5,11 +9,6 @@ module infrastructure_mod
   use grid_mod
   use field_mod
   implicit none
-
-  !> This module is for kernels that implement what will one
-  !! day be infrastructure calls. For the moment we provide
-  !! these in normal kernel form so that they can be included
-  !! in a standard invoke().
 
   type, extends(kernel_type) :: copy
      type(arg), dimension(2) :: meta_args =    &

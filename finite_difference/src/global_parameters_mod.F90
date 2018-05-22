@@ -1,5 +1,5 @@
+!> Module containing core parameter values
 module global_parameters_mod
-  ! Module containing core parameter values
   use iso_c_binding
   implicit none
   

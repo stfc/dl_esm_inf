@@ -12,6 +12,7 @@
 !   The base type for a kernel. Also contains a component routine that returns a
 !   launch object for use by the execution engine/code generator. 
 !-------------------------------------------------------------------------------
+!> Module defining the base type for a kernel, used in meta-data.
 module kernel_mod
 use argument_mod
 use global_parameters_mod

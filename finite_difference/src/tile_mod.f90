@@ -27,6 +27,8 @@
 !------------------------------------------------------------------------------
 ! Author: A. R. Porter, STFC Daresbury Laboratory
 
+!> Module defining a tile_type to use when decomposing a field (whether for
+!! distributed or shared memory)
 module tile_mod
   use region_mod
   implicit none

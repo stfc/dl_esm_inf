@@ -27,9 +27,9 @@
 !------------------------------------------------------------------------------
 ! Author: A. R. Porter, STFC Daresbury Laboratory
 
+!> Module holding elements of the parallel infrastructure that
+!! are independent of whether or not we are building with MPI.
 module parallel_common_mod
-  !> Module holding elements of the parallel infrastructure that
-  !! are independent of whether or not we are building with MPI.
   implicit none
 
   ! Everything in this module is public
