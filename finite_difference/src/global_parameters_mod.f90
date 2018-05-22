@@ -5,16 +5,6 @@ module global_parameters_mod
   
   private
 
-  ! Kind type for double precision
-  integer, parameter, public :: dp = c_double
-
-  ! Default length for names (eg of fields and function spaces)
-  integer, parameter, public :: NAME_LEN = 1024
-
-  ! What boundary to align arrays on
-  ! AVX is 256 bit = 4 d.p. words
-  integer, parameter, public :: ALIGNMENT = 4
-
   ! Iteration spaces for kernels.
   public :: GO_CELLS, GO_EDGES, GO_VERTICES
   enum, bind(c)
