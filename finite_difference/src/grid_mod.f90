@@ -466,6 +466,10 @@ contains
                                       size_in_bytes)
        grid%gphiv_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
                                       size_in_bytes)
+       ! Integer arrays
+       size_in_bytes = int(grid%nx*grid%ny, 8)*4_8
+       grid%tmask_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                         size_in_bytes)
     end if
 
   end subroutine grid_init
