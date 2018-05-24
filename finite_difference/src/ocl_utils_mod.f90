@@ -12,7 +12,7 @@ contains
     integer(c_intptr_t), intent(inout) :: device, context 
     character(len=CL_UTIL_STR_LEN), intent(inout) :: version_str
     ! Locals
-    integer :: iplatform, idevice, iallocerr, irec
+    integer :: iplatform, idevice, iallocerr
     integer(c_intptr_t), target :: ctx_props(3)
     integer(c_int32_t), target :: device_cu
     integer(c_size_t) :: iret, zero_size = 0

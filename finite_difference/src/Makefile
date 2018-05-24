@@ -26,7 +26,7 @@ field_mod.o: kind_params_mod.o grid_mod.o ocl_utils_mod.o \
 
 gocean_mod.o: ocl_utils_mod.o
 
-grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o
+grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o ocl_utils_mod.o
 
 halo_mod.o: region_mod.o
 

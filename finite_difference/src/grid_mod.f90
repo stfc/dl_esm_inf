@@ -1,4 +1,5 @@
 module grid_mod
+  use iso_c_binding, only: c_intptr_t
   use kind_params_mod
   use region_mod
   use gocean_mod
@@ -67,6 +68,7 @@ module grid_mod
      !! require a T-mask, we do not allocate this array for that
      !! case.
      integer, allocatable :: tmask(:,:)
+     integer(c_intptr_t) :: tmask_device
 
      !> The type of boundary conditions applied to the model domain
      !! in the x, y and z dimensions. Note that at this stage
@@ -80,24 +82,38 @@ module grid_mod
 
      !> Horizontal scale factors at t point (m)
      real(wp), allocatable :: dx_t(:,:), dy_t(:,:)
+     integer(c_intptr_t) :: dx_t_device, dy_t_device
+
      !> Horizontal scale factors at u point (m)
      real(wp), allocatable :: dx_u(:,:), dy_u(:,:)
+     integer(c_intptr_t) :: dx_u_device, dy_u_device
+
      !> Horizontal scale factors at v point (m)
-     real(wp), allocatable :: dx_v(:,:), dy_v(:,:)  
+     real(wp), allocatable :: dx_v(:,:), dy_v(:,:) 
+     integer(c_intptr_t) :: dx_v_device, dy_v_device
+
      !> Horizontal scale factors at f point (m)
      real(wp), allocatable :: dx_f(:,:), dy_f(:,:)
-     !> Unknown \todo Name these fields!
+     integer(c_intptr_t) :: dx_f_device, dy_f_device
+
+     !> Area of cell centred on t, u or v points
      real(wp), allocatable :: area_t(:,:), area_u(:,:), area_v(:,:)
+     integer(c_intptr_t) :: area_t_device, area_u_device, area_v_device
+
      !> Latitude of u points
      real(wp), allocatable :: gphiu(:,:)
      !> Latitude of v points
      real(wp), allocatable :: gphiv(:,:)
      !> Latitude of f points
      real(wp), allocatable :: gphif(:,:)
+     integer(c_intptr_t) :: gphiu_device, gphiv_device, gphif_device
 
      !> Coordinates of grid (T) points in horizontal plane
      real(wp), allocatable :: xt(:,:), yt(:,:)
+     integer(c_intptr_t) :: xt_device, yt_device
+
    contains
+
      procedure :: get_tmask
 
   end type grid_type
@@ -216,6 +232,9 @@ contains
   !!                  supplied if domain is all wet and has PBCs.
   subroutine grid_init(grid, m, n, dxarg, dyarg, tmask)
     use global_parameters_mod, only: ALIGNMENT
+    use gocean_mod, only: use_opencl, cl_context
+    use ocl_utils_mod, only: create_buffer
+    use clfortran, only: CL_MEM_READ_ONLY
     implicit none
     type(grid_type), intent(inout) :: grid
     integer,         intent(in)    :: m, n
@@ -227,6 +246,8 @@ contains
     integer :: ji, jj
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
+    !> Size of buffer to create on OpenCL device (if any)
+    integer(kind=8) :: size_in_bytes
 
     ! Store the global dimensions of the grid.
     if( present(tmask) )then
@@ -409,6 +430,43 @@ contains
     DO jj = ystart+1, ystop
       grid%yt(xstart:xstop,jj) = grid%yt(xstart:xstop, jj-1) + grid%dy
     END DO
+
+    ! Create buffers on the OpenCL device (if any)
+    if(use_opencl)then
+       size_in_bytes = int(grid%nx*grid%ny, 8)*8_8
+       grid%xt_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%yt_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%dx_t_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%dy_t_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%dx_u_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%dy_u_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%dx_v_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%dy_v_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%dx_f_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%dy_f_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%area_t_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%area_u_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%area_v_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%gphif_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%gphiu_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+       grid%gphiv_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
+                                      size_in_bytes)
+    end if
 
   end subroutine grid_init
 
