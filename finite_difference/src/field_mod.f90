@@ -1,9 +1,10 @@
 module field_mod
+  use iso_c_binding, only: c_intptr_t
   use kind_params_mod
   use region_mod
   use halo_mod
   use grid_mod
-  use gocean_mod, only: gocean_stop
+  use gocean_mod, only: gocean_stop, use_opencl
   implicit none
 
   private
@@ -60,6 +61,10 @@ module field_mod
      type(tile_type), dimension(:), allocatable :: tile
      !> Array holding the actual field values
      real(wp), dimension(:,:), allocatable :: data
+     !> Pointer to corresponding buffer on remote device (if any).
+     !! This requires variables that are declared to be of this type
+     !! have the 'target' attribute.
+     integer(c_intptr_t) :: device_ptr
   end type r2d_field
 
   !> Interface for the copy_field operation. Overloaded to take
@@ -131,6 +136,9 @@ contains
 
   function r2d_field_constructor(grid,    &
                                  grid_points) result(self)
+    use ocl_utils_mod, only: create_buffer
+    use clfortran, only: CL_MEM_READ_WRITE
+    use gocean_mod, only: cl_context
     implicit none
     ! Arguments
     !> Pointer to the grid on which this field lives
@@ -145,6 +153,8 @@ contains
     !> The upper bounds actually used to allocate arrays (as opposed
     !! to the limits carried around with the field)
     integer :: upper_x_bound, upper_y_bound
+    !> Size of buffer to create on OpenCL device (if any)
+    integer(kind=8) :: size_in_bytes
 
     ! Set this field's grid pointer to point to the grid pointed to
     ! by the supplied grid_ptr argument
@@ -205,6 +215,12 @@ contains
        end do
     end do
 !$OMP END PARALLEL DO
+
+    if(use_opencl)then
+       size_in_bytes = int(upper_x_bound*upper_y_bound, 8)*8_8
+       self%device_ptr = create_buffer(cl_context, CL_MEM_READ_WRITE, &
+                                       size_in_bytes)
+    end if
 
   end function r2d_field_constructor
 

@@ -1,5 +1,7 @@
 !> Module containing basic utilities
 module gocean_mod
+  use iso_c_binding, only: c_intptr_t
+  use ocl_utils_mod, only: CL_UTIL_STR_LEN, init_device
   use kind_params_mod
   implicit none
 
@@ -9,20 +11,45 @@ module gocean_mod
                       write_log_i, write_log_r
   end interface
 
+  !> Whether or not this model will run using OpenCL
+  logical :: use_opencl
+
+  !> Pointer to the OpenCL device being used (if any)
+  integer(c_intptr_t) :: cl_device
+  !> The OpenCL context
+  integer(c_intptr_t) :: cl_context
+  !> Version of OpenCL supported by the device
+  character(len=CL_UTIL_STR_LEN) :: version_str
+
 contains
 
   !===================================================
 
   !> Initialise the GOcean environment
-  subroutine gocean_init()
+  subroutine gocean_init(opencl)
+    use ocl_utils_mod, only: init_device
 #if _OPENACC
     use openacc
 #endif
     implicit none
+    !> Whether or not to use OpenCL
+    logical, optional :: opencl
 
 #if _OPENACC
     call acc_init(acc_device_nvidia)
 #endif
+
+    if(present(opencl))then
+       use_opencl = opencl
+    else
+       use_opencl = .False.
+    end if
+
+    if(use_opencl)then
+       ! Initialise the OpenCL device
+       call init_device(cl_device, version_str, cl_context)
+    end if
+
   end subroutine gocean_init
 
   !===================================================
