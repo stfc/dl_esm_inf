@@ -162,6 +162,18 @@ contains
 
   end function get_program
 
+
+  !> Release an OpenCL program object
+  subroutine release_program(prog)
+    integer(c_intptr_t), target, intent(inout) :: prog
+    ! Locals
+    integer(c_int32_t) :: ierr
+
+    ierr = clReleaseProgram(prog)
+    call check_status('clReleaseProgram', ierr)
+  end subroutine release_program
+
+
   !> Get a kernel object from a program object
   !>
   !> @param [in] prog OpenCL program object obtained from
@@ -187,6 +199,29 @@ contains
 
   end function get_kernel
 
+  !===================================================
+
+  !> Set-up the specified number of OpenCL command queues for the specified
+  !! context and device.
+  subroutine init_cmd_queues(nqueues, queues, context, device)
+    !> The number of command queues to create
+    integer, intent(in) :: nqueues
+    integer(c_intptr_t), target, intent(inout) :: queues(nqueues)
+    integer(c_intptr_t), intent(in) :: device
+    integer(c_intptr_t), intent(in) :: context
+    ! Locals
+    integer :: i
+    integer(c_int32_t) :: ierr
+
+    do i=1, nqueues
+       queues(i) = clCreateCommandQueue(context, device, &
+                                        CL_QUEUE_PROFILING_ENABLE, ierr)
+       call check_status('clCreateCommandQueue', ierr)
+    end do
+
+  end subroutine init_cmd_queues
+
+  !===================================================
 
   !> Create a buffer in the supplied OpenCL context
   function create_buffer(context, access, nbytes) result(buffer)
