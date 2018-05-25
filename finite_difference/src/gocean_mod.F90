@@ -5,6 +5,8 @@ module gocean_mod
   use kind_params_mod
   implicit none
 
+  private
+
   !> Interface to logging routines
   interface model_write_log
      module procedure write_log_a, write_log_ir, &
@@ -19,17 +21,21 @@ module gocean_mod
   !> The OpenCL context
   integer(c_intptr_t) :: cl_context
   !> Version of OpenCL supported by the device
-  character(len=CL_UTIL_STR_LEN) :: version_str
+  character(len=CL_UTIL_STR_LEN) :: cl_version_str
 
   !> Number of OpenCL command queues
-  integer, save :: num_queues
+  integer, save :: cl_num_queues
   !> Array of command queues - used to achieve concurrent execution
   integer(c_intptr_t), allocatable, target :: cl_cmd_queues(:)
 
   !> The OpenCL kernels used by the model
-  integer, save :: num_kernels
+  integer, save :: cl_num_kernels
   character(len=CL_UTIL_STR_LEN), allocatable :: cl_kernel_names(:)
   integer(c_intptr_t), target, allocatable :: cl_kernels(:)
+
+  public gocean_init, gocean_stop
+  public model_write_log
+  public use_opencl, cl_context, cl_device, get_num_cmd_queues, get_cmd_queues
 
 contains
 
@@ -58,14 +64,14 @@ contains
 
     if(use_opencl)then
        ! Initialise the OpenCL device
-       call init_device(cl_device, version_str, cl_context)
+       call init_device(cl_device, cl_version_str, cl_context)
        ! Create command queue(s)
-       num_queues = 4
-       allocate(cl_cmd_queues(num_queues), Stat=ierr)
+       cl_num_queues = 4
+       allocate(cl_cmd_queues(cl_num_queues), Stat=ierr)
        if(ierr /= 0)then
           call gocean_stop("Failed to allocate list for OpenCL command queues")
        end if
-       call init_cmd_queues(num_queues, cl_cmd_queues, cl_context, cl_device)
+       call init_cmd_queues(cl_num_queues, cl_cmd_queues, cl_context, cl_device)
     end if
 
   end subroutine gocean_init
@@ -83,17 +89,17 @@ contains
     integer(c_intptr_t), target :: prog
 
     ! Get a program object containing all of our kernels
-    prog = get_program(cl_context, cl_device, version_str, filename)
+    prog = get_program(cl_context, cl_device, cl_version_str, filename)
 
-    num_kernels = nkernels
+    cl_num_kernels = nkernels
 
-    allocate(cl_kernels(num_kernels), cl_kernel_names(num_kernels), &
+    allocate(cl_kernels(cl_num_kernels), cl_kernel_names(cl_num_kernels), &
              Stat=ierr)
     if(ierr /= 0)then
        call gocean_stop("Failed to allocate memory for kernel table")
     end if
 
-    do ik = 1, num_kernels
+    do ik = 1, cl_num_kernels
        cl_kernels(ik) = get_kernel(prog, kernel_names(ik))
     end do
 
@@ -114,7 +120,7 @@ contains
     !> \TODO is there a better way to do this that reduces the need for
     !! string comparisons?
     match = 0
-    do ik = 1, num_kernels
+    do ik = 1, cl_num_kernels
        if(name == cl_kernel_names(ik))then
           ! We can't just return out of this loop because this is a
           ! function
@@ -203,5 +209,32 @@ contains
   end subroutine write_log_a
 
   !===================================================
+
+  function get_num_cmd_queues() result(num)
+    integer :: num
+    num = cl_num_queues
+  end function get_num_cmd_queues
+
+  !===================================================
+
+  function get_cmd_queues() result(queues)
+    integer(c_intptr_t), pointer :: queues(:)
+    queues => cl_cmd_queues
+  end function get_cmd_queues
+
+  !===================================================
+
+  subroutine gocean_release()
+    integer :: i
+
+    do i=1, cl_num_kernels
+       call release_kernel(cl_kernels(i))
+    end do
+
+    call release_queues(cl_num_queues, cl_cmd_queues)
+
+    call release_context(cl_context)
+
+  end subroutine gocean_release
 
 end module gocean_mod

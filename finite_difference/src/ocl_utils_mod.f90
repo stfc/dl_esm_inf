@@ -94,6 +94,20 @@ contains
 
   end subroutine init_device
 
+  !===================================================
+
+  subroutine release_context(context)
+    integer(c_intptr_t), intent(inout) :: context 
+    ! Locals
+    integer(c_int32_t) :: ierr
+
+    ierr=clReleaseContext(context)
+    call check_status('clReleaseContext', ierr)
+
+  end subroutine release_context
+
+  !===================================================
+
   function get_program(context, device, version_str, filename) result(prog)
     integer(c_intptr_t), target :: prog
     integer(c_intptr_t), intent(inout), target :: device, context 
@@ -201,6 +215,17 @@ contains
 
   !===================================================
 
+  subroutine release_kernel(kern)
+    integer(c_intptr_t), target, intent(inout) :: kern
+    integer(c_int32_t) :: ierr
+
+    ierr = clReleaseKernel(kern)
+    call check_status('clReleaseKernel', ierr)
+
+  end subroutine release_kernel
+
+  !===================================================
+
   !> Set-up the specified number of OpenCL command queues for the specified
   !! context and device.
   subroutine init_cmd_queues(nqueues, queues, context, device)
@@ -223,6 +248,22 @@ contains
 
   !===================================================
 
+  subroutine release_cmd_queues(nqueues, queues)
+    integer, intent(in) :: nqueues
+    integer(c_intptr_t), target, intent(inout) :: queues(nqueues)
+    ! Locals
+    integer :: iq
+    integer(c_int32_t) :: ierr
+
+    do iq=1, nqueues
+       ierr=clReleaseCommandQueue(queues(iq))
+       call check_status('clReleaseCommandQueue', ierr)
+    end do
+
+  end subroutine release_cmd_queues
+
+  !===================================================
+
   !> Create a buffer in the supplied OpenCL context
   function create_buffer(context, access, nbytes) result(buffer)
     integer(c_intptr_t), intent(in) :: context
@@ -238,6 +279,34 @@ contains
 
   end function create_buffer
 
+  !=====================================================
+
+  !> Read a buffer (containing 64-bit floats) from an OpenCL device. Call
+  !! blocks until read is complete.
+  subroutine read_buffer(queue, device_ptr, local_array, nelem)
+    use kind_params_mod, only: wp
+    integer(c_intptr_t), intent(in) :: queue, device_ptr
+    real(kind=wp), target, intent(in) :: local_array
+    integer(8), intent(in) :: nelem
+    ! Locals
+    integer(c_int32_t) :: ierr
+    integer(c_intptr_t), target :: event
+    integer(8) :: nbytes
+
+    nbytes = nelem * 8_8
+    ierr = clEnqueueReadBuffer(queue, device_ptr, CL_TRUE, 0_8, &
+                               nbytes, C_LOC(local_array),      &
+                               0, C_NULL_PTR, C_LOC(event))
+    call check_status('clEnqueueReadBuffer', ierr)
+
+    !> \todo implement an asynchronous read so we don't have to wait
+    !! for each one to complete.
+    ierr = clWaitForEvents(1, C_LOC(event))
+    call check_status('clWaitForEvents', ierr)
+
+  end subroutine read_buffer
+
+  !=====================================================
 
   !> Check the return code of an OpenCL API cal
   subroutine check_status(text, ierr)

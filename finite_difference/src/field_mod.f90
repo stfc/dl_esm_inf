@@ -4,7 +4,7 @@ module field_mod
   use region_mod
   use halo_mod
   use grid_mod
-  use gocean_mod, only: gocean_stop, use_opencl
+  use gocean_mod, only: gocean_stop, use_opencl, get_cmd_queues
   implicit none
 
   private
@@ -93,6 +93,7 @@ module field_mod
   public copy_field
   public set_field
   public field_checksum
+  public update_local
 
 ! Grid points on an Arakawa C grid with NE offset (i.e. the U,V and F pts
 ! immediately to the North and East of a T point share its grid indices) 
@@ -1374,5 +1375,27 @@ contains
     if(ierr == 0)success = .TRUE.
 
   end function get_grid_dims
+
+  !======================================================================
+  !> Ensure that we have up-to-date values for the specified field in our
+  !! local memory.
+  subroutine update_local(fld)
+    type(r2d_field) :: fld
+    ! Locals
+    integer(8) :: nelem
+    integer(c_intptr_t), pointer :: queues(:)
+    if(.not. fld%data_on_device)return
+
+    if(use_opencl)then
+       ! Read values from OpenCL device
+       nelem = int(fld%grid%nx * fld%grid%ny, 8)
+       queues => get_cmd_queues()
+       call read_buffer(queues(1), fld%device_ptr, fld%data, nelem)
+    end if
+
+    ! Get values if using OpenACC
+    !$acc update host(field)
+
+  end subroutine update_local
 
 end module field_mod
