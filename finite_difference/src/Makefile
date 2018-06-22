@@ -1,5 +1,4 @@
 MODULES = argument_mod.o \
-          clfortran.o \
           kind_params_mod.o \
           global_parameters_mod.o \
           gocean_mod.o \
@@ -7,13 +6,18 @@ MODULES = argument_mod.o \
           kernel_mod.o \
           halo_mod.o \
           field_mod.o \
-          ocl_utils_mod.o \
           region_mod.o
+
+OCL_DIR = ../../external/FortCL/src
+OCL_LIB = ${OCL_DIR}/libFortCL.a
 
 all: ${API_LIB}
 
-${API_LIB}: ${MODULES}
+${API_LIB}: ${OCL_LIB} ${MODULES}
 	${AR} ${ARFLAGS} ${API_LIB} ${MODULES}
+
+${OCL_LIB}:
+	${MAKE} -C ${OCL_DIR}
 
 clean:
 	rm -f *.o *.mod *.a
@@ -21,19 +25,15 @@ clean:
 # Inter-module dependencies, alphabetical order
 argument_mod.o: global_parameters_mod.o
 
-field_mod.o: kind_params_mod.o grid_mod.o ocl_utils_mod.o \
+field_mod.o: kind_params_mod.o grid_mod.o \
              halo_mod.o region_mod.o gocean_mod.o
 
-gocean_mod.o: ocl_utils_mod.o
-
-grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o ocl_utils_mod.o
+grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o
 
 halo_mod.o: region_mod.o
 
-ocl_utils_mod.o: clfortran.o
-
 %.o: %.f90
-	$(F90) $(F90FLAGS) -c $<
+	$(F90) $(F90FLAGS) -I${OCL_DIR} -c $<
 
 %.o: %.F90
-	$(F90) $(F90FLAGS) -c $<
+	$(F90) $(F90FLAGS) -I${OCL_DIR} -c $<

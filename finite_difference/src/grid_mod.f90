@@ -232,8 +232,9 @@ contains
   !!                  supplied if domain is all wet and has PBCs.
   subroutine grid_init(grid, m, n, dxarg, dyarg, tmask)
     use global_parameters_mod, only: ALIGNMENT
-    use gocean_mod, only: use_opencl, cl_context
+    use gocean_mod, only: use_opencl
     use ocl_utils_mod, only: create_buffer
+    use ocl_env_mod, only: cl_context  ! The OpenCL context
     use clfortran, only: CL_MEM_READ_ONLY
     implicit none
     type(grid_type), intent(inout) :: grid

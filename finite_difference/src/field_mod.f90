@@ -4,7 +4,7 @@ module field_mod
   use region_mod
   use halo_mod
   use grid_mod
-  use gocean_mod, only: gocean_stop, use_opencl, get_cmd_queues
+  use gocean_mod, only: gocean_stop, use_opencl
   implicit none
 
   private
@@ -139,7 +139,7 @@ contains
                                  grid_points) result(self)
     use ocl_utils_mod, only: create_buffer
     use clfortran, only: CL_MEM_READ_WRITE
-    use gocean_mod, only: cl_context
+    use ocl_env_mod, only: cl_context
     implicit none
     ! Arguments
     !> Pointer to the grid on which this field lives
@@ -1380,6 +1380,8 @@ contains
   !> Ensure that we have up-to-date values for the specified field in our
   !! local memory.
   subroutine update_local(fld)
+    use ocl_utils_mod, only: read_buffer
+    use ocl_env_mod, only: get_cmd_queues
     type(r2d_field) :: fld
     ! Locals
     integer(8) :: nelem
