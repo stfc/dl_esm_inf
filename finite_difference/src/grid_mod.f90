@@ -68,6 +68,7 @@ module grid_mod
      !! require a T-mask, we do not allocate this array for that
      !! case.
      integer, allocatable :: tmask(:,:)
+     !> Pointer to tmask on remote device (if any)
      integer(c_intptr_t) :: tmask_device
 
      !> The type of boundary conditions applied to the model domain
@@ -252,10 +253,6 @@ contains
   !!                  supplied if domain is all wet and has PBCs.
   subroutine grid_init(grid, m, n, dxarg, dyarg, tmask)
     use global_parameters_mod, only: ALIGNMENT
-    use gocean_mod, only: use_opencl
-    use ocl_utils_mod, only: create_buffer
-    use ocl_env_mod, only: cl_context  ! The OpenCL context
-    use clfortran, only: CL_MEM_READ_ONLY
     implicit none
     type(grid_type), intent(inout) :: grid
     integer,         intent(in)    :: m, n
@@ -267,8 +264,6 @@ contains
     integer :: ji, jj
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
-    !> Size of buffer to create on OpenCL device (if any)
-    integer(kind=8) :: size_in_bytes
 
     ! Store the global dimensions of the grid.
     if( present(tmask) )then
@@ -451,47 +446,6 @@ contains
     DO jj = ystart+1, ystop
       grid%yt(xstart:xstop,jj) = grid%yt(xstart:xstop, jj-1) + grid%dy
     END DO
-
-    ! Create buffers on the OpenCL device (if any)
-    if(use_opencl)then
-       size_in_bytes = int(grid%nx*grid%ny, 8)*8_8
-       grid%xt_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%yt_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%dx_t_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%dy_t_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%dx_u_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%dy_u_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%dx_v_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%dy_v_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%dx_f_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%dy_f_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%area_t_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%area_u_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%area_v_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%gphif_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%gphiu_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       grid%gphiv_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                      size_in_bytes)
-       ! Integer arrays
-       size_in_bytes = int(grid%nx*grid%ny, 8)*4_8
-       grid%tmask_device = create_buffer(cl_context, CL_MEM_READ_ONLY, &
-                                         size_in_bytes)
-    end if
 
   end subroutine grid_init
 

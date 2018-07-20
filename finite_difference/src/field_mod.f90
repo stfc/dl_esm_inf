@@ -4,7 +4,7 @@ module field_mod
   use region_mod
   use halo_mod
   use grid_mod
-  use gocean_mod, only: gocean_stop, use_opencl
+  use gocean_mod, only: gocean_stop
   implicit none
 
   private
@@ -93,7 +93,6 @@ module field_mod
   public copy_field
   public set_field
   public field_checksum
-  public update_local
 
 ! Grid points on an Arakawa C grid with NE offset (i.e. the U,V and F pts
 ! immediately to the North and East of a T point share its grid indices) 
@@ -137,9 +136,6 @@ contains
 
   function r2d_field_constructor(grid,    &
                                  grid_points) result(self)
-    use ocl_utils_mod, only: create_buffer
-    use clfortran, only: CL_MEM_READ_WRITE
-    use ocl_env_mod, only: cl_context
     implicit none
     ! Arguments
     !> Pointer to the grid on which this field lives
@@ -216,12 +212,6 @@ contains
        end do
     end do
 !$OMP END PARALLEL DO
-
-    if(use_opencl)then
-       size_in_bytes = int(upper_x_bound*upper_y_bound, 8)*8_8
-       self%device_ptr = create_buffer(cl_context, CL_MEM_READ_WRITE, &
-                                       size_in_bytes)
-    end if
 
   end function r2d_field_constructor
 
@@ -1375,29 +1365,5 @@ contains
     if(ierr == 0)success = .TRUE.
 
   end function get_grid_dims
-
-  !======================================================================
-  !> Ensure that we have up-to-date values for the specified field in our
-  !! local memory.
-  subroutine update_local(fld)
-    use ocl_utils_mod, only: read_buffer
-    use ocl_env_mod, only: get_cmd_queues
-    type(r2d_field) :: fld
-    ! Locals
-    integer(8) :: nelem
-    integer(c_intptr_t), pointer :: queues(:)
-    if(.not. fld%data_on_device)return
-
-    if(use_opencl)then
-       ! Read values from OpenCL device
-       nelem = int(fld%grid%nx * fld%grid%ny, 8)
-       queues => get_cmd_queues()
-       call read_buffer(queues(1), fld%device_ptr, fld%data, nelem)
-    end if
-
-    ! Get values if using OpenACC
-    !$acc update host(field)
-
-  end subroutine update_local
 
 end module field_mod
