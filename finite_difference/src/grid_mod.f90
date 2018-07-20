@@ -224,6 +224,7 @@ contains
     self%gphif_device = 0
     self%xt_device = 0
     self%yt_device = 0
+    self%tmask_device = 0
 
   end function grid_constructor
 
