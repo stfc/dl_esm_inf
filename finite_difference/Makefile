@@ -21,7 +21,6 @@ clean:
 allclean: clean
 	rm -f lib/${API_LIB}
 	rm -f include/*.[Mm][Oo][Dd]
-	${MAKE} -C ../external/FortCL allclean
 
 distclean: allclean
 
