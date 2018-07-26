@@ -11,6 +11,7 @@
 ! DESCRIPTION
 !   The base type for a kernel.
 !-------------------------------------------------------------------------------
+!> Module defining the base type for a kernel, used in meta-data.
 module kernel_mod
 use argument_mod
 use global_parameters_mod

@@ -27,53 +27,65 @@
 #------------------------------------------------------------------------------
 # Author: A. R. Porter, STFC Daresbury Laboratory
 
-# Top-level Makefile for the dl_esm_inf library.
-# Default target is to build the library without MPI. Use the 'dm_fd_lib'
-# target to compile with MPI support.
+# Makefile for the example mini-app demonstrating the use of the dl_esm_inf
+# library.
 #
-# This Makefile picks up the compiler to use along with any flags from
+# This Makefile picks up the compiler to use plus any associated flags from
 # environment variables. e.g. to use gfortran:
 # 
 # export F90=mpif90
 # export F90FLAGS="-O3"
 # export AR=ar
+# make
 #
 # or, to build the serial version:
 #
 # export F90=gfortran
+# make serial-model
 
-API_LIB = dl_esm_inf_fd.a
+all: model
 
-all: fd_lib
+# Target to build version with MPI support
+.PHONY: model
+model: inf_lib model.exe
 
-# Build the library without MPI
-fd_lib:
-	${MAKE} -C src fake_parallel
-	${MAKE} -C src API_LIB="${API_LIB}"
+# Target to build serial version
+.PHONY: serial-model
+serial-model: inf_lib_serial model.exe
 
-# Build the library with MPI
-dm_fd_lib:
-	${MAKE} -C src parallel
-	${MAKE} -C src API_LIB="${API_LIB}"
+# Run tests (check both serial and parallel versions are valgrind clean)
+# This is a very basic target and assumes that valgrind and 'mpirun'
+# are available.
+# TODO use a proper testing framework!
+test:
+	${MAKE} serial-model
+	valgrind ./model.exe
+	${MAKE} clean
+	${MAKE} model
+	mpirun -np 2 valgrind ./model.exe
 
-install: fd_lib lib include
-	cp src/${API_LIB} ./lib/.
-	cp src/*.[Mm][Oo][Dd] ./include/.
+INF_DIR=..
+INF_INC = ${INF_DIR}/src
+INF_LIB = ${INF_DIR}/src/dl_esm_inf_fd.a
 
-lib:
-	mkdir lib
+.PHONY: inf_lib
+inf_lib:
+	${MAKE} -C ${INF_DIR} F90=${F90} dm_fd_lib
 
-include:
-	mkdir include
+.PHONY: inf_lib_serial
+inf_lib_serial:
+	${MAKE} -C ${INF_DIR} F90=${F90} fd_lib
 
-clean:
-	rm -f src/parallel_mod.f90
-	${MAKE} -C src clean
+# Normal targets
+model.exe: inf_lib model.o
+	${F90} -o $@ ${LDFLAGS} model.o ${INF_LIB}
 
-distclean: clean
-	rm -f lib/${API_LIB}
-	rm -f include/*.[Mm][Oo][Dd]
+%.o: %.f90
+	$(F90) $(F90FLAGS) ${OMPFLAGS} -I${INF_INC} -c $<
 
-.PHONY: doc
-doc:
-	doxygen src/doxyfile
+%.o: %.F90
+	$(F90) $(F90FLAGS) ${OMPFLAGS} -I${INF_INC} -c $<
+
+clean: 
+	${MAKE} -C ${INF_DIR} clean
+	rm -f *.o *.mod *.MOD *~ *.exe

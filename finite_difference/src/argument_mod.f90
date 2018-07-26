@@ -4,14 +4,8 @@
 ! The contribution of STFC in creating this information/data is acknowledged.
 !-----------------------------------------------------------------------------
 
-!-------------------------------------------------------------------------------
-! DESCRIPTION
-!   An arg has a function space (where dofs live on cell) what the stencil is,
-!   this is not Grad Phi, but which facets are touched.  could be simple, for
-!   example the FE cell integral stencil.  intent: what happens to the data
-!   members
-!-------------------------------------------------------------------------------
-
+!> Module containing definitions that enable kernel meta-data to be
+!! written as valid Fortran.
 module argument_mod
 use iso_c_binding
 use global_parameters_mod
@@ -27,13 +21,15 @@ enum, bind(c)
    enumerator :: GO_MIN, GO_MAX, GO_SUM
 end enum
 
+! Fake array to enable us to provide stencil meta-data in the args() array
+integer, public, parameter :: stencil(0:111,0:111,0:111) = 0
+
   !args(fs,stencil,arg_intent) ! this need defining
 type :: go_arg
   integer :: arg_intent
   integer :: element
   integer :: stencil=0
 end type go_arg
-
 
 !-------------------------------------------------------------------------------
 ! Expose public types
