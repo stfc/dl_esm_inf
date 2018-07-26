@@ -40,8 +40,8 @@ program model
   ! Total size of the model domain
   integer :: jpiglo = 100, jpjglo = 100
   ! (Uniform) grid resolution
-  real(wp) :: dx = 1.0
-  real(wp) :: dy = 1.0
+  real(go_wp) :: dx = 1.0
+  real(go_wp) :: dy = 1.0
   !> Our domain decomposition
   type(decomposition_type) :: decomp
   !> The grid on which our fields are defined
@@ -57,9 +57,9 @@ program model
   call gocean_initialise()
 
   !> Create our grid object
-  model_grid = grid_type(ARAKAWA_C, &
-                         (/BC_EXTERNAL,BC_EXTERNAL,BC_NONE/), &
-                         OFFSET_NE)
+  model_grid = grid_type(GO_ARAKAWA_C, &
+                         (/GO_BC_EXTERNAL,GO_BC_EXTERNAL,GO_BC_NONE/), &
+                         GO_OFFSET_NE)
 
   !> Generate a domain decomposition
   decomp = decompose(jpiglo, jpjglo)
@@ -78,8 +78,8 @@ program model
   !! grid resolution
   call grid_init(model_grid, decomp, dx, dy, tmask)
 
-  !> Create a field on the grid
-  a_field = r2d_field(model_grid, U_POINTS)
+  !> Create a field on U-points of the grid
+  a_field = r2d_field(model_grid, GO_U_POINTS)
 
   ! All done!
   if (my_rank == 1) write(*,'(/"Example model set-up complete."/)')
