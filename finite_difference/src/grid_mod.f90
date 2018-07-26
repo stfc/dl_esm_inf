@@ -11,35 +11,39 @@ module grid_mod
 
   ! Enumeration of possible grid types (we only actually
   ! support ARAKAWA_C at the moment)
-  integer, public, parameter :: ARAKAWA_C = 0
-  integer, public, parameter :: ARAKAWA_B = 1
+  integer, public, parameter :: GO_ARAKAWA_C = 0
+  integer, public, parameter :: GO_ARAKAWA_B = 1
 
   ! Enumeration of the four possible choices for 
   ! offsetting the grid-point types relative to the T point.
   !> Points to South and West of T point have same 
   !! i,j index (e.g. 'shallow' code)
-  integer, public, parameter :: OFFSET_SW = 0
-  integer, public, parameter :: OFFSET_SE = 1
-  integer, public, parameter :: OFFSET_NW = 2
+  integer, public, parameter :: GO_OFFSET_SW = 0
+  integer, public, parameter :: GO_OFFSET_SE = 1
+  integer, public, parameter :: GO_OFFSET_NW = 2
   !> Points to North and East of T point have same
   !! i,j index (e.g. NEMO code).
-  integer, public, parameter :: OFFSET_NE = 3
+  integer, public, parameter :: GO_OFFSET_NE = 3
   !> Value to signify no dependence on the relative offset of
   !! the different grid-point types.
-  integer, public, parameter :: OFFSET_ANY = 4
+  integer, public, parameter :: GO_OFFSET_ANY = 4
 
   ! Enumeration of boundary-condition types
   !> Grid (model domain) has periodic boundary condition
-  integer, public, parameter :: BC_PERIODIC = 0
+  integer, public, parameter :: GO_BC_PERIODIC = 0
   !> Grid (model domain) has external boundary conditions. This is a
   !! placeholder really as this is a complex area.
-  integer, public, parameter :: BC_EXTERNAL = 1
+  integer, public, parameter :: GO_BC_EXTERNAL = 1
   !> Grid (model domain) has no boundary conditions
-  integer, public, parameter :: BC_NONE = 2
+  integer, public, parameter :: GO_BC_NONE = 2
 
   !> The width of the halos we set up for implementing PBCs
   integer, parameter :: HALO_WIDTH_X = 1
   integer, parameter :: HALO_WIDTH_Y = 1
+
+  ! What boundary to align arrays (allocated within the library) to
+  ! AVX is 256 bit = 4 d.p. words
+  integer, parameter :: ALIGNMENT = 4
 
   type, public :: grid_type
      !> The type of grid this is (e.g. Arakawa C Grid)
@@ -54,9 +58,9 @@ module grid_mod
      !! not just the region that is simulated.
      integer :: ny
      !> Grid spacing in x (m)
-     real(wp) :: dx
+     real(go_wp) :: dx
      !> Grid spacing in y (m)
-     real(wp) :: dy
+     real(go_wp) :: dy
 
      !> Nature of each T point: 1 == wet inside simulated region
      !!                         0 == land
@@ -80,24 +84,24 @@ module grid_mod
      type(subdomain_type) :: subdomain
 
      !> Horizontal scale factors at t point (m)
-     real(wp), allocatable :: dx_t(:,:), dy_t(:,:)
+     real(go_wp), allocatable :: dx_t(:,:), dy_t(:,:)
      !> Horizontal scale factors at u point (m)
-     real(wp), allocatable :: dx_u(:,:), dy_u(:,:)
+     real(go_wp), allocatable :: dx_u(:,:), dy_u(:,:)
      !> Horizontal scale factors at v point (m)
-     real(wp), allocatable :: dx_v(:,:), dy_v(:,:)  
+     real(go_wp), allocatable :: dx_v(:,:), dy_v(:,:)  
      !> Horizontal scale factors at f point (m)
-     real(wp), allocatable :: dx_f(:,:), dy_f(:,:)
+     real(go_wp), allocatable :: dx_f(:,:), dy_f(:,:)
      !> Unknown \todo Name these fields!
-     real(wp), allocatable :: area_t(:,:), area_u(:,:), area_v(:,:)
+     real(go_wp), allocatable :: area_t(:,:), area_u(:,:), area_v(:,:)
      !> Latitude of u points
-     real(wp), allocatable :: gphiu(:,:)
+     real(go_wp), allocatable :: gphiu(:,:)
      !> Latitude of v points
-     real(wp), allocatable :: gphiv(:,:)
+     real(go_wp), allocatable :: gphiv(:,:)
      !> Latitude of f points
-     real(wp), allocatable :: gphif(:,:)
+     real(go_wp), allocatable :: gphif(:,:)
 
      !> Coordinates of grid (T) points in horizontal plane
-     real(wp), allocatable :: xt(:,:), yt(:,:)
+     real(go_wp), allocatable :: xt(:,:), yt(:,:)
    contains
      procedure :: get_tmask
 
@@ -159,10 +163,10 @@ contains
     ! has specified a valid value for grid_name.
     select case(grid_name)
 
-    case(ARAKAWA_C)
-       self%name = ARAKAWA_C
-    case(ARAKAWA_B)
-       self%name = ARAKAWA_B
+    case(GO_ARAKAWA_C)
+       self%name = GO_ARAKAWA_C
+    case(GO_ARAKAWA_B)
+       self%name = GO_ARAKAWA_B
     case default
        write(*,*) 'grid_constructor: ERROR: unsupported grid type: ', &
                   grid_name
@@ -173,14 +177,14 @@ contains
     ! relative to the T point
     select case(grid_stagger)
 
-    case(OFFSET_NE)
-       self%offset = OFFSET_NE
-    case(OFFSET_NW)
-       self%offset = OFFSET_NW
-    case(OFFSET_SE)
-       self%offset = OFFSET_SE
-    case(OFFSET_SW)
-       self%offset = OFFSET_SW
+    case(GO_OFFSET_NE)
+       self%offset = GO_OFFSET_NE
+    case(GO_OFFSET_NW)
+       self%offset = GO_OFFSET_NW
+    case(GO_OFFSET_SE)
+       self%offset = GO_OFFSET_SE
+    case(GO_OFFSET_SW)
+       self%offset = GO_OFFSET_SW
     case default
        write(*,*) 'grid_constructor: ERROR: unsupported relative offsets of grid types: ', &
                   grid_stagger
@@ -221,7 +225,7 @@ contains
     implicit none
     type(grid_type), intent(inout) :: grid
     type(decomposition_type), intent(in) :: decomp
-    real(wp),        intent(in)    :: dxarg, dyarg
+    real(go_wp),        intent(in)    :: dxarg, dyarg
     integer, allocatable, dimension(:,:), intent(in), optional :: tmask
     ! Locals
     integer :: myrank
@@ -285,8 +289,8 @@ contains
     else
        ! No T-mask supplied. Check that grid has PBCs in both
        ! x and y dimensions otherwise we won't know what to do.
-       if( .not. ( (grid%boundary_conditions(1) == BC_PERIODIC) .and. &
-                   (grid%boundary_conditions(2) == BC_PERIODIC) ) )then
+       if( .not. ( (grid%boundary_conditions(1) == GO_BC_PERIODIC) .and. &
+                   (grid%boundary_conditions(2) == GO_BC_PERIODIC) ) )then
           call gocean_stop('grid_init: ERROR: No T-mask supplied and '// &
                            'grid does not have periodic boundary conditions!')
        end if
@@ -357,9 +361,9 @@ contains
 !$OMP shared(grid)
     do jj = 1, grid%ny
        do ji = 1, grid%nx
-          grid%gphiu(ji, jj) = 50._wp
-          grid%gphiv(ji, jj) = 50._wp
-          grid%gphif(ji, jj) = 50._wp
+          grid%gphiu(ji, jj) = 50._go_wp
+          grid%gphiv(ji, jj) = 50._go_wp
+          grid%gphif(ji, jj) = 50._go_wp
        end do
     end do
 !$OMP END PARALLEL DO
@@ -375,9 +379,9 @@ contains
        end do
     end do
 
-    grid%xt(xstart, :) = (grid%subdomain%global%xstart - 0.5_wp) * &
+    grid%xt(xstart, :) = (grid%subdomain%global%xstart - 0.5_go_wp) * &
          grid%dx_t(xstart,:)
-    grid%yt(:,ystart)  = (grid%subdomain%global%ystart - 0.5_wp) * &
+    grid%yt(:,ystart)  = (grid%subdomain%global%ystart - 0.5_go_wp) * &
          grid%dy_t(:,ystart)
 
     DO ji = xstart+1, xstop

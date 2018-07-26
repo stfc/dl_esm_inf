@@ -59,7 +59,7 @@ contains
     IMPLICIT none
     CHARACTER(LEN=*), INTENT(in) :: fmtstr
     INTEGER,          INTENT(in) :: istep
-    REAL(wp),         INTENT(in) :: fvar
+    REAL(go_wp),      INTENT(in) :: fvar
 
     WRITE(output_unit,FMT=fmtstr) istep, fvar
 
@@ -85,7 +85,7 @@ contains
     use iso_fortran_env, only : output_unit ! access computing environment
     implicit none
     character(len=*), intent(in) :: fmtstr
-    real(wp),         intent(in) :: fvar
+    real(go_wp),      intent(in) :: fvar
 
     write(output_unit,FMT=fmtstr) fvar
 

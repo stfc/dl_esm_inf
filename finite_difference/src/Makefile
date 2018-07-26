@@ -89,8 +89,5 @@ tile_mod.o: region_mod.o
 
 subdomain_mod.o: region_mod.o
 
-%.o: %.f90
-	$(F90) $(F90FLAGS) -c $<
-
-%.o: %.F90
+%.o: %.[Ff]90
 	$(F90) $(F90FLAGS) -c $<
