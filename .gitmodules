@@ -1,3 +1,0 @@
-[submodule "external/FortCL"]
-	path = external/FortCL
-	url = git@github.com:stfc/FortCL.git
