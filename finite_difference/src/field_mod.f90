@@ -10,12 +10,12 @@ module field_mod
 
   ! Enumeration of grid-point types on the Arakawa C grid. A
   ! field lives on one of these types.
-  integer, public, parameter :: U_POINTS   = 0
-  integer, public, parameter :: V_POINTS   = 1
-  integer, public, parameter :: T_POINTS   = 2
-  integer, public, parameter :: F_POINTS   = 3
+  integer, public, parameter :: GO_U_POINTS   = 0
+  integer, public, parameter :: GO_V_POINTS   = 1
+  integer, public, parameter :: GO_T_POINTS   = 2
+  integer, public, parameter :: GO_F_POINTS   = 3
   !> A field that lives on all grid-points of the grid
-  integer, public, parameter :: ALL_POINTS = 4
+  integer, public, parameter :: GO_ALL_POINTS = 4
 
   !> A field is sub-divided into tiles for coarse-grained OpenMP
   type :: tile_type
@@ -26,7 +26,7 @@ module field_mod
      type(region_type) :: whole
      ! Could potentially physically divide up an array into 
      ! distinct tiles and store the data for each separately...
-     !real(wp), dimension(:,:), allocatable :: data
+     !real(go_wp), dimension(:,:), allocatable :: data
   end type tile_type
 
   !> The base field type. Intended to represent a global field
@@ -59,7 +59,7 @@ module field_mod
      !! is sub-divided.
      type(tile_type), dimension(:), allocatable :: tile
      !> Array holding the actual field values
-     real(wp), dimension(:,:), allocatable :: data
+     real(go_wp), dimension(:,:), allocatable :: data
   end type r2d_field
 
   !> Interface for the copy_field operation. Overloaded to take
@@ -76,7 +76,7 @@ module field_mod
   end interface r2d_field
 
   !> Interface for the field checksum operation. Overloaded to take either
-  !! a field object or a 2D, real(wp) array.
+  !! a field object or a 2D, real(go_wp) array.
   interface field_checksum
      module procedure fld_checksum, array_checksum
   end interface field_checksum
@@ -223,19 +223,19 @@ contains
 
     select case(grid_points)
 
-    case(U_POINTS)
+    case(GO_U_POINTS)
        write(fld_type, "('C-U')")
        call cu_field_init(fld)
-    case(V_POINTS)
+    case(GO_V_POINTS)
        write(fld_type, "('C-V')")
        call cv_field_init(fld)
-    case(T_POINTS)
+    case(GO_T_POINTS)
        write(fld_type, "('C-T')")
        call ct_field_init(fld)
-    case(F_POINTS)
+    case(GO_F_POINTS)
        write(fld_type, "('C-F')")
        call cf_field_init(fld)
-    case(ALL_POINTS)
+    case(GO_ALL_POINTS)
        write(fld_type, "('C-All')")
        call field_init(fld)
     case default
@@ -253,14 +253,14 @@ contains
     ! points.
     !> \todo Replace the use of NBOUNDARY here with info. computed
     !! from the T-point mask.
-    if(fld%grid%boundary_conditions(1) /= BC_PERIODIC)then
+    if(fld%grid%boundary_conditions(1) /= GO_BC_PERIODIC)then
        fld%whole%xstart = fld%internal%xstart - NBOUNDARY
        fld%whole%xstop  = fld%internal%xstop  + NBOUNDARY
     else
        fld%whole%xstart = fld%internal%xstart - NBOUNDARY
        fld%whole%xstop  = fld%internal%xstop  + NBOUNDARY
     end if
-    if(fld%grid%boundary_conditions(2) /= BC_PERIODIC)then
+    if(fld%grid%boundary_conditions(2) /= go_BC_PERIODIC)then
        fld%whole%ystart = fld%internal%ystart - NBOUNDARY
        fld%whole%ystop  = fld%internal%ystop  + NBOUNDARY
     else
@@ -281,7 +281,7 @@ contains
     ! Locals
     integer :: M, N
 
-    fld%defined_on = ALL_POINTS
+    fld%defined_on = GO_ALL_POINTS
 
     M = fld%grid%nx
     N = fld%grid%ny
@@ -303,14 +303,14 @@ contains
     implicit none
     class(field_type), intent(inout) :: fld
 
-    fld%defined_on = U_POINTS
+    fld%defined_on = GO_U_POINTS
 
     select case(fld%grid%offset)
 
-    case(OFFSET_SW)
+    case(GO_OFFSET_SW)
        call cu_sw_init(fld)
 
-    case(OFFSET_NE)
+    case(GO_OFFSET_NE)
        call cu_ne_init(fld)
 
     case default
@@ -341,7 +341,7 @@ contains
     !   Ti-1j-1--uij-1---Tij-1---ui+1j-1
 
     !
-    if(fld%grid%boundary_conditions(1) == BC_PERIODIC)then
+    if(fld%grid%boundary_conditions(1) == GO_BC_PERIODIC)then
        ! When implementing periodic boundary conditions, all mesh
        ! point types have the same extents as the grid of T points. We
        ! then have a halo of width grid_mod::HALO_WIDTH_X on either
@@ -444,7 +444,7 @@ contains
 
     ! i.e. fld(2:M,2:N+1) = ...
 
-    if(fld%grid%boundary_conditions(1) /= BC_PERIODIC)then
+    if(fld%grid%boundary_conditions(1) /= GO_BC_PERIODIC)then
       ! If we do not have periodic boundary conditions then we do
       ! not need to allow for boundary points here - they are
       ! already contained within the region defined by T mask.
@@ -456,7 +456,7 @@ contains
     else
       call gocean_stop('ERROR: cu_ne_init: implement periodic boundary conditions!')
     end if
-    if(fld%grid%boundary_conditions(2) /= BC_PERIODIC)then
+    if(fld%grid%boundary_conditions(2) /= GO_BC_PERIODIC)then
       fld%internal%ystart = fld%grid%simulation_domain%ystart
       fld%internal%ystop  = fld%grid%simulation_domain%ystop
     else
@@ -474,14 +474,14 @@ contains
     implicit none
     class(field_type), intent(inout) :: fld
 
-    fld%defined_on = V_POINTS
+    fld%defined_on = GO_V_POINTS
 
     select case(fld%grid%offset)
 
-    case(OFFSET_SW)
+    case(GO_OFFSET_SW)
        call cv_sw_init(fld)
 
-    case(OFFSET_NE)
+    case(GO_OFFSET_NE)
        call cv_ne_init(fld)
 
     case default
@@ -497,7 +497,7 @@ contains
     implicit none
     class(field_type), intent(inout) :: fld
 
-    if(fld%grid%boundary_conditions(2) == BC_PERIODIC)then
+    if(fld%grid%boundary_conditions(2) == GO_BC_PERIODIC)then
        ! When implementing periodic boundary conditions, all
        ! mesh point types have the same extents as the grid of
        ! T points. We then have a halo of width 1 on either side
@@ -581,7 +581,7 @@ contains
     !  b  b  b  b   j=1
     !
 
-    if(fld%grid%boundary_conditions(1) /= BC_PERIODIC)then
+    if(fld%grid%boundary_conditions(1) /= GO_BC_PERIODIC)then
       ! If we do not have periodic boundary conditions then we do
       ! not need to allow for boundary points here - they are
       ! already contained within the region.
@@ -591,7 +591,7 @@ contains
       call gocean_stop('ERROR: cv_ne_init: implement periodic BCs!')
     end if
 
-    if(fld%grid%boundary_conditions(2) /= BC_PERIODIC)then
+    if(fld%grid%boundary_conditions(2) /= GO_BC_PERIODIC)then
       fld%internal%ystart = fld%grid%simulation_domain%ystart
       fld%internal%ystop  = fld%grid%simulation_domain%ystop - 1
     else
@@ -606,14 +606,14 @@ contains
     implicit none
     class(field_type), intent(inout) :: fld
 
-    fld%defined_on = T_POINTS
+    fld%defined_on = GO_T_POINTS
 
     select case(fld%grid%offset)
 
-    case(OFFSET_SW)
+    case(GO_OFFSET_SW)
        call ct_sw_init(fld)
 
-    case(OFFSET_NE)
+    case(GO_OFFSET_NE)
        call ct_ne_init(fld)
 
     case default
@@ -682,7 +682,7 @@ contains
     !  b  x  x  x  b
     !  b  b  b  b  b j=1
 
-    if(fld%grid%boundary_conditions(1) /= BC_PERIODIC)then
+    if(fld%grid%boundary_conditions(1) /= GO_BC_PERIODIC)then
       ! If we do not have periodic boundary conditions then we do
       ! not need to allow for boundary points here - they are
       ! already contained within the region.
@@ -694,7 +694,7 @@ contains
       call gocean_stop('ERROR: ct_ne_init: implement periodic BCs!')
     end if
 
-    if(fld%grid%boundary_conditions(2) /= BC_PERIODIC)then
+    if(fld%grid%boundary_conditions(2) /= GO_BC_PERIODIC)then
       ! Start and stop are just the same as those calculated from the T mask
       ! earlier because this is a field on T points.
       fld%internal%ystart = fld%grid%simulation_domain%ystart
@@ -711,14 +711,14 @@ contains
     implicit none
     class(field_type), intent(inout) :: fld
 
-    fld%defined_on = F_POINTS
+    fld%defined_on = GO_F_POINTS
 
     select case(fld%grid%offset)
 
-    case(OFFSET_SW)
+    case(GO_OFFSET_SW)
        call cf_sw_init(fld)
 
-    case(OFFSET_NE)
+    case(GO_OFFSET_NE)
        call cf_ne_init(fld)
 
     case default
@@ -743,7 +743,7 @@ contains
     !  o  b  x  x  b
     !  o  b  b  b  b
     !  o  o  o  o  o   j=1
-    if(fld%grid%boundary_conditions(1) == BC_PERIODIC)then
+    if(fld%grid%boundary_conditions(1) == GO_BC_PERIODIC)then
        fld%internal%xstart = fld%grid%simulation_domain%xstart
        fld%internal%xstop  = fld%internal%xstart + fld%grid%simulation_domain%nx - 1
     else
@@ -754,7 +754,7 @@ contains
        call gocean_stop('cf_sw_init: CHECK non-periodic BCs!')
     end if
 
-    if(fld%grid%boundary_conditions(2) == BC_PERIODIC)then
+    if(fld%grid%boundary_conditions(2) == GO_BC_PERIODIC)then
        fld%internal%ystart = fld%grid%simulation_domain%ystart
        fld%internal%ystop  = fld%internal%ystart + fld%grid%simulation_domain%ny - 1
     else
@@ -807,7 +807,7 @@ contains
     !  b  x  b  o
     !  b  b  b  o   j=1
 
-    if(fld%grid%boundary_conditions(1) /= BC_PERIODIC)then
+    if(fld%grid%boundary_conditions(1) /= GO_BC_PERIODIC)then
       ! If we do not have periodic boundary conditions then we do
       ! not need to allow for boundary points here - they are
       ! already contained within the region.
@@ -818,7 +818,7 @@ contains
       stop
     end if
 
-    if(fld%grid%boundary_conditions(2) /= BC_PERIODIC)then
+    if(fld%grid%boundary_conditions(2) /= GO_BC_PERIODIC)then
       fld%internal%ystart = fld%grid%simulation_domain%ystart
       fld%internal%ystop  = fld%grid%simulation_domain%ystop - 1
     else
@@ -831,8 +831,8 @@ contains
 
   SUBROUTINE copy_2dfield_array(field_in, field_out)
     IMPLICIT none
-    REAL(wp), INTENT(in),  DIMENSION(:,:) :: field_in
-    REAL(wp), INTENT(out), DIMENSION(:,:) :: field_out
+    REAL(go_wp), INTENT(in),  DIMENSION(:,:) :: field_in
+    REAL(go_wp), INTENT(out), DIMENSION(:,:) :: field_out
         
     field_out(:,:) = field_in(:,:)
         
@@ -845,7 +845,7 @@ contains
   !! instead of array data.
   subroutine copy_2dfield_array_patch(field, src, dest)
     implicit none
-    real(wp),          intent(inout), dimension(:,:) :: field
+    real(go_wp),       intent(inout), dimension(:,:) :: field
     type(region_type), intent(in)                    :: src, dest
 
     field(dest%xstart:dest%xstop,dest%ystart:dest%ystop) = &
@@ -891,7 +891,7 @@ contains
   SUBROUTINE set_field(fld, val)
     implicit none
     class(field_type), INTENT(out) :: fld
-    real(wp), INTENT(in) :: val
+    real(go_wp), INTENT(in) :: val
 
     select type(fld)
     type is (r2d_field)
@@ -908,7 +908,7 @@ contains
   function fld_checksum(field) result(val)
     implicit none
     type(r2d_field), intent(in) :: field
-    real(wp) :: val
+    real(go_wp) :: val
 
     val = array_checksum(field%data, field%data_on_device,           &
                          field%internal%xstart, field%internal%xstop, &
@@ -936,10 +936,10 @@ contains
                           xstart, xstop, &
                           ystart, ystop) result(val)
     implicit none
-    real(wp), dimension(:,:), intent(in) :: field
+    real(go_wp), dimension(:,:), intent(in) :: field
     logical, optional, intent(in) :: update
     integer, optional, intent(in) :: xstart, xstop, ystart, ystop
-    real(wp) :: val
+    real(go_wp) :: val
 
     if( present(update) )then
        if(update)then
@@ -965,17 +965,17 @@ contains
 
     ! Check whether we have PBCs in x AND y dimensions
     fld%num_halos = 0
-    if( fld%grid%boundary_conditions(1) == BC_PERIODIC )then
+    if( fld%grid%boundary_conditions(1) == GO_BC_PERIODIC )then
        fld%num_halos = fld%num_halos + 2
     end if
-    if( fld%grid%boundary_conditions(2) == BC_PERIODIC )then
+    if( fld%grid%boundary_conditions(2) == GO_BC_PERIODIC )then
        fld%num_halos = fld%num_halos + 2
     end if
 
     allocate( fld%halo(fld%num_halos) )
 
     ihalo = 0
-    if( fld%grid%boundary_conditions(1) == BC_PERIODIC )then
+    if( fld%grid%boundary_conditions(1) == GO_BC_PERIODIC )then
        ! E-most column set to W-most internal column
        ihalo = ihalo + 1
        fld%halo(ihalo)%dest%xstart = fld%internal%xstop + 1
@@ -1001,7 +1001,7 @@ contains
        fld%halo(ihalo)%source%ystop  = fld%internal%ystop
     end if
 
-    if( fld%grid%boundary_conditions(2) == BC_PERIODIC )then
+    if( fld%grid%boundary_conditions(2) == GO_BC_PERIODIC )then
        ! N-most row set to S-most internal row
        ihalo = ihalo + 1
        fld%halo(ihalo)%dest%xstart = fld%internal%xstart - 1   

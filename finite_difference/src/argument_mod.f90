@@ -20,19 +20,19 @@ private
 
 enum, bind(c) 
    ! The following value is valid for any arg.
-   enumerator :: READ
+   enumerator :: GO_READ
    ! The following values are only valid for fields.
-   enumerator :: WRITE, READWRITE, INC
+   enumerator :: GO_WRITE, GO_READWRITE, GO_INC
    ! The following values are only valid for globals.
-   enumerator :: MIN, MAX, SUM
+   enumerator :: GO_MIN, GO_MAX, GO_SUM
 end enum
 
   !args(fs,stencil,arg_intent) ! this need defining
-type :: arg
-  integer(kind(READ)) :: arg_intent
+type :: go_arg
+  integer :: arg_intent
   integer :: element
-  integer(kind(FE)) :: stencil=0
-end type arg
+  integer :: stencil=0
+end type go_arg
 
 
 !-------------------------------------------------------------------------------
@@ -40,48 +40,48 @@ end type arg
 !-------------------------------------------------------------------------------
 
 ! Types to enable declarations of elements.
-integer, public, parameter :: R_SCALAR=0, I_SCALAR=1
-integer, public, parameter :: EVERY=1
+integer, public, parameter :: GO_R_SCALAR=0, GO_I_SCALAR=1
+integer, public, parameter :: GO_EVERY=1
 ! The four types of grid-point on an Arakawa C-grid
-integer, public, parameter :: CU=1, CV=2, CT=3, CF=4
+integer, public, parameter :: GO_CU=1, GO_CV=2, GO_CT=3, GO_CF=4
 ! Arguments that a kernel can request that are supported/provided by
 ! the infrastructure
 !> Kernel requires the model time-step
-integer, public, parameter :: TIME_STEP   = 1
+integer, public, parameter :: GO_TIME_STEP   = 1
 !> Kernel requires the cell areas of the T-point grid
-integer, public, parameter :: GRID_AREA_T = 2
+integer, public, parameter :: GO_GRID_AREA_T = 2
 !> Kernel requires the cell areas of the U-point grid
-integer, public, parameter :: GRID_AREA_U = 3
+integer, public, parameter :: GO_GRID_AREA_U = 3
 !> Kernel requires the cell areas of the V-point grid
-integer, public, parameter :: GRID_AREA_V = 4
+integer, public, parameter :: GO_GRID_AREA_V = 4
 !> Kernel requires the land/sea mask at T points
-integer, public, parameter :: GRID_MASK_T = 5
+integer, public, parameter :: GO_GRID_MASK_T = 5
 !> Kernel requires the horizontal grid spacings of the T-point grid
-integer, public, parameter :: GRID_DX_T   = 6
+integer, public, parameter :: GO_GRID_DX_T   = 6
 !> Kernel requires the horizontal grid spacings of the U-point grid
-integer, public, parameter :: GRID_DX_U   = 7
+integer, public, parameter :: GO_GRID_DX_U   = 7
 !> Kernel requires the horizontal grid spacings of the V-point grid
-integer, public, parameter :: GRID_DX_V   = 8
+integer, public, parameter :: GO_GRID_DX_V   = 8
 !> Kernel requires the vertical grid spacings of the T-point grid
-integer, public, parameter :: GRID_DY_T   = 9
+integer, public, parameter :: GO_GRID_DY_T   = 9
 !> Kernel requires the vertical grid spacings of the U-point grid
-integer, public, parameter :: GRID_DY_U   = 10
+integer, public, parameter :: GO_GRID_DY_U   = 10
 !> Kernel requires the vertical grid spacings of the V-point grid
-integer, public, parameter :: GRID_DY_V   = 11
+integer, public, parameter :: GO_GRID_DY_V   = 11
 !> Kernel requires the geographical latitude of U points
-integer, public, parameter :: GRID_LAT_U  = 12
+integer, public, parameter :: GO_GRID_LAT_U  = 12
 !> Kernel requires the geographical latitude of V points
-integer, public, parameter :: GRID_LAT_V  = 13
+integer, public, parameter :: GO_GRID_LAT_V  = 13
 !> Kernel requires the horizontal grid spacing of the grid.
 !! Requires/assumes that this quantity is constant.
-integer, public, parameter :: GRID_DX_CONST = 14
+integer, public, parameter :: GO_GRID_DX_CONST = 14
 !> Kernel requires the vertical grid spacing of the grid.
 !! Requires/assumes that this quantity is constant.
-integer, public, parameter :: GRID_DY_CONST = 15
+integer, public, parameter :: GO_GRID_DY_CONST = 15
 
-public :: arg
-public :: READ, WRITE, READWRITE, INC
-public :: SUM, MIN, MAX
+public :: go_arg
+public :: GO_READ, GO_WRITE, GO_READWRITE, GO_INC
+public :: GO_SUM, GO_MIN, GO_MAX
 
 !-------------------------------------------------------------------------------
 ! Member subroutines
