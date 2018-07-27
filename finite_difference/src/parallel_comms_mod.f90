@@ -28,7 +28,7 @@ module parallel_comms_mod
   !     pjubext    True if the upper latitude boundary is external.
 
   INTEGER, ALLOCATABLE, DIMENSION(:) :: pnactive,              &
-       pielb, pieub, piesub, pjelb, pjeub, pjesub
+       piesub, pjelb, pjeub, pjesub
   LOGICAL, ALLOCATABLE, DIMENSION(:) :: pilbext, piubext, pjlbext, pjubext
 
   ! Communications lists (one for sending, one for receiving)
@@ -163,7 +163,7 @@ module parallel_comms_mod
             nxsendp,nysendp,nzsendp,nxrecvp,nyrecvp,nzrecvp,       &
             idesrecvp,jdesrecvp,isrcsendp,jsrcsendp
 
-  PUBLIC :: ielb,  ieub,  pielb, pjelb, pieub, pjeub,                    &
+  PUBLIC :: ielb,  ieub,  pjelb, pjeub,                    &
             iesub, jesub, jeub, ilbext, iubext, jubext, jlbext, pnactive,&
             piesub, pjesub, jelb, pilbext, pjlbext, pjubext, piubext
 
@@ -356,7 +356,7 @@ contains
           idess(:) = MIN(decomp%subdomains(iproc)%internal%xstop+1,decomp%subdomains(iproc)%internal%xstop)  ! Send _to_ E halo column of iproc
           ! Source for a send is always within internal region
           jsrcs(:) = j1-jelb+subdomain%internal%ystart !Add nldj 'cos jsrcs is local address in domain
-          jdess(:) = j1-pjelb(iproc)+decomp%subdomains(iproc)%internal%ystart ! ditto
+          jdess(:) = j1-decomp%subdomains(iproc)%global%ystart+decomp%subdomains(iproc)%internal%ystart ! ditto
           jdesr(:) = jsrcs(:)
           jsrcr(:) = jdess(:)
           nyr(:) = j2-j1+1
@@ -554,7 +554,7 @@ end if
           ! Source for a send is within local internal domain
           jsrcs(:) = j1-jelb+subdomain%internal%ystart
           ! Destination for a send is within halo on remote domain
-          jdess(:) = j1-pjelb(iproc)+decomp%subdomains(iproc)%internal%ystart
+          jdess(:) = j1-decomp%subdomains(iproc)%global%ystart+decomp%subdomains(iproc)%internal%ystart
 
           jdesr(:) = jsrcs(:)
           jsrcr(:) = jdess(:)
@@ -709,11 +709,11 @@ end if
             ! Ensure we don't include halos from the global domain borders if
             ! we have cyclic bc's.
 !          ielb_iproc = pielb(iproc)
-            ieub_iproc = pieub(iproc)
+            ieub_iproc = decomp%subdomains(iproc)%global%xstop
             IF(cyclic_bc)THEN
                !             IF(pilbext(iproc))ielb_iproc = pielb(iproc)+halo_depthx
                IF( (.NOT. trimmed(eidx,iproc)) .AND. &
-                    piubext(iproc)) ieub_iproc = pieub(iproc)-halo_depthx
+                    piubext(iproc)) ieub_iproc = decomp%subdomains(iproc)%global%xstop-halo_depthx
             END IF
 
 !           Find where in the i direction the common border between these
@@ -903,11 +903,11 @@ end if
             ! Ensure we don't include halos from the global borders if we
             ! have cyclic b.c.'s
 !           ielb_iproc = pielb(iproc)
-            ieub_iproc = pieub(iproc)
+            ieub_iproc = decomp%subdomains(iproc)%global%xstop! pieub(iproc)
             IF(cyclic_bc)THEN
 !              IF(pilbext(iproc))ielb_iproc = pielb(iproc)+halo_depthx
                IF((.NOT. trimmed(eidx,iproc)) .AND. &
-                            piubext(iproc))ieub_iproc = pieub(iproc)-halo_depthx
+                            piubext(iproc))ieub_iproc = decomp%subdomains(iproc)%global%xstop-halo_depthx
             END IF
 
 !           Find where in the i direction the common border between these
@@ -1145,11 +1145,11 @@ end if
 
              ! Ensure we don't include halos from the global borders if we
              ! have cyclic E/W boundaries.
-             ielb_iproc = pielb(iproc)
-             ieub_iproc = pieub(iproc)
+             ielb_iproc = decomp%subdomains(iproc)%global%xstart
+             ieub_iproc = decomp%subdomains(iproc)%global%xstop
              IF( cyclic_bc )THEN
-                IF(pilbext(iproc))ielb_iproc = pielb(iproc)+ihalo
-                IF(piubext(iproc))ieub_iproc = pieub(iproc)-ihalo
+                IF(pilbext(iproc))ielb_iproc = decomp%subdomains(iproc)%global%xstart+ihalo
+                IF(piubext(iproc))ieub_iproc = decomp%subdomains(iproc)%global%xstop-ihalo
              END IF
 
 if(DEBUG)then
@@ -1164,11 +1164,11 @@ end if
 
               ! Ensure we don't include halos from the global borders if we
               ! have cyclic E/W boundaries.
-              ielb_iproc = pielb(iprocc)
-              ieub_iproc = pieub(iprocc)
+              ielb_iproc = decomp%subdomains(iprocc)%global%xstart
+              ieub_iproc = decomp%subdomains(iprocc)%global%xstop
               IF( cyclic_bc )THEN
-                 IF(pilbext(iprocc))ielb_iproc = pielb(iprocc)+halo_depthx
-                 IF(piubext(iprocc))ieub_iproc = pieub(iprocc)-halo_depthx
+                 IF(pilbext(iprocc))ielb_iproc = decomp%subdomains(iprocc)%global%xstart+halo_depthx
+                 IF(piubext(iprocc))ieub_iproc = decomp%subdomains(iprocc)%global%xstop-halo_depthx
               END IF
               ! Set the flag to add everything to the communications list.
 
@@ -1685,7 +1685,7 @@ end if
         ! Search the processes for the one owning point (i,j).
 
         DO iproc=1,nprocp
-           IF ( pielb(iproc).LE.i .AND. i.LE.pieub(iproc) .AND. &
+           IF ( decomp%subdomains(iproc)%global%xstart.LE.i .AND. i.LE.decomp%subdomains(iproc)%global%xstop .AND. &
                 pjelb(iproc).LE.j .AND. j.LE.pjeub(iproc) ) THEN
               iprocmap = iproc
               EXIT
