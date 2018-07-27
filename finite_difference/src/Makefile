@@ -44,6 +44,10 @@
 MODULES = argument_mod.o \
           kind_params_mod.o \
           global_parameters_mod.o \
+          decomposition_mod.o \
+          parallel_utils_mod.o \
+          parallel_comms_mod.o \
+          parallel_mod.o \
           gocean_mod.o \
           grid_mod.o \
           kernel_mod.o \
@@ -51,9 +55,7 @@ MODULES = argument_mod.o \
           field_mod.o \
           region_mod.o \
           tile_mod.o \
-          subdomain_mod.o \
-          parallel_common_mod.o \
-          parallel_mod.o
+          subdomain_mod.o
 
 all: ${API_LIB}
 
@@ -62,14 +64,11 @@ ${API_LIB}: ${MODULES}
 
 .PHONY: parallel
 parallel:
-	ln -sf parallel/parallel_mod.f90 .
+	ln -sf parallel/parallel_utils_mod.f90 .
 
 .PHONY: fake_parallel
 fake_parallel:
-	ln -sf parallel/parallel_stub_mod.f90 parallel_mod.f90
-
-clean:
-	rm -f *.o *.mod *.a
+	ln -sf parallel/parallel_utils_stub_mod.f90 parallel_utils_mod.f90
 
 # Inter-module dependencies, alphabetical order
 argument_mod.o: global_parameters_mod.o
@@ -83,11 +82,18 @@ grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o parallel_mod.o subdomain
 
 halo_mod.o: region_mod.o
 
-parallel_mod.o: parallel_common_mod.o
+parallel_comms_mod.o: parallel_utils_mod.o decomposition_mod.o
+parallel_mod.o: parallel_comms_mod.o parallel_utils_mod.o
 
 tile_mod.o: region_mod.o
 
-subdomain_mod.o: region_mod.o
+subdomain_mod.o: decomposition_mod.o
+
+decomposition_mod.o: region_mod.o
 
 %.o: %.[Ff]90
 	$(F90) $(F90FLAGS) -c $<
+
+clean:
+	rm -f parallel_utils_mod.f90
+	rm -f *.o *.mod *.a

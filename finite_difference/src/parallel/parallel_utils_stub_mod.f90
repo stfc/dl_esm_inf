@@ -1,7 +1,7 @@
 !------------------------------------------------------------------------------
 ! BSD 2-Clause License
 ! 
-! Copyright (c) 2018, Science and Technology Facilities Council.
+! Copyright (c) 2018, Science and Technology Facilities Council
 ! All rights reserved.
 ! 
 ! Redistribution and use in source and binary forms, with or without
@@ -27,23 +27,54 @@
 !------------------------------------------------------------------------------
 ! Author: A. R. Porter, STFC Daresbury Laboratory
 
-!> Module holding elements of the parallel infrastructure that
-!! are independent of whether or not we are building with MPI.
-module parallel_common_mod
+!> Stub implementation to be used in place of parallel_mod when NOT
+!! compiling with MPI
+module parallel_utils_mod
   implicit none
 
-  ! Everything in this module is public
-  public
+  private
 
   !> MPI rank + 1 of current process
   integer :: rank
   !> Total no. of MPI processes
   integer :: nranks
-  !> The dimensions of the (regular) processor grid
-  integer :: nprocx, nprocy
+
+  public parallel_init, parallel_finalise, parallel_abort
+  public get_rank, get_num_ranks
 
 contains
 
+  !================================================
+
+  !> Fake parallel initialisation routine. Does nothing apart from
+  !! initialise number of ranks to 1 and the rank of this process to 1.
+  subroutine parallel_init()
+
+    write (*,*) "parallel_init: Not running with MPI"
+    rank = 1
+    nranks = 1
+
+  end subroutine parallel_init
+
+  !================================================
+
+  !> Empty routine. For compatibility with parallel_mod.
+  subroutine parallel_finalise()
+  end subroutine parallel_finalise
+
+  !================================================
+
+  !> Stop a serial model run. Prints supplied msg to stderr and calls stop
+  !! @param[in] msg Message to print to stderr - reason we're stopping
+  subroutine parallel_abort(msg)
+    use iso_fortran_env, only : error_unit ! access computing environment
+    character(len=*), intent(in) :: msg
+
+    write(error_unit, *) msg
+    stop
+
+  end subroutine parallel_abort
+  
   !================================================
 
   function get_rank()
@@ -58,22 +89,4 @@ contains
     num = nranks
   end function get_num_ranks
 
-  !================================================
-
-  subroutine set_proc_grid(nx, ny)
-    !> Setter for the dimensions of the processor grid
-    integer, intent(in) :: nx, ny
-    nprocx = nx
-    nprocy = ny
-  end subroutine set_proc_grid
-
-  !================================================
-
-  subroutine get_proc_grid(nx, ny)
-    !> Getter for the dimensions of the processor grid
-    integer, intent(out) :: nx, ny
-    nx = nprocx
-    ny = nprocy
-  end subroutine get_proc_grid
-
-end module parallel_common_mod
+end module parallel_utils_mod

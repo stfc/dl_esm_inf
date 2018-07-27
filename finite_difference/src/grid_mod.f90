@@ -4,7 +4,7 @@ module grid_mod
   use kind_params_mod
   use region_mod
   use gocean_mod
-  use subdomain_mod, only: subdomain_type
+  use decomposition_mod, only: subdomain_type
   implicit none
 
   private
@@ -220,7 +220,7 @@ contains
   !!                  supplied if domain is all wet and has PBCs.
   subroutine grid_init(grid, decomp, dxarg, dyarg, tmask)
     use global_parameters_mod, only: ALIGNMENT
-    use subdomain_mod, only: subdomain_type, decomposition_type
+    use decomposition_mod, only: subdomain_type, decomposition_type
     use parallel_mod
     implicit none
     type(grid_type), intent(inout) :: grid

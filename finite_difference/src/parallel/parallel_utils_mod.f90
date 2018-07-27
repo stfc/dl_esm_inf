@@ -29,11 +29,8 @@
 
 !> Implementation of parallel (distributed-memory) support using MPI.
 !! Requires that the compiler be able to find the 'mpi' module.
-module parallel_mod
+module parallel_utils_mod
   use mpi
-  use parallel_common_mod, only: get_rank, get_num_ranks,      &
-                                 set_proc_grid, get_proc_grid, &
-                                 nranks, rank, nprocx, nprocy
   implicit none
 
   private
@@ -45,12 +42,13 @@ module parallel_mod
 
   !> Our MPI communicator
   integer :: comm
+  !> MPI rank + 1 of current process
+  integer :: rank
+  !> Total no. of MPI processes
+  integer :: nranks
 
   public parallel_init, parallel_finalise, parallel_abort
-  !> Make certain routines from parallel_common available to
-  !! USE'rs of this module.
   public get_rank, get_num_ranks
-  public set_proc_grid, get_proc_grid
 
 contains
 
@@ -70,11 +68,6 @@ contains
     if(rank == 1)then
        write (*,*) "Number of MPI ranks: ", nranks
     end if
-
-    ! Initialise to meaningless values since we don't
-    ! yet know what our processor grid will look like.
-    nprocx = 0
-    nprocy = 0
 
   end subroutine parallel_init
 
@@ -99,5 +92,19 @@ contains
     call mpi_abort(comm, 1, mpierr)
 
   end subroutine parallel_abort
+  
+  !================================================
 
-end module parallel_mod
+  function get_rank()
+    integer :: get_rank
+    get_rank = rank
+  end function get_rank
+
+  !================================================
+
+  function get_num_ranks() result(num)
+    integer :: num
+    num = nranks
+  end function get_num_ranks
+
+end module parallel_utils_mod

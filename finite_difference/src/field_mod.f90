@@ -151,7 +151,8 @@ contains
 
   function r2d_field_constructor(grid,    &
                                  grid_points) result(self)
-    use subdomain_mod, only: decompose, decomposition_type
+    use decomposition_mod, only: decomposition_type
+    use subdomain_mod, only: decompose
     implicit none
     ! Arguments
     !> Pointer to the grid on which this field lives

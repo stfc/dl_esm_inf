@@ -70,29 +70,6 @@ module subdomain_mod
   ! internal%nx = 5 - 2 + 1 = 4
   ! internal%ny = 8 - 1 + 1 = 7
 
-  !> Type encapsulating the information required to define a single
-  !! sub-domain
-  type :: subdomain_type
-     !> The definition of this subdomain in terms of the global domain
-     type(region_type) :: global
-     !> The internal region of this subdomain (excluding halo and
-     !! boundary points)
-     type(region_type) :: internal
-  end type subdomain_type
-
-  !> Type encapsulating all information regarding a regular, 2D
-  !! domain decomposition
-  type :: decomposition_type
-     !> Dimensions of the grid of sub-domains
-     integer :: nx, ny
-     !> Number of sub-domains (=nx*ny)
-     integer :: ndomains
-     !> Max dimensions of any sub-domain
-     integer :: max_width, max_height
-     !> Array of the sub-domain definitions
-     type(subdomain_type), allocatable :: subdomains(:)
-  end type decomposition_type
-
 contains
 
   !> Decompose a domain consisting of domainx x domainy points
@@ -102,6 +79,7 @@ contains
                      ndomains, ndomainx, ndomainy, &
                      halo_width) result(decomp)
     use parallel_mod, only: get_num_ranks, parallel_abort
+    use decomposition_mod, only: decomposition_type, subdomain_type
     implicit none
     !> The decomposition that this function will return
     type(decomposition_type), target :: decomp
@@ -129,12 +107,15 @@ contains
     logical :: auto_tile = .TRUE.
     integer :: xlen, ylen
     integer :: ntilex, ntiley
+    integer :: nranks
     ! Local var to hold number of sub-domains
     integer :: ndom = 1
     ! Local var to hold halo width
     integer :: hwidth = 1
     ! Pointer to the current subdomain being defined
     type(subdomain_type), pointer :: subdomain
+    ! Used to calculate max no. of sub-domains per rank
+    integer :: domperrank
 
     ! Deal with optional arguments to this routine
     if(.not. present(ndomains))then
@@ -153,14 +134,32 @@ contains
        auto_tile = .TRUE.
     end if
 
+    nranks = get_num_ranks()
     if(present(halo_width))then
-       if(halo_width < 1 .and. get_num_ranks() > 1)then
+       if(halo_width < 1 .and. nranks > 1)then
           call parallel_abort('decompose: halo width must be > 0 if '// &
                               'running on more than one process')
        end if
        hwidth = halo_width
     end if
 
+    ! Initialise array mapping from MPI ranks to sub-domain(s)
+    domperrank = ceiling(real(ndom)/real(nranks))
+    allocate(decomp%proc_subdomains(domperrank, nranks))
+    decomp%proc_subdomains(:,:) = -1
+    ji = 0
+    do ith = 1, nranks
+       do jj = 1, domperrank
+          ji = ji + 1
+          if (ji > ndom) exit
+          decomp%proc_subdomains(jj, ith) = ji
+       end do
+    end do
+
+    ! Store dimensions of global domain
+    decomp%global_nx = domainx
+    decomp%global_ny = domainy
+    
     decomp%ndomains = ndom
     allocate(decomp%subdomains(ndom), Stat=ierr)
     if(ierr /= 0)then

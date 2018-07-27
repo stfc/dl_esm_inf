@@ -67,7 +67,6 @@ include:
 	mkdir include
 
 clean:
-	rm -f src/parallel_mod.f90
 	${MAKE} -C src clean
 
 distclean: clean
