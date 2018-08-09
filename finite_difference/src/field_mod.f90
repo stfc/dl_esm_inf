@@ -59,12 +59,22 @@ module field_mod
      !> The dimensions of the tiles into which the field
      !! is sub-divided.
      type(tile_type), dimension(:), allocatable :: tile
-     !> Array holding the actual field values
+     !> Array holding the actual field values. Eventually this should
+     !! be private so that users are forced to access it via get_data().
+     !! This will allow us to guarantee that the data is valid (e.g. in
+     !! the case where values are computed on a separate accelerator
+     !! device).
      real(wp), dimension(:,:), allocatable :: data
      !> Pointer to corresponding buffer on remote device (if any).
      !! This requires variables that are declared to be of this type
      !! have the 'target' attribute.
      integer(c_intptr_t) :: device_ptr
+   contains
+     !> Setter for the data associated with this field
+     procedure, pass :: set_data
+     !> Getter for the data associated with this field. Fetches data
+     !! from remote accelerator if necessary.
+     procedure, pass :: get_data
   end type r2d_field
 
   !> Interface for the copy_field operation. Overloaded to take
@@ -143,7 +153,7 @@ contains
     !> Which grid-point type the field is defined on
     integer,         intent(in)          :: grid_points
     ! Local declarations
-    type(r2d_field) :: self
+    type(r2d_field), target :: self
     integer :: ierr
     character(len=8) :: fld_type
     integer :: ji, jj
@@ -214,6 +224,31 @@ contains
 !$OMP END PARALLEL DO
 
   end function r2d_field_constructor
+
+  !===================================================
+
+  function get_data(self) result(dptr)
+    !> Getter for the data associated with a field. Ensures that
+    !! the local copy is up-to-date with that on any remove
+    !! accelerator device (if using OpenACC or OpenCL).
+    class(r2d_field), target :: self
+    real(wp), dimension(:,:), pointer :: dptr
+    if(self%data_on_device)then
+
+    end if
+    dptr => self%data
+  end function get_data
+
+  !===================================================
+
+  function set_data(self, array) result(flag)
+    !> Setter for the data associated with a field.
+    class(r2d_field) :: self
+    integer :: flag
+    real(wp), dimension(:,:) :: array
+    self%data = array
+    flag = 0
+  end function set_data
 
   !===================================================
 
