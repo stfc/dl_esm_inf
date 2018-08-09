@@ -13,9 +13,12 @@ MODULES = argument_mod.o \
 all: ${API_LIB}
 
 # Create the archive. Note that we include the FortCL objects in this
-# archive.
+# archive but take care to exclude clfortran.o (as that only has
+# interface definitions, not implementation). We could use filter-out
+# for this but that is specific to Gnu Make.
 ${API_LIB}: ${MODULES}
 	${AR} ${ARFLAGS} ${API_LIB} ${FORTCL_DIR}/*.o ${MODULES}
+	${AR} d ${API_LIB} clfortran.o
 
 clean:
 	rm -f *.o *.mod *.a
