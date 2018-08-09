@@ -35,6 +35,7 @@ clean:
 	${MAKE} -C src clean
 
 allclean: clean
+	${MAKE} -C ${FORTCL_DIR} allclean
 	rm -f lib/${API_LIB}
 	rm -f include/*.[Mm][Oo][Dd]
 

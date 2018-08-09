@@ -13,7 +13,7 @@ MODULES = argument_mod.o \
 all: ${API_LIB}
 
 ${API_LIB}: ${MODULES}
-	${AR} ${ARFLAGS} ${API_LIB} ${MODULES}
+	${AR} ${ARFLAGS} ${API_LIB} ${FORTCL_DIR}/*.o ${MODULES}
 
 clean:
 	rm -f *.o *.mod *.a
