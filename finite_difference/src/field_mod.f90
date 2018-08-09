@@ -160,8 +160,6 @@ contains
     !> The upper bounds actually used to allocate arrays (as opposed
     !! to the limits carried around with the field)
     integer :: upper_x_bound, upper_y_bound
-    !> Size of buffer to create on OpenCL device (if any)
-    integer(kind=8) :: size_in_bytes
 
     ! Set this field's grid pointer to point to the grid pointed to
     ! by the supplied grid_ptr argument
@@ -228,13 +226,18 @@ contains
   !===================================================
 
   function get_data(self) result(dptr)
+    use FortCL, only: read_buffer
     !> Getter for the data associated with a field. Ensures that
     !! the local copy is up-to-date with that on any remove
     !! accelerator device (if using OpenACC or OpenCL).
     class(r2d_field), target :: self
     real(wp), dimension(:,:), pointer :: dptr
     if(self%data_on_device)then
-
+       !$acc update host(self%data)
+       ! If FortCL is compiled without OpenCL enabled then this
+       ! call does nothing.
+       call read_buffer(self%device_ptr, self%data, &
+                        int(self%grid%nx*self%grid%ny, kind=8))
     end if
     dptr => self%data
   end function get_data

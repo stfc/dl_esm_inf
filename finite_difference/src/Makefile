@@ -1,3 +1,5 @@
+FORTCL_DIR = ../../external/FortCL/src
+
 MODULES = argument_mod.o \
           kind_params_mod.o \
           global_parameters_mod.o \
@@ -27,4 +29,4 @@ grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o
 halo_mod.o: region_mod.o
 
 %.o: %.[fF]90
-	$(F90) $(F90FLAGS) -c $<
+	$(F90) $(F90FLAGS) -I${FORTCL_DIR} -c $<
