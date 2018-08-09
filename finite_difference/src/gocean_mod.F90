@@ -24,7 +24,6 @@ contains
     use openacc
 #endif
     implicit none
-    integer :: ierr
 
 #if _OPENACC
     call acc_init(acc_device_nvidia)
