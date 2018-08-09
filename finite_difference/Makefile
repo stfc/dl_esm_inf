@@ -44,22 +44,33 @@
 
 API_LIB ?= lib_fd.a
 F90 ?= gfortran
+# FortCL is a git submodule of the dl_esm_inf repository.
+FORTCL_DIR = ../external/FortCL
 
-.PHONY: doc clean install fd_lib dm_fd_lib all
+.PHONY: doc clean install fd_lib dm_fd_lib cl_fd_lib all
 
 all: fd_lib
 
 # Build the library without MPI
-fd_lib:
+fd_lib: fortcl_stub
 	${MAKE} -C src API_LIB="${API_LIB}" MPI=no 
 
 # Build the library with MPI
-dm_fd_lib:
-	${MAKE} -C src API_LIB="${API_LIB}" MPI=yes 
+dm_fd_lib: fortcl_stub
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=yes
+
+cl_fd_lib: fortcl
+	${MAKE} -C src API_LIB="${API_LIB}"
 
 install: fd_lib lib include
 	cp src/${API_LIB} ./lib/.
 	cp src/*.[Mm][Oo][Dd] ./include/.
+
+fortcl_stub:
+	${MAKE} -C ${FORTCL_DIR} stub
+
+fortcl:
+	${MAKE} -C ${FORTCL_DIR}
 
 lib:
 	mkdir lib
