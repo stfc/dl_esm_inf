@@ -12,6 +12,8 @@ MODULES = argument_mod.o \
 
 all: ${API_LIB}
 
+# Create the archive. Note that we include the FortCL objects in this
+# archive.
 ${API_LIB}: ${MODULES}
 	${AR} ${ARFLAGS} ${API_LIB} ${FORTCL_DIR}/*.o ${MODULES}
 
