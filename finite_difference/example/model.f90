@@ -32,6 +32,7 @@
 program model
   use kind_params_mod
   use parallel_mod
+  use decomposition_mod, only: decomposition_type
   use subdomain_mod
   use grid_mod
   use field_mod
@@ -78,12 +79,29 @@ program model
   !! grid resolution
   call grid_init(model_grid, decomp, dx, dy, tmask)
 
+  call map_comms(decomp, tmask, .false., ierr)
+
   !> Create a field on U-points of the grid
   a_field = r2d_field(model_grid, GO_U_POINTS)
 
+  call init_field_by_rank(a_field)
+  
   ! All done!
   if (my_rank == 1) write(*,'(/"Example model set-up complete."/)')
 
   call gocean_finalise()
 
+contains
+
+  subroutine init_field_by_rank(field)
+    !> Initialise a field with the MPI rank of this process
+    use parallel_mod, only: get_rank
+    type(r2d_field), intent(inout) :: field
+    ! Locals
+    integer :: my_rank
+
+    field%data(:,:) = my_rank
+    
+  end subroutine init_field_by_rank
+  
 end program model
