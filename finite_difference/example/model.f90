@@ -79,13 +79,17 @@ program model
   !! grid resolution
   call grid_init(model_grid, decomp, dx, dy, tmask)
 
+  !> \TODO put these inside library initialisation
   call map_comms(decomp, tmask, .false., ierr)
-
+  ierr = exchmod_alloc()
+  
   !> Create a field on U-points of the grid
   a_field = r2d_field(model_grid, GO_U_POINTS)
 
   call init_field_by_rank(a_field)
-  
+
+  call a_field%halo_exch(1)
+
   ! All done!
   if (my_rank == 1) write(*,'(/"Example model set-up complete."/)')
 

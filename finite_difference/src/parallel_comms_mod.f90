@@ -152,7 +152,7 @@ module parallel_comms_mod
   INTEGER, SAVE :: nextra
 
   ! Public routines
-  PUBLIC :: map_comms, iprocmap
+  PUBLIC :: map_comms, iprocmap, exchmod_alloc, exchs_generic
 
   ! Public variables
   PUBLIC :: MaxComm,nsend,nrecv,nxsend,nysend,destination,dirrecv, &
@@ -1750,8 +1750,7 @@ end if
   !================================================================
 
   SUBROUTINE exchs_generic ( b2, ib2, b3, ib3, nhalo, nhexch, &
-                             handle, comm1, comm2, comm3, comm4, &
-                             cd_type, lfill)
+                             handle, comm1, comm2, comm3, comm4)
 
     ! *******************************************************************
     ! Send boundary data elements to adjacent sub-domains.
@@ -1768,12 +1767,6 @@ end if
     ! comm2                  int    input       Send in direction comm2.
     ! comm3                  int    input       Send in direction comm3.
     ! comm4                  int    input       Send in direction comm4.
-    ! cd_type                char   input       Nature of array grid-points
-    !                                           = T , U , V , F , W points
-    !                                           = S : T-point, north fold treatment?
-    !                                           = G : F-point, north fold treatment?
-    ! lfill                  logical input      Whether to simply fill
-    !                                           overlap region or apply b.c.'s
     !
     ! Mike Ashworth, CCLRC, March 2005.
     ! Andrew Porter, STFC,  January 2008
@@ -1790,8 +1783,6 @@ end if
     INTEGER, OPTIONAL, INTENT(inout), DIMENSION(:,:,:) :: ib3
 
     INTEGER,           INTENT(in) :: comm1, comm2, comm3, comm4
-    CHARACTER(len=1),  INTENT(in) :: cd_type
-    LOGICAL,           INTENT(in) :: lfill
 
     ! Local variables.
 
@@ -1812,7 +1803,7 @@ end if
     !!--------------------------------------------------------------------
 
     !CALL prof_region_begin(ARPEXCHS_GENERIC, "Exchs_indiv", iprofStat)
-    CALL timing_start('exchs_generic')
+    !CALL timing_start('exchs_generic')
 
     ierr = 0
 
@@ -2229,7 +2220,7 @@ end if
     IF( ALLOCATED(recvBuff) ) DEALLOCATE(recvBuff)
     IF( ALLOCATED(recvIBuff) )DEALLOCATE(recvIBuff)
 
-    CALL timing_stop('exchs_generic','section')
+    !CALL timing_stop('exchs_generic','section')
     !CALL prof_region_end(ARPEXCHS_GENERIC, iprofStat)
 
   END SUBROUTINE exchs_generic

@@ -80,6 +80,8 @@ module field_mod
      type(tile_type), dimension(:), allocatable :: tile
      !> Array holding the actual field values
      real(go_wp), dimension(:,:), allocatable :: data
+   contains
+     procedure, public :: halo_exch
   end type r2d_field
 
   !> Interface for the copy_field operation. Overloaded to take
@@ -973,7 +975,20 @@ contains
 !    val = SUM( ABS(field%data(field%internal%xstart:field%internal%xstop, &
 !                              field%internal%ystart:field%internal%ystop)) )
   end function fld_checksum
+  
+  !===================================================
 
+  subroutine halo_exch(self, depth)
+    use parallel_comms_mod, only: exchs_generic
+    implicit none
+    class(r2d_field), target, intent(inout) :: self
+    integer, intent(in) :: depth
+    ! Locals
+    integer :: exch  !> Handle for exchange
+    call exchs_generic(b2=self%data, nhalo=1, nhexch=1, handle=exch, &
+                       comm1=1, comm2=1, comm3=1, comm4=1)
+  end subroutine halo_exch
+  
   !===================================================
 
   !> Compute the checksum of ALL of the elements of supplied array
