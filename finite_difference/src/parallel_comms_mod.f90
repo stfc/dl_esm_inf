@@ -8,8 +8,8 @@ module parallel_comms_mod
   private
 
   integer, parameter :: jpk = 1 !< Only 1 vertical level
-  logical, parameter :: DEBUG = .true.
-  logical, parameter :: DEBUG_COMMS = .true.
+  logical, parameter :: DEBUG = .false.
+  logical, parameter :: DEBUG_COMMS = .false.
   logical :: lwp !< Whether or not to write out from this rank
 
   integer, parameter :: halo_depthx = 2, halo_depthy = 2
@@ -2003,16 +2003,16 @@ end if
 !!$                istart = isrcsendp(ipatch,isend,1)
 !!$                jend   = jstart+nysendp(ipatch,isend,1)-1
 !!$                iend   = istart+nxsendp(ipatch,isend,1)-1
-!!$#if defined key_z_first
+!!$if defined key_z_first
 !!$                DO j=jstart, jend, 1
 !!$                   DO i=istart, iend, 1
 !!$                      DO k=1,mbkmax(i,j),1
 !!$                      !DO k=1, nzsendp(ipatch,isend,1),1
-!!$#else
+!!$else
 !!$                DO k=1,nzsendp(ipatch,isend,1),1
 !!$                   DO j=jstart, jend, 1
 !!$                      DO i=istart, iend, 1
-!!$#endif
+!!$endif
 !!$                         ic = ic + 1
 !!$                         sendBuff(ic, isend) = b3(i,j,k)
 !!$                      END DO
@@ -2027,11 +2027,11 @@ end if
                             destination(isend), tag, mpi_comm_world, &
                             exch_flags(handle,isend,indexs),ierr)
 
-!!$#if defined DEBUG_COMMS
+!!$if defined DEBUG_COMMS
 !!$             WRITE (*,FMT="(I4,': Isend of ',I3,' patches, ',I6,' points, to ',I3)") &
 !!$                     narea-1, npatchsend(isend,1),ic, &
 !!$                     destination(isend)
-!!$#endif
+!!$endif
 
            ELSEIF ( PRESENT(ib3) ) THEN
 
@@ -2067,9 +2067,10 @@ end if
 
     ! CALL timing_stop('mpi_sends')
 
-#if ( defined DEBUG && defined DEBUG_EXCHANGE ) || defined DEBUG_COMMS
-    WRITE (*,FMT="(I3,': exch tag ',I4,' finished all sends')") get_rank(),tag
-#endif
+    if(DEBUG_COMMS)then
+       write (*,FMT="(I3,': exch tag ',I4,' finished all sends')") &
+            get_rank(), tag
+    end if
 
     ! Wait on the receives that were posted earlier
 
@@ -2079,7 +2080,7 @@ end if
     ! to MPI_waitany
     exch_flags1d(1:nrecv) = exch_flags(handle, 1:nrecv, indexr)
 
-    if( DEBUG_COMMS)then
+    if(DEBUG_COMMS)then
        WRITE(*,"(I3,': Doing waitany: nrecv =',I3,' handle = ',I3)") &
           get_rank(), nrecv,handle
     endif
@@ -2204,10 +2205,10 @@ end if
     !IF(ALLOCATED(recvBuff ))DEALLOCATE(recvBuff)
     !IF(ALLOCATED(recvIBuff))DEALLOCATE(recvIBuff)
 
-#if defined DEBUG_COMMS
-    WRITE(*,"(I3,': Finished all ',I3,' receives for handle ',I3)") &
+    if(DEBUG_COMMS)then
+       WRITE(*,"(I3,': Finished all ',I3,' receives for handle ',I3)") &
              get_rank(), nrecv, handle
-#endif
+    end if
 
     ! Copy just the set of flags we're interested in for passing to  
     ! MPI_waitall next time around  
