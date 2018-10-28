@@ -81,7 +81,6 @@ program model
 
   !> \TODO put these inside library initialisation
   call map_comms(decomp, tmask, .false., ierr)
-  ierr = exchmod_alloc()
   
   !> Create a field on U-points of the grid
   a_field = r2d_field(model_grid, GO_U_POINTS)

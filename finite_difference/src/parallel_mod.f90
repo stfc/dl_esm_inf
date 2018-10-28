@@ -49,6 +49,7 @@ contains
   subroutine parallel_init()
     use parallel_utils_mod, only: init => parallel_init
     implicit none
+    integer :: ierr
 
     call init()
     
@@ -57,6 +58,11 @@ contains
     ! \todo is this now stored in the decomposition object?
     nprocx = 0
     nprocy = 0
+
+    ierr = exchmod_alloc()
+    if(ierr /= 0)then
+       call parallel_abort("Failed to allocate message buffers")
+    end if
 
   end subroutine parallel_init
 
