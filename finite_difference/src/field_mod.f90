@@ -247,7 +247,7 @@ contains
     do itile = 1, self%ntiles
        do jj = self%tile(itile)%whole%ystart, self%tile(itile)%whole%ystop
           do ji = self%tile(itile)%whole%xstart, self%tile(itile)%whole%xstop
-             self%data(ji,jj) = -999.0
+             self%data(ji,jj) = 0.0
           end do
        end do
     end do
