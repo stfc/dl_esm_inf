@@ -21,14 +21,19 @@ enum, bind(c)
    enumerator :: GO_MIN, GO_MAX, GO_SUM
 end enum
 
-! Fake array to enable us to provide stencil meta-data in the args() array
-integer, public, parameter :: stencil(0:111,0:111,0:111) = 0
+type :: go_stencil
+   integer :: first_row
+   integer :: second_row
+   integer :: third_row
+end type go_stencil
+
+public go_stencil
 
   !args(fs,stencil,arg_intent) ! this need defining
 type :: go_arg
-  integer :: arg_intent
+  integer(kind(GO_READ)) :: arg_intent
   integer :: element
-  integer :: stencil=0
+  type(go_stencil) :: stencil_type = go_stencil(0,0,0)
 end type go_arg
 
 !-------------------------------------------------------------------------------

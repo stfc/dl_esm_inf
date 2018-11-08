@@ -25,7 +25,11 @@ public GO_SUM, GO_MIN, GO_MAX
 !> These quantities should be defined somewhere in the lfric
 !! infrastructure but at the moment they are not!
 !! \todo Work out where POINTWISE and DOFS should be declared.
-integer, public, parameter :: GO_POINTWISE = 2, GO_DOFS = 5
+integer, public, parameter ::  GO_DOFS = 5
+
+type(go_stencil), parameter :: GO_POINTWISE = go_stencil(000,010,000)
+public GO_POINTWISE
+
 
 !> The points in the domain that a kernel will update
 integer, public, parameter :: GO_INTERNAL_PTS = 0, &
