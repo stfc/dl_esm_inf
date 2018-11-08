@@ -277,15 +277,12 @@ contains
 !$OMP shared(grid, tmask)
        do jj = 1, grid%ny
           do ji = 1, grid%nx
-             ! Initially flag all points as being outside the domain
-             grid%tmask(ji,jj) = -1
+             ! Copy in values
+             grid%tmask(ji,jj) = tmask(ji,jj)
           end do
        end do
 !$OMP END PARALLEL DO
 
-       ! Copy of actual values
-       grid%tmask(xstart:xstop, ystart:ystop) = tmask(xstart:xstop, &
-                                                      ystart:ystop)
     else
        ! No T-mask supplied. Check that grid has PBCs in both
        ! x and y dimensions otherwise we won't know what to do.
