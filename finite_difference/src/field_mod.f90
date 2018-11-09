@@ -979,14 +979,15 @@ contains
   !===================================================
 
   subroutine halo_exch(self, depth)
-    use parallel_comms_mod, only: exchs_generic
+    use parallel_comms_mod, only: exchs_generic, Iplus, Iminus, Jplus, &
+         Jminus, NONE
     implicit none
     class(r2d_field), target, intent(inout) :: self
     integer, intent(in) :: depth
     ! Locals
     integer :: exch  !> Handle for exchange
     call exchs_generic(b2=self%data, nhalo=1, nhexch=1, handle=exch, &
-                       comm1=1, comm2=1, comm3=1, comm4=1)
+                       comm1=JPlus, comm2=Jminus, comm3=NONE, comm4=NONE)
   end subroutine halo_exch
   
   !===================================================
