@@ -8,8 +8,8 @@ module parallel_comms_mod
   private
 
   integer, parameter :: jpk = 1 !< Only 1 vertical level
-  logical, parameter :: DEBUG = .false.
-  logical, parameter :: DEBUG_COMMS = .false.
+  logical, parameter :: DEBUG = .true.
+  logical, parameter :: DEBUG_COMMS = .true.
   logical :: lwp !< Whether or not to write out from this rank
 
   integer, parameter :: halo_depthx = 2, halo_depthy = 2
@@ -63,23 +63,6 @@ module parallel_comms_mod
                                        nxrecv,nyrecv,nzrecv
   INTEGER, SAVE :: nsend,nrecv
 
-  ! SMP 22 Sep 2009
-  ! Alternative, run-length encoded communications lists
-  ! omitting permanently dry points.
-  ! Of these, isrcrecp, jsrcrecvp
-  ! are set up but not currently used,
-  ! and could be eliminated.
-
-  ! Maximum number of patches a single halo communication can be broken 
-  ! into when trimming dry points in msg_trim()
-  INTEGER, PARAMETER :: MaxPatch=8
-  INTEGER, SAVE, DIMENSION(MaxPatch,MaxComm,halo_depthx) :: &
-                                    isrcsendp, jsrcsendp,&
-                                    nxsendp, nysendp, nzsendp, &
-                                    isrcrecvp, jsrcrecvp,&
-                                    idesrecvp, jdesrecvp,&
-                                    nxrecvp, nyrecvp, nzrecvp
-  INTEGER, SAVE, DIMENSION(MaxComm,halo_depthx) :: npatchsend, npatchrecv
   ! Total number of points in each message
   INTEGER, SAVE, DIMENSION(MaxComm,halo_depthx) :: nsendp, nsendp2d, nrecvp, nrecvp2d
 
@@ -159,9 +142,7 @@ module parallel_comms_mod
             dirsend,isrcsend,jsrcsend,idesrecv, jdesrecv,          &
             nxrecv, nyrecv, source, cyclic_bc, idessend, jdessend
 
-  PUBLIC :: nsendp,nsendp2d,nrecvp,nrecvp2d,npatchsend,npatchrecv, &
-            nxsendp,nysendp,nzsendp,nxrecvp,nyrecvp,nzrecvp,       &
-            idesrecvp,jdesrecvp,isrcsendp,jsrcsendp
+  PUBLIC :: nsendp,nsendp2d,nrecvp,nrecvp2d
 
   PUBLIC :: ielb,  ieub,                      &
             jeub, ilbext, iubext, jubext, jlbext, &
@@ -361,7 +342,6 @@ contains
 
           ! Construct the rest of the data describing the zone,
           ! convert to local indices and extend to multiple halo widths.
-
           isrcs(:) = subdomain%internal%xstart
 
           DO ihalo=1,halo_depthx
@@ -645,20 +625,20 @@ end if
           DO ihalo=1,halo_depthx,1
             nadd = MIN(ihalo,naddmaxs)
             nys(ihalo) = nys(ihalo)+nadd
-if(DEBUG)then
-            IF ( nadd.GT.0 .AND. lwp ) THEN
-              WRITE (*,*) 'Adding starting corner to send' &
+            if(DEBUG)then
+               IF ( nadd.GT.0 .AND. lwp ) THEN
+                  WRITE (*,*) 'Adding starting corner to send' &
                           ,' for halo ',ihalo,' with ',nadd,' points'
-            ENDIF
-end if
+               ENDIF
+            end if
             nadd = MIN(ihalo,naddmaxr)
             nyr(ihalo) = nyr(ihalo)+nadd
-if(DEBUG)then
-            IF ( nadd.GT.0 .AND. lwp ) THEN
-              WRITE (*,*) 'Adding starting corner to receive' &
+            if(DEBUG)then
+               IF ( nadd.GT.0 .AND. lwp ) THEN
+                  WRITE (*,*) 'Adding starting corner to receive' &
                   ,' for halo ',ihalo,' with ',nadd,' points'
-            ENDIF
-end if
+               ENDIF
+            end if
           ENDDO
 
 !         Add a send and a receive to the lists for this section
@@ -668,12 +648,11 @@ end if
                         isrcs,jsrcs,idess,jdess,nxs,nys,&
                         tmask,ierr)
           IF ( ierr.NE.0 ) RETURN
-if(DEBUG)then
-          IF ( lwp ) THEN
+
+          if(DEBUG .and. lwp)then
             WRITE (*,'(a,7i6)') 'Adding send -1111   ',iproc-1, &
                   isrcs(1),jsrcs(1),idess(1),jdess(1),nxs(1),nys(1)
-          ENDIF
-end if
+         end if
 
           CALL addrecv (nrecv,Iplus,iproc-1,       &
                         isrcr,jsrcr,idesr,jdesr,nxr,nyr, &
@@ -743,30 +722,31 @@ end if
 
             i2 = MIN(imax,ieub_iproc)
 
-if(DEBUG)then
-            WRITE (*,FMT="(I3,': ARPDBG strip for minus J is ',I3,',',I3)") &
+            if(DEBUG)then
+               WRITE (*,FMT="(I3,': ARPDBG strip for minus J is ',I3,',',I3)") &
                  irank-1,i1,i2
-end if
+            end if
 
-!           |        |        |        |        ||
-!           |        |        |        |        ||
-!           |        |        |        |        ||
-!           ------------------------------------------------
-!                   ||        |        |        |
-!                   ||        |        |        |
-!                   ||        |        |        |
+            !  |        |        |        |        ||
+            !  |        |        |        |        ||
+            !  |        |        |        |        ||
+            !  ------------------------------------------------
+            !          ||        |        |        |
+            !          ||        |        |        |
+            !          ||        |        |        |
 
-
-!           Construct the rest of the data describing the zone,
-!           convert to local indexes and extend to multiple halo widths.
+            ! Construct the rest of the data describing the zone,
+            ! convert to local indexes and extend to multiple halo widths.
             ! Convert to local coords:
             ! Dist into zone = ipos - start + 1
             ! Pos in zone in local = (start of internal region) + (dist into zone) - 1
             ! Convert from global i1 to local i in current domain
-            ! if i1 == nimpp then we must start at i=1 (because nimpp is absolute position
-! of starting edge of domain including overlap regions)
+            ! if i1 == nimpp then we must start at i=1 (because nimpp is
+            ! absolute position of starting edge of domain including overlap
+            ! regions)
             nimpp = subdomain%global%xstart
             isrcs(:) = i1 - nimpp + 1
+            write(*,*) "xstart, i1, isrcs: ",nimpp,i1,isrcs(1)
             ! Convert from global i1 to local i in the destination domain
             idess(:) = i1- decomp%subdomains(iproc)%global%xstart + 1
             idesr(:) = isrcs(:)
@@ -783,9 +763,7 @@ end if
                nys(ihalo) = ihalo
             ENDDO
             ! Destination for a send must be a halo region
-            ! nlcjt(iproc) is always in a halo region. Not sure what 
-            ! happens when halo wider than 1.
-            jdess(:) = decomp%subdomains(iproc)%internal%ystop
+            jdess(:) = decomp%subdomains(iproc)%internal%ystop + 1
 
 !           Examine whether corner points should be added to the START.
 
@@ -937,10 +915,10 @@ end if
 
             i2 = MIN(imax, ieub_iproc)
 
-if(DEBUG)then
-            WRITE (*,FMT="(I3,': ARPDBG strip for plus J is ',I3,',',I3)") &
+            if(DEBUG)then
+               WRITE (*,FMT="(I3,': ARPDBG strip for plus J is ',I3,',',I3)") &
                  irank-1,i1,i2
-end if
+            end if
 
             ! Construct the rest of the data describing the zone,
             ! convert to local indexes and extend to multiple halo widths.
@@ -962,7 +940,8 @@ end if
                nyr(ihalo)   = ihalo
                nys(ihalo)   = ihalo
             ENDDO
-            jdesr(:) = subdomain%internal%ystop
+            ! Destination for receive must be in halo
+            jdesr(:) = subdomain%internal%ystop + 1
 
 !         Examine whether corner points should be added to the START.
 
@@ -1141,10 +1120,10 @@ end if
 
         iprocc = 0
 
-if(DEBUG)then
-        WRITE(*,FMT="(I3,': ARPDBG: i, i1 (outside), i2 (inside), iprocx, iprocy = ',5I4)") &
+        if(DEBUG)then
+           WRITE(*,FMT="(I3,': ARPDBG: i, i1 (outside), i2 (inside), iprocx, iprocy = ',5I4)") &
              irank-1, i,i1,i2,iprocx,iprocy
-end if
+        end if
 
         ! Loop over all required halo widths
 
@@ -1174,10 +1153,10 @@ end if
                 IF(piubext(iproc))ieub_iproc = decomp%subdomains(iproc)%global%xstop-ihalo
              END IF
 
-if(DEBUG)then
-             WRITE (*,FMT="(I3,': adding corner as ',I3,' differs from ',2I3)")&
+             if(DEBUG)then
+                WRITE (*,FMT="(I3,': adding corner as ',I3,' differs from ',2I3)")&
                     irank-1, iproc,iprocx,iprocy
-end if
+             end if
             ! If the furthest corner point needs a communication,
             ! we will need them all.
 
@@ -1290,12 +1269,12 @@ end if
 
           ELSE
 
-if(DEBUG)then
-            IF ( iprocc.GT.0 ) THEN
-                WRITE (*,FMT="(I3,': skipping corner for halo ',I3,' PE ',I3)")&
+             if(DEBUG)then
+                IF ( iprocc.GT.0 ) THEN
+                   WRITE (*,FMT="(I3,': skipping corner for halo ',I3,' PE ',I3)")&
                        irank-1,ihalo,iprocc-1
-            ENDIF
-end if
+                ENDIF
+             end if
 
             ! No communication for this halo width.
             ! Clear all the parameters
@@ -1383,13 +1362,7 @@ end if
     INTEGER, DIMENSION(:,:),    INTENT( in  ) :: tmask
     INTEGER,                    INTENT( out ) :: ierr
     INTEGER, DIMENSION(:), INTENT( in  ) :: isrc, jsrc, ides, jdes, nx, ny
-    ! Run-length encoded versions corresponding to above
-    INTEGER, DIMENSION(MaxPatch,halo_depthx) :: risrc,rjsrc,rides,rjdes,rnx,rny,rnz
-    ! Number of patches in run-length encoded message
-    INTEGER, DIMENSION(halo_depthx) :: npatches
     INTEGER :: ihalo, ipatch, irank
-    INTEGER :: nsendp_untrimmedz ! How many pts we'd be sending without
-                                 ! trimming in z direction
     ! Whether there is still a message after clipping
     LOGICAL :: something_left
          
@@ -1424,8 +1397,9 @@ end if
     jdessend(icomm)    = jdes(1)
     nxsend(icomm)      = nx(1)
     nysend(icomm)      = ny(1)
-    nsendp(icomm, 1)   = nxsend(icomm)*nysend(icomm)
-    nzsend(icomm)      = jpk
+    nsendp2d(icomm, 1) = nxsend(icomm)*nysend(icomm)
+    nzsend(icomm)      = 1
+    nsendp(icomm, 1) = nsendp2d(icomm,1)*nzsend(icomm)
     
     if(DEBUG)then
        WRITE(*,FMT="(I4,': ARPDBG adding SEND:')") irank-1  
@@ -1438,10 +1412,9 @@ end if
        WRITE(*,FMT="(I4,': ARPDBG:  jdes = ',I4)") irank-1,jdessend(icomm)
        WRITE(*,FMT="(I4,': ARPDBG:    nx = ',I4)") irank-1,nxsend(icomm)
        WRITE(*,FMT="(I4,': ARPDBG:    ny = ',I4)") irank-1,nysend(icomm)
-       WRITE(*,FMT="(I4,': ARPDBG:    nz = ',I4)") irank-1,nzsend(icomm)
-       WRITE(*,FMT="(I4,': ARPDBG:npatch = ',I3)") irank-1,npatches(1)
- 
+       WRITE(*,FMT="(I4,': ARPDBG:    nz = ',I4)") irank-1,nzsend(icomm) 
        WRITE (*,FMT="(I4,': ARPDBG:nsendp = ',I4)") irank-1,nsendp(icomm,1)
+       WRITE (*,FMT="(I4,': ARPDBG:nsendp2d = ',I4)") irank-1,nsendp2d(icomm,1)
        WRITE (*,FMT="(I4,': ARPDBG SEND ends')")    irank-1
     end if
 
@@ -1480,7 +1453,7 @@ end if
     ! Local variables.
 
     ! Run-length encoded versions corresponding to above
-    INTEGER, dimension(MaxPatch,halo_depthx) :: risrc,rjsrc,rides,rjdes,rnx,rny,rnz
+    !INTEGER, dimension(MaxPatch,halo_depthx) :: risrc,rjsrc,rides,rjdes,rnx,rny,rnz
     ! Number of patches in run-length encoded message
     INTEGER, DIMENSION(halo_depthx) :: npatches
     INTEGER :: ihalo, ipatch, irank
@@ -1520,8 +1493,9 @@ end if
     nxrecv(icomm)   = nx(1)
     nyrecv(icomm)   = ny(1)
     !> TODO handle multiple halo depths
-    nrecvp(icomm, 1) = nxrecv(icomm)*nyrecv(icomm)
-    nzrecv(icomm)   = jpk
+    nrecvp2d(icomm, 1) = nxrecv(icomm)*nyrecv(icomm)
+    nzrecv(icomm)   = 1
+    nrecvp(icomm, 1) = nzrecv(icomm) * nrecvp2d(icomm, 1)
     
     if(DEBUG)then
        WRITE (*,FMT="(I3,': ARPDBG adding RECV:')") irank-1
@@ -1534,7 +1508,8 @@ end if
        WRITE (*,FMT="(I3,': ARPDBG:  jdes = ',I4)") irank-1,jdesrecv(icomm)
        WRITE (*,FMT="(I3,': ARPDBG:    nx = ',I4)") irank-1,nxrecv(icomm)
        WRITE (*,FMT="(I3,': ARPDBG:    ny = ',I4)") irank-1,nyrecv(icomm)
-       WRITE (*,FMT="(I3,': ARPDBG:    nz = ',I4)") irank-1,nzrecv(icomm)
+       WRITE (*,FMT="(I3,': ARPDBG:nrecvp = ',I4)") irank-1,nrecvp(icomm,1)
+       WRITE (*,FMT="(I3,': ARPDBG:nrecvp2d = ',I4)") irank-1,nrecvp2d(icomm,1)
        WRITE (*,FMT="(I3,': ARPDBG RECV ends')")    irank-1
     end if
 
@@ -1958,6 +1933,7 @@ end if
              iend   = istart+nxsend(isend)-1
              jstart = jsrcsend(isend)
              jend   = jstart+nysend(isend)-1
+             write(*,*) get_rank(), ": packing from: ",istart,iend,jstart,jend
 
              DO j=jstart, jend, 1
                 DO i=istart, iend, 1
@@ -2068,8 +2044,8 @@ end if
     ! CALL timing_stop('mpi_sends')
 
     if(DEBUG_COMMS)then
-       write (*,FMT="(I3,': exch tag ',I4,' finished all sends')") &
-            get_rank(), tag
+       write (*,FMT="(I3,': exch tag ',I4,' finished all ',I4,' sends')") &
+            get_rank(), tag, nsend
     end if
 
     ! Wait on the receives that were posted earlier
@@ -2106,19 +2082,17 @@ end if
 
              ! Copy received data back into array
              ic = 0
-             unpack_patches2r: DO ipatch=1,npatchrecv(irecv,nhexch)
-
-                jstart = jdesrecvp(ipatch,irecv,1)!+nhalo
-                jend   = jstart+nyrecvp(ipatch,irecv,1)-1
-                istart = idesrecvp(ipatch,irecv,1)!+nhalo
-                iend   = istart+nxrecvp(ipatch,irecv,1)-1
-                DO j=jstart, jend, 1
-                   DO i=istart, iend, 1
-                      ic = ic + 1
-                      b2(i,j) = recvBuff(ic,irecv)
-                   END DO
+             jstart = jdesrecv(irecv)!+nhalo
+             jend   = jstart+nyrecv(irecv)-1
+             istart = idesrecv(irecv)!+nhalo
+             iend   = istart+nxrecv(irecv)-1
+             write(*,*) get_rank(), ": unpacking to: ",istart,iend,jstart,jend
+             DO j=jstart, jend, 1
+                DO i=istart, iend, 1
+                   ic = ic + 1
+                   b2(i,j) = recvBuff(ic,irecv)
                 END DO
-             END DO unpack_patches2r
+             END DO
 
              ! CALL timing_stop('2dr_unpack')
 
@@ -2126,32 +2100,28 @@ end if
 
              ! Copy received data back into array
              ic = 0
-             unpack_patches2i: DO ipatch=1,npatchrecv(irecv,nhexch),1
-
-                jstart = jdesrecvp(ipatch,irecv,1)
-                jend   = jstart+nyrecvp(ipatch,irecv,1)-1
-                istart = idesrecvp(ipatch,irecv,1)
-                iend   = istart+nxrecvp(ipatch,irecv,1)-1
+                jstart = jdesrecv(irecv)
+                jend   = jstart+nyrecv(irecv)-1
+                istart = idesrecv(irecv)
+                iend   = istart+nxrecv(irecv)-1
                 DO j=jstart, jend, 1
                    DO i=istart, iend, 1
                       ic = ic + 1
                       ib2(i,j) = recvIBuff(ic,irecv)
                    END DO
                 END DO
-             END DO unpack_patches2i
 
            ELSE IF (PRESENT(b3) ) THEN
 
               ! CALL timing_start('3dr_unpack')
              ic = 0
-             unpack_patches3r: DO ipatch=1,npatchrecv(irecv,nhexch)
 
-                jstart = jdesrecvp(ipatch,irecv,1)!+nhalo
-                jend   = jstart+nyrecvp(ipatch,irecv,1)-1
-                istart = idesrecvp(ipatch,irecv,1)!+nhalo
-                iend   = istart+nxrecvp(ipatch,irecv,1)-1
+                jstart = jdesrecv(irecv)
+                jend   = jstart+nyrecv(irecv)-1
+                istart = idesrecv(irecv)
+                iend   = istart+nxrecv(irecv)-1
 
-                DO k=1,nzrecvp(ipatch,irecv,1),1
+                DO k=1,nzrecv(irecv),1
                    DO j=jstart, jend, 1
                       DO i=istart, iend, 1
                          ic = ic + 1
@@ -2161,35 +2131,34 @@ end if
                 END DO
 
                 ! ARPDBG - wipe anything below the ocean bottom
-                DO k=nzrecvp(ipatch,irecv,1)+1,jpk,1
-                   DO j=jstart, jend, 1
-                      DO i=istart, iend, 1
-                         b3(i,j,k) = 0.0_go_wp
-                      END DO
-                   END DO
-                END DO
-             END DO unpack_patches3r
+!!$                DO k=nzrecvp(ipatch,irecv,1)+1,jpk,1
+!!$                   DO j=jstart, jend, 1
+!!$                      DO i=istart, iend, 1
+!!$                         b3(i,j,k) = 0.0_go_wp
+!!$                      END DO
+!!$                   END DO
+!!$                END DO
 
 !             CALL timing_stop('3dr_unpack')
 
           ELSEIF ( PRESENT(ib3) ) THEN
 
              ic = 0
-             unpack_patches3i: DO ipatch=1,npatchrecv(irecv,nhexch),1
-
-                jstart = jdesrecvp(ipatch,irecv,1)!+nhalo
-                jend   = jstart+nyrecvp(ipatch,irecv,1)-1
-                istart = idesrecvp(ipatch,irecv,1)!+nhalo
-                iend   = istart+nxrecvp(ipatch,irecv,1)-1
-                DO k=1,nzrecvp(ipatch,irecv,1),1
-                   DO j=jstart, jend, 1
-                      DO i=istart, iend, 1
-                         ic = ic + 1
-                         ib3(i,j,k) = recvIBuff(ic,irecv)
-                      END DO
-                   END DO
-                END DO
-             END DO unpack_patches3i
+!!$             unpack_patches3i: DO ipatch=1,npatchrecv(irecv,nhexch),1
+!!$
+!!$                jstart = jdesrecvp(ipatch,irecv,1)!+nhalo
+!!$                jend   = jstart+nyrecvp(ipatch,irecv,1)-1
+!!$                istart = idesrecvp(ipatch,irecv,1)!+nhalo
+!!$                iend   = istart+nxrecvp(ipatch,irecv,1)-1
+!!$                DO k=1,nzrecvp(ipatch,irecv,1),1
+!!$                   DO j=jstart, jend, 1
+!!$                      DO i=istart, iend, 1
+!!$                         ic = ic + 1
+!!$                         ib3(i,j,k) = recvIBuff(ic,irecv)
+!!$                      END DO
+!!$                   END DO
+!!$                END DO
+!!$             END DO unpack_patches3i
 
           END IF
 
