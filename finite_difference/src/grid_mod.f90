@@ -275,14 +275,31 @@ contains
 !! inside a field object.
 !$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
 !$OMP shared(grid, tmask)
-       do jj = 1, grid%ny
-          do ji = 1, grid%nx
+       do jj = ystart-1, ystop+1 !grid%ny
+          do ji = xstart-1, xstop+1!grid%nx
              ! Copy in values
              grid%tmask(ji,jj) = tmask(ji,jj)
           end do
        end do
 !$OMP END PARALLEL DO
 
+       ! Fill-in boundary regions
+       ! North
+       do jj = ystop+2, grid%ny
+          grid%tmask(:, jj) = grid%tmask(:, ystop+1)
+       end do
+       ! South
+       do jj = 1, ystart-2, 1
+          grid%tmask(:, jj) = grid%tmask(:, ystart-1)
+       end do
+       ! East
+       do ji = 1, xstart-2, 1
+          grid%tmask(ji,:) = grid%tmask(xstart-1, :)
+       end do
+       ! West
+       do ji = xstop+2, grid%nx
+          grid%tmask(ji, :) = grid%tmask(xstop+1, :)
+       end do
     else
        ! No T-mask supplied. Check that grid has PBCs in both
        ! x and y dimensions otherwise we won't know what to do.
