@@ -55,7 +55,7 @@ public go_stencil
 
   !args(fs,stencil,arg_intent) ! this need defining
 type :: go_arg
-  integer(kind(GO_READ)) :: arg_intent
+  integer :: arg_intent
   integer :: element
   type(go_stencil) :: stencil_type = go_stencil(0,0,0)
 end type go_arg
