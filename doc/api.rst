@@ -3,7 +3,12 @@ Introduction
 
 The dl_esm_inf (for Daresbury Laboratory Earth-System Modelling
 Infrastructure) library provides basic support for finite-difference
-earth-system-type models written in Fortran.
+earth-system-type models written in Fortran. It currently
+supports two-dimensional, finite-difference models.
+
+The first version of this library was developed to support 2D finite-
+difference shallow-water models in the GOcean Project.
+
 
 .. _gocean1.0-grid:
 

@@ -41,7 +41,10 @@ release = '1.0'
 extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
+    'sphinxfortran',
 ]
+
+fortran_source = ["../finite_difference/src/*.f90"]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
