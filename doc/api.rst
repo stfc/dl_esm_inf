@@ -1,6 +1,9 @@
 Introduction
 ++++++++++++
 
+The dl_esm_inf (for Daresbury Laboratory Earth-System Modelling
+Infrastructure) library provides basic support for finite-difference
+earth-system-type models written in Fortran.
 
 .. _gocean1.0-grid:
 
@@ -16,9 +19,9 @@ The dl_esm_inf library contains a ``grid_mod`` module which defines a
   type(grid_type), target :: model_grid
   ...
   ! Create the model grid
-  model_grid = grid_type(ARAKAWA_C,                           &
-                         (/BC_EXTERNAL,BC_EXTERNAL,BC_NONE/), &
-                         OFFSET_NE)
+  model_grid = grid_type(GO_ARAKAWA_C,                                 &
+                         (/GO_BC_EXTERNAL,GO_BC_EXTERNAL,GO_BC_NONE/), &
+                         GO_OFFSET_NE)
 
 .. note::
   The grid object itself must be declared with the ``target``
@@ -27,7 +30,7 @@ The dl_esm_inf library contains a ``grid_mod`` module which defines a
 
 The ``grid_type`` constructor takes three arguments:
 
- 1. The type of grid (only ARAKAWA_C is currently supported)
+ 1. The type of grid (only GO_ARAKAWA_C is currently supported)
  2. The boundary conditions on the domain for the *x*, *y* and *z* dimensions (see below). The value for the *z* dimension is currently ignored.
  3. The 'index offset' - the convention used for indexing into offset fields.
 
@@ -35,13 +38,13 @@ Three types of boundary condition are currently supported:
 
 .. tabularcolumns:: |l|L|
 
-============  =========================================
-Name          Description
-============  =========================================
-BC_NONE       No boundary conditions are applied.
-BC_EXTERNAL   Some external forcing is applied. This must be implemented by a kernel. The domain must be defined with a T-point mask (see :ref:`gocean1.0-grid-init`).
-BC_PERIODIC   Periodic boundary conditions are applied.
-============  =========================================
+===============  =========================================
+Name             Description
+===============  =========================================
+GO_BC_NONE       No boundary conditions are applied.
+GO_BC_EXTERNAL   Some external forcing is applied. This must be implemented by a kernel. The domain must be defined with a T-point mask (see :ref:`gocean1.0-grid-init`).
+GO_BC_PERIODIC   Periodic boundary conditions are applied.
+===============  =========================================
 
 The infrastructure requires this information in order to determine the
 extent of the model grid.
@@ -59,7 +62,7 @@ NEMO ocean model):
 .. image:: grid_offset_choices.png
 
 The GOcean 1.0 API supports these two different offset schemes, which
-we term ``OFFSET_SW`` and ``OFFSET_NE``.
+we term ``GO_OFFSET_SW`` and ``GO_OFFSET_NE``.
 
 Note that the constructor does not specify the extent of the model
 grid. This is because this information is normally obtained by reading
@@ -75,9 +78,7 @@ The ``grid_init`` Routine
 
 Once an application has determined the details of the model
 configuration, it must use this information to populate the grid
-object. This is done via a call to the ``grid_init`` subroutine:
-
-::
+object. This is done via a call to the ``grid_init`` subroutine::
 
   subroutine grid_init(grid, m, n, dxarg, dyarg, tmask)
     !> The grid object to configure
@@ -102,11 +103,9 @@ Fields
 ++++++
 
 Once a model has a grid defined it will require one or more
-fields. The GOLib contains a ``field_mod`` module which defines an
+fields. dl_esm_inf contains a ``field_mod`` module which defines an
 ``r2d_field`` type (real, 2-dimensional field) and associated
-constructor:
-
-::
+constructor::
 
   use field_mod
   ...
@@ -115,15 +114,15 @@ constructor:
   ...
 
   ! Sea-surface height now (current time step)
-  sshn_u = r2d_field(model_grid, U_POINTS)
-  sshn_v = r2d_field(model_grid, V_POINTS)
-  sshn_t = r2d_field(model_grid, T_POINTS)
+  sshn_u = r2d_field(model_grid, GO_U_POINTS)
+  sshn_v = r2d_field(model_grid, GO_V_POINTS)
+  sshn_t = r2d_field(model_grid, GO_T_POINTS)
 
 The constructor takes two arguments:
 
  1. The grid on which the field exists
  2. The type of grid point at which the field is defined
-    (``U_POINTS``, ``V_POINTS``, ``T_POINTS`` or ``F_POINTS``)
+    (``GO_U_POINTS``, ``GO_V_POINTS``, ``GO_T_POINTS`` or ``GO_F_POINTS``)
 
 Note that the grid object need not have been fully configured (by a
 call to ``grid_init`` for instance) before it is passed into this
@@ -133,17 +132,15 @@ constructor.
 Example
 +++++++
 
-PSyclone is distributed with a full example of the use of the dl_esm_inf
-Library. See ``<PSYCLONEHOME>/examples/gocean/shallow_alg.f90``.  In
-what follows we will walk through a slightly cut-down example for a
-different program.
+In what follows we walk through a slightly cut-down example of the use
+of the dl_esm_inf library.
 
 The following code illustrates the use of the library in constructing an
 application::
-
+   
    program gocean2d
-     use grid_mod  ! From GOLib
-     use field_mod ! From GOLib
+     use grid_mod  ! From dl_esm_inf
+     use field_mod ! From dl_esm_inf
      use model_mod
      use boundary_conditions_mod
 
@@ -163,9 +160,9 @@ application::
      ! Create the model grid. We use a NE offset (i.e. the U, V and F
      ! points immediately to the North and East of a T point all have the
      ! same i,j index).  This is the same offset scheme as used by NEMO.
-     model_grid = grid_type(ARAKAWA_C,                          &
-                           (/BC_EXTERNAL,BC_EXTERNAL,BC_NONE/), &
-                            OFFSET_NE)
+     model_grid = grid_type(GO_ARAKAWA_C,                                &
+                           (/GO_BC_EXTERNAL,GO_BC_EXTERNAL,GO_BC_NONE/), &
+                            GO_OFFSET_NE)
 
      !! read in model parameters and configure the model grid 
      CALL model_init(model_grid)
@@ -173,12 +170,12 @@ application::
      ! Create fields on this grid
 
      ! Velocity components now (current time step)
-     un_fld = r2d_field(model_grid, U_POINTS)
-     vn_fld = r2d_field(model_grid, V_POINTS)
+     un_fld = r2d_field(model_grid, GO_U_POINTS)
+     vn_fld = r2d_field(model_grid, GO_V_POINTS)
 
      ! Velocity components 'after' (next time step)
-     ua_fld = r2d_field(model_grid, U_POINTS)
-     va_fld = r2d_field(model_grid, V_POINTS)
+     ua_fld = r2d_field(model_grid, GO_U_POINTS)
+     va_fld = r2d_field(model_grid, GO_V_POINTS)
 
      ...
      
