@@ -236,9 +236,9 @@ contains
                                       ! iproc corrected for E & W halos
     INTEGER :: ielb_no_halo, ieub_no_halo ! Lower and upper bounds for local
                                           ! domain corrected for E & W halos
-    INTEGER, DIMENSION(halo_depthx) :: idesr, jdesr, idess, jdess &
-                                , isrcr, jsrcr, isrcs, jsrcs &
-                                , nxr, nyr, nxs, nys
+    INTEGER, DIMENSION(halo_depthx) :: idesr, jdesr, idess, jdess, &
+                                isrcr, jsrcr, isrcs, jsrcs, &
+                                nxr, nyr, nxs, nys
     logical :: addcorner
     integer :: nprocp, irank
     type(subdomain_type), pointer :: subdomain
@@ -347,7 +347,8 @@ contains
           DO ihalo=1,halo_depthx
             ! Source for the receive must be within internal domain of the
             ! (sending) PE, iproc
-            isrcr(ihalo) = decomp%subdomains(iproc)%internal%xstop - halo_depthx - ihalo + 1 ! nleit(iproc)-ihalo+1 
+            isrcr(ihalo) = decomp%subdomains(iproc)%internal%xstop - &
+                            halo_depthx - ihalo + 1
             idesr(ihalo) = ihalo ! Halo goes from 1..halo_depthx
             nxr(ihalo) = ihalo
             nxs(ihalo) = ihalo
@@ -1724,7 +1725,7 @@ end if
 
   !================================================================
 
-  SUBROUTINE exchs_generic ( b2, ib2, b3, ib3, nhalo, nhexch, &
+  SUBROUTINE exchs_generic ( shift, b2, ib2, b3, ib3, nhalo, nhexch, &
                              handle, comm1, comm2, comm3, comm4)
 
     ! *******************************************************************
@@ -1751,7 +1752,9 @@ end if
     ! Subroutine arguments.
     INTEGER, INTENT(in)  :: nhalo,nhexch
     INTEGER, INTENT(out) :: handle
-
+    ! Shift in xstart,xstop,ystart,ystop relative to T points upon which
+    ! halos have been defined
+    integer, dimension(4), intent(in) :: shift
     REAL(go_wp),OPTIONAL, INTENT(inout), DIMENSION(:,:)   :: b2
     INTEGER, OPTIONAL, INTENT(inout), DIMENSION(:,:)   :: ib2
     REAL(go_wp),OPTIONAL, INTENT(inout), DIMENSION(:,:,:) :: b3
@@ -1929,10 +1932,11 @@ end if
 
 !             CALL timing_start('2dr_pack')
              ic = 0
-             istart = isrcsend(isend)
-             iend   = istart+nxsend(isend)-1
-             jstart = jsrcsend(isend)
-             jend   = jstart+nysend(isend)-1
+             ! Stored patch coordinates are for T points
+             istart = isrcsend(isend) + shift(1)
+             iend   = istart+nxsend(isend)-1 + shift(2)
+             jstart = jsrcsend(isend) + shift(3)
+             jend   = jstart+nysend(isend)-1 + shift(4)
              write(*,*) get_rank(), ": packing from: ",istart,iend,jstart,jend
 
              DO j=jstart, jend, 1
@@ -2082,10 +2086,10 @@ end if
 
              ! Copy received data back into array
              ic = 0
-             jstart = jdesrecv(irecv)!+nhalo
-             jend   = jstart+nyrecv(irecv)-1
-             istart = idesrecv(irecv)!+nhalo
-             iend   = istart+nxrecv(irecv)-1
+             jstart = jdesrecv(irecv) + shift(3)
+             jend   = jstart+nyrecv(irecv)-1 + shift(4)
+             istart = idesrecv(irecv) + shift(1)
+             iend   = istart+nxrecv(irecv)-1 + shift(2)
              write(*,*) get_rank(), ": unpacking to: ",istart,iend,jstart,jend
              DO j=jstart, jend, 1
                 DO i=istart, iend, 1

@@ -985,8 +985,32 @@ contains
     class(r2d_field), target, intent(inout) :: self
     integer, intent(in) :: depth
     ! Locals
+    integer :: ihalo
     integer :: exch  !> Handle for exchange
-    call exchs_generic(b2=self%data, nhalo=1, nhexch=1, handle=exch, &
+    integer, dimension(4) :: shift = 0
+
+    select case(self%grid%offset)
+       case(GO_OFFSET_NE)
+          ! pts to N and E of T point have same i,j indices
+          ! Lower bounds are all the same
+          select case(self%defined_on)
+          case(GO_U_POINTS)
+             ! Upper x bound for U is one less than for T
+             shift(2) = -1
+          case(GO_V_POINTS)
+             ! Upper y bound for V is one less than for T
+             shift(4) = -1
+          case(GO_F_POINTS)
+             shift(2) = -1
+             shift(4) = -1
+          case default
+             call gocean_stop('Unsupported grid-point type in halo_exch')
+          end select
+       case default
+          call gocean_stop('Unsupported offset in halo_exch')
+    end select
+
+    call exchs_generic(shift, b2=self%data, nhalo=1, nhexch=1, handle=exch, &
                        comm1=JPlus, comm2=Jminus, comm3=NONE, comm4=NONE)
   end subroutine halo_exch
   
