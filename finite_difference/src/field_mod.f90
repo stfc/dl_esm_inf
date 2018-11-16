@@ -254,7 +254,7 @@ contains
     ! us the opportunity to do a 'first touch' policy to aid with
     ! memory<->thread locality...
 !$OMP PARALLEL DO schedule(runtime), default(none), &
-!$OMP private(it,ji,jj), shared(self)
+!$OMP private(itile,ji,jj), shared(self)
     do itile = 1, self%ntiles
        do jj = self%tile(itile)%whole%ystart, self%tile(itile)%whole%ystop
           do ji = self%tile(itile)%whole%xstart, self%tile(itile)%whole%xstop
