@@ -103,6 +103,11 @@ integer, public, parameter :: GO_GRID_DX_CONST = 14
 !> Kernel requires the vertical grid spacing of the grid.
 !! Requires/assumes that this quantity is constant.
 integer, public, parameter :: GO_GRID_DY_CONST = 15
+integer, public, parameter :: GO_GRID_X_MIN_INDEX=16
+integer, public, parameter :: GO_GRID_X_MAX_INDEX=17
+integer, public, parameter :: GO_GRID_Y_MIN_INDEX=18
+integer, public, parameter :: GO_GRID_Y_MAX_INDEX=19
+
 
 public :: go_arg
 public :: GO_READ, GO_WRITE, GO_READWRITE, GO_INC
