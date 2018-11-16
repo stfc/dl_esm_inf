@@ -101,6 +101,10 @@ module field_mod
      module procedure fld_checksum, array_checksum
   end interface field_checksum
 
+  interface free_field
+     module procedure r2d_free_field
+  end interface
+
   !> Info on the tile sizes
   INTEGER, SAVE :: max_tile_width
   INTEGER, SAVE :: max_tile_height
@@ -108,6 +112,7 @@ module field_mod
   public copy_field
   public set_field
   public field_checksum
+  public free_field
 
 ! Grid points on an Arakawa C grid with NE offset (i.e. the U,V and F pts
 ! immediately to the North and East of a T point share its grid indices) 
@@ -251,7 +256,19 @@ contains
 !$OMP END PARALLEL DO
 
   end function r2d_field_constructor
-
+   
+  !===================================================
+  ! Frees the data allocated for this array. Does nothing
+  ! if the data was never allocated.
+  subroutine r2d_free_field(fld)
+    implicit none
+    type(r2d_field), intent(inout) :: fld
+    ! Arguments
+    !> fld: Pointer to the fld which data is to be freed
+    if (allocated(fld%data)) then
+       deallocate(fld%data)
+    end if
+  end subroutine r2d_free_field
   !===================================================
 
   subroutine set_field_bounds(fld, fld_type, grid_points)
