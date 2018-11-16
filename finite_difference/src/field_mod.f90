@@ -155,14 +155,20 @@ contains
   !===================================================
 
   function r2d_field_constructor(grid,    &
-                                 grid_points) result(self)
+                                 grid_points, &
+                                 do_tile) result(self)
     use subdomain_mod, only: decompose, decomposition_type
+!$    use omp_lib, only : omp_get_max_threads
     implicit none
     ! Arguments
     !> Pointer to the grid on which this field lives
     type(grid_type), intent(in), target  :: grid
     !> Which grid-point type the field is defined on
     integer,         intent(in)          :: grid_points
+    !> If the field should be tiled among all threads, or if only
+    !> a single field should be allocated (which is not currently
+    !> supported by PSyclone)
+    logical, intent(in), optional :: do_tile
     ! Local declarations
     type(r2d_field) :: self
     integer :: ierr
@@ -192,7 +198,10 @@ contains
        ntiley = 1
     end if
     nthreads = 1
-!$  nthreads = omp_get_max_threads()
+    if (present(do_tile) .and. do_tile) then
+  !$  nthreads = omp_get_max_threads()
+    endif
+
     WRITE (*,"(/'Have ',I3,' OpenMP threads available.')") nthreads
     decomp = decompose(self%internal%nx, self%internal%ny, &
                        nthreads, ntilex, ntiley)
