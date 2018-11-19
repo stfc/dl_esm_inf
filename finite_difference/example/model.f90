@@ -48,7 +48,7 @@ program model
   !> The grid on which our fields are defined
   type(grid_type), target :: model_grid
   !> An example field
-  type(r2d_field) :: a_field
+  type(r2d_field) :: u_field, v_field, t_field, f_field
   ! Local definition of the T-point mask which defines whether T points are
   ! wet (1), dry (0) or outside (-1) the simulation domain.
   integer, allocatable :: tmask(:,:)
@@ -83,11 +83,22 @@ program model
   call map_comms(decomp, tmask, .false., ierr)
   
   !> Create a field on U-points of the grid
-  a_field = r2d_field(model_grid, GO_U_POINTS)
+  u_field = r2d_field(model_grid, GO_U_POINTS)
+  v_field = r2d_field(model_grid, GO_V_POINTS)
+  t_field = r2d_field(model_grid, GO_T_POINTS)
+  f_field = r2d_field(model_grid, GO_F_POINTS)
 
-  call init_field_by_rank(a_field)
+  call init_field_by_rank(u_field)
+  call init_field_by_rank(v_field)
+  call init_field_by_rank(t_field)
+  call init_field_by_rank(f_field)
 
-  call a_field%halo_exch(1)
+  write(*,*) "Halo exchange for u:"
+  call u_field%halo_exch(1)
+  write(*,*) "Halo exchange for v:"
+  call v_field%halo_exch(1)
+  !call t_field%halo_exch(1)
+  !call f_field%halo_exch(1)
 
   ! All done!
   if (my_rank == 1) write(*,'(/"Example model set-up complete."/)')
