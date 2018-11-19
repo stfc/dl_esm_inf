@@ -9,7 +9,7 @@ module parallel_comms_mod
 
   integer, parameter :: jpk = 1 !< Only 1 vertical level
   logical, parameter :: DEBUG = .true.
-  logical, parameter :: DEBUG_COMMS = .true.
+  logical, parameter :: DEBUG_COMMS = .false.
   logical :: lwp !< Whether or not to write out from this rank
 
   integer, parameter :: halo_depthx = 2, halo_depthy = 2
@@ -932,7 +932,6 @@ end if
             nxs(:) = nxr(:)
 
             ! Source for a receive must be within an internal region
-            ! nldj incorporates whether or not lower halo exists
             jsrcr(:) = decomp%subdomains(iproc)%internal%ystart
 
             DO ihalo=1,halo_depthy,1
@@ -1754,7 +1753,7 @@ end if
     INTEGER, INTENT(out) :: handle
     ! Shift in xstart,xstop,ystart,ystop relative to T points upon which
     ! halos have been defined
-    integer, dimension(4), intent(in) :: shift
+    integer, dimension(2), intent(in) :: shift
     REAL(go_wp),OPTIONAL, INTENT(inout), DIMENSION(:,:)   :: b2
     INTEGER, OPTIONAL, INTENT(inout), DIMENSION(:,:)   :: ib2
     REAL(go_wp),OPTIONAL, INTENT(inout), DIMENSION(:,:,:) :: b3
@@ -1916,7 +1915,7 @@ end if
 
           tag = tag_orig + dirsend(isend)
 
-          if( DEBUG .or. DEBUG_COMMS)then
+          if( DEBUG_COMMS)then
              IF(PRESENT(b3))THEN
                 WRITE (*,FMT="(I4,': handle ',I4,' tag ',I4,' sending to ',I4,' data ',I4,' direction ',I3)") &  
                get_rank(), handle, tag, destination(isend),nsendp(isend,1),dirsend(isend)
@@ -1933,11 +1932,26 @@ end if
 !             CALL timing_start('2dr_pack')
              ic = 0
              ! Stored patch coordinates are for T points
-             istart = isrcsend(isend) + shift(1)
-             iend   = istart+nxsend(isend)-1 + shift(2)
-             jstart = jsrcsend(isend) + shift(3)
-             jend   = jstart+nysend(isend)-1 + shift(4)
-             write(*,*) get_rank(), ": packing from: ",istart,iend,jstart,jend
+             istart = isrcsend(isend)
+             iend = istart+nxsend(isend)-1
+             jstart = jsrcsend(isend)
+             jend = jstart+nysend(isend)-1
+
+             select case(dirsend(isend))
+             case(IMinus)
+                ! Sending data in +i direction so have to correct these
+                ! upper i bounds to allow for staggering relative to T
+                istart = istart + shift(1)
+                iend = istart
+             case(JMinus)
+                ! Sending data in +j direction so have to correct these
+                ! upper j bounds to allow for staggering relative to T
+                jstart = jstart + shift(2)
+                jend = jstart
+             end select
+             
+             write(*,"(I3,': packing from:',I3,':',I3,',',I3,':',I3)") &
+                  get_rank(),istart,iend,jstart,jend
 
              DO j=jstart, jend, 1
                 DO i=istart, iend, 1
@@ -1945,7 +1959,7 @@ end if
                    sendBuff(ic,isend) = b2(i,j)
                 END DO
              END DO
-
+             write(*,"(I3,': packed: ',6E15.4)") get_rank(), sendBuff(1:6,isend)
 !             CALL timing_stop('2dr_pack')
 
              CALL MPI_Isend(sendBuff(1,isend),ic,MPI_DOUBLE_PRECISION, &
@@ -2086,11 +2100,27 @@ end if
 
              ! Copy received data back into array
              ic = 0
-             jstart = jdesrecv(irecv) + shift(3)
-             jend   = jstart+nyrecv(irecv)-1 + shift(4)
-             istart = idesrecv(irecv) + shift(1)
-             iend   = istart+nxrecv(irecv)-1 + shift(2)
-             write(*,*) get_rank(), ": unpacking to: ",istart,iend,jstart,jend
+             jstart = jdesrecv(irecv)
+             jend   = jstart+nyrecv(irecv)-1
+
+             istart = idesrecv(irecv)
+             iend   = istart+nxrecv(irecv)-1
+
+             if(dirrecv(irecv) == IPlus)then
+                ! Receiving data sent in the -i direction so need to correct
+                ! these upper i bounds to allow for staggering relative to T
+                istart = istart + shift(1)
+                iend = istart
+             else if(dirrecv(irecv) == JPlus)then
+                ! Receiving data setn in the -j direction so need to correct
+                ! these upper j bounds to allow for staggering relative to T
+                jstart = jstart + shift(2)
+                jend = jstart
+             end if
+             
+             write(*,"(I3,': unpacking to:',I3,':',I3,',',I3,':',I3)") &
+                  get_rank(), istart, iend, jstart, jend
+             write(*,"(I3,': unpacked: ',6E15.4)") get_rank(), recvBuff(1:6,irecv)
              DO j=jstart, jend, 1
                 DO i=istart, iend, 1
                    ic = ic + 1

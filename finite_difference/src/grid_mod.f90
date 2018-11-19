@@ -275,8 +275,8 @@ contains
 !! inside a field object.
 !$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
 !$OMP shared(grid, tmask)
-       do jj = ystart-1, ystop+1 !grid%ny
-          do ji = xstart-1, xstop+1!grid%nx
+       do jj = ystart-1, ystop+1
+          do ji = xstart-1, xstop+1
              ! Copy in values
              grid%tmask(ji,jj) = tmask(ji,jj)
           end do
