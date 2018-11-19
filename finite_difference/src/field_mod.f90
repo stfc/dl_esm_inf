@@ -908,15 +908,16 @@ contains
     type(r2d_field), intent(inout) :: field_out
     integer :: it, ji, jj
 
-!$OMP DO SCHEDULE(RUNTIME)
-    do it = 1, field_out%ntiles, 1
-       do jj= field_out%tile(it)%whole%ystart, field_out%tile(it)%whole%ystop
-          do ji = field_out%tile(it)%whole%xstart, field_out%tile(it)%whole%xstop
-             field_out%data(ji,jj) = field_in%data(ji,jj)
-          end do
-       end do
-    end do
-!$OMP END DO
+    field_out%data(:,:) = field_in%data(:,:)
+!OMP DO SCHEDULE(RUNTIME)
+!!$    do it = 1, field_out%ntiles, 1
+!!$       do jj= field_out%tile(it)%whole%ystart, field_out%tile(it)%whole%ystop
+!!$          do ji = field_out%tile(it)%whole%xstart, field_out%tile(it)%whole%xstop
+!!$             field_out%data(ji,jj) = field_in%data(ji,jj)
+!!$          end do
+!!$       end do
+!!$    end do
+!OMP END DO
         
   end subroutine copy_2dfield
 
@@ -987,7 +988,9 @@ contains
     ! Locals
     integer :: ihalo
     integer :: exch  !> Handle for exchange
-    integer, dimension(4) :: shift = 0
+    !> Array to hold corrections to upper bounds to allow for staggering
+    !! of different grid-point types
+    integer, dimension(2) :: shift = 0
 
     select case(self%grid%offset)
        case(GO_OFFSET_NE)
@@ -996,13 +999,14 @@ contains
           select case(self%defined_on)
           case(GO_U_POINTS)
              ! Upper x bound for U is one less than for T
-             shift(2) = -1
+             shift(1) = -1
           case(GO_V_POINTS)
              ! Upper y bound for V is one less than for T
-             shift(4) = -1
-          case(GO_F_POINTS)
              shift(2) = -1
-             shift(4) = -1
+          case(GO_F_POINTS)
+             shift(:) = -1
+          case(GO_T_POINTS)
+             shift(:) = 0
           case default
              call gocean_stop('Unsupported grid-point type in halo_exch')
           end select
