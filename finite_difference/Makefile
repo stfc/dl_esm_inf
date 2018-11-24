@@ -42,19 +42,18 @@
 #
 # export F90=gfortran
 
-API_LIB = dl_esm_inf_fd.a
+API_LIB ?= lib_fd.a
+F90 ?= gfortran
 
 all: fd_lib
 
 # Build the library without MPI
 fd_lib:
-	${MAKE} -C src fake_parallel
-	${MAKE} -C src API_LIB="${API_LIB}"
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=no 
 
 # Build the library with MPI
 dm_fd_lib:
-	${MAKE} -C src parallel
-	${MAKE} -C src API_LIB="${API_LIB}"
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=yes 
 
 install: fd_lib lib include
 	cp src/${API_LIB} ./lib/.
