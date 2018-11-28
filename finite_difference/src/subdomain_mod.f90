@@ -162,8 +162,7 @@ contains
     end if
 
     decomp%ndomains = ndom
-    ! Ranks start with 0, so allocate the subdomains starting with 0
-    allocate(decomp%subdomains(0:ndom-1), Stat=ierr)
+    allocate(decomp%subdomains(ndom), Stat=ierr)
     if(ierr /= 0)then
        call parallel_abort('decompose: failed to allocate tiles array')
     end if
@@ -234,7 +233,7 @@ contains
     end if
 
     ! We start with the first domain (where else?)
-    ith = 0
+    ith = 1
     ! The starting point of the tiles in y
     jval = 1
 
