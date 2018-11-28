@@ -197,9 +197,12 @@ contains
        ntilex = 1
        ntiley = 1
     end if
+
     nthreads = 1
-    if (present(do_tile) .and. do_tile) then
-  !$  nthreads = omp_get_max_threads()
+    if (present(do_tile)) then
+        if (do_tile) then
+  !$       nthreads = omp_get_max_threads()
+        endif
     endif
 
     WRITE (*,"(/'Have ',I3,' OpenMP threads available.')") nthreads
