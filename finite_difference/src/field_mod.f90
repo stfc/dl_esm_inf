@@ -101,6 +101,10 @@ module field_mod
      module procedure fld_checksum, array_checksum
   end interface field_checksum
 
+  interface free_field
+     module procedure r2d_free_field
+  end interface
+
   !> Info on the tile sizes
   INTEGER, SAVE :: max_tile_width
   INTEGER, SAVE :: max_tile_height
@@ -108,6 +112,7 @@ module field_mod
   public copy_field
   public set_field
   public field_checksum
+  public free_field
 
 ! Grid points on an Arakawa C grid with NE offset (i.e. the U,V and F pts
 ! immediately to the North and East of a T point share its grid indices) 
@@ -150,14 +155,20 @@ contains
   !===================================================
 
   function r2d_field_constructor(grid,    &
-                                 grid_points) result(self)
+                                 grid_points, &
+                                 do_tile) result(self)
     use subdomain_mod, only: decompose, decomposition_type
+!$    use omp_lib, only : omp_get_max_threads
     implicit none
     ! Arguments
     !> Pointer to the grid on which this field lives
     type(grid_type), intent(in), target  :: grid
     !> Which grid-point type the field is defined on
     integer,         intent(in)          :: grid_points
+    !> If the field should be tiled among all threads, or if only
+    !> a single field should be allocated (which is not currently
+    !> supported by PSyclone)
+    logical, intent(in), optional :: do_tile
     ! Local declarations
     type(r2d_field) :: self
     integer :: ierr
@@ -186,8 +197,14 @@ contains
        ntilex = 1
        ntiley = 1
     end if
+
     nthreads = 1
-!$  nthreads = omp_get_max_threads()
+    if (present(do_tile)) then
+        if (do_tile) then
+  !$       nthreads = omp_get_max_threads()
+        endif
+    endif
+
     WRITE (*,"(/'Have ',I3,' OpenMP threads available.')") nthreads
     decomp = decompose(self%internal%nx, self%internal%ny, &
                        nthreads, ntilex, ntiley)
@@ -240,7 +257,7 @@ contains
     ! us the opportunity to do a 'first touch' policy to aid with
     ! memory<->thread locality...
 !$OMP PARALLEL DO schedule(runtime), default(none), &
-!$OMP private(it,ji,jj), shared(self)
+!$OMP private(itile,ji,jj), shared(self)
     do itile = 1, self%ntiles
        do jj = self%tile(itile)%whole%ystart, self%tile(itile)%whole%ystop
           do ji = self%tile(itile)%whole%xstart, self%tile(itile)%whole%xstop
@@ -251,7 +268,19 @@ contains
 !$OMP END PARALLEL DO
 
   end function r2d_field_constructor
-
+   
+  !===================================================
+  ! Frees the data allocated for this array. Does nothing
+  ! if the data was never allocated.
+  subroutine r2d_free_field(fld)
+    implicit none
+    type(r2d_field), intent(inout) :: fld
+    ! Arguments
+    !> fld: Pointer to the fld which data is to be freed
+    if (allocated(fld%data)) then
+       deallocate(fld%data)
+    end if
+  end subroutine r2d_free_field
   !===================================================
 
   subroutine set_field_bounds(fld, fld_type, grid_points)
