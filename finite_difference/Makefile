@@ -45,6 +45,8 @@
 API_LIB ?= lib_fd.a
 F90 ?= gfortran
 
+.PHONY: doc clean install fd_lib dm_fd_lib all
+
 all: fd_lib
 
 # Build the library without MPI
@@ -66,13 +68,12 @@ include:
 	mkdir include
 
 clean:
-	rm -f src/parallel_mod.f90
 	${MAKE} -C src clean
 
 distclean: clean
 	rm -f lib/${API_LIB}
 	rm -f include/*.[Mm][Oo][Dd]
 
-.PHONY: doc
+
 doc:
 	doxygen src/doxyfile

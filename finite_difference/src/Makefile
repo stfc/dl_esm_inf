@@ -67,11 +67,16 @@ MODULES = argument_mod.o \
           subdomain_mod.o \
           tile_mod.o
 
+.PHONY: install clean all
+
 all: ${API_LIB}
 
 ${API_LIB}: ${MODULES}
 	${AR} ${ARFLAGS} ${API_LIB} ${MODULES}
 
+
+install:
+	${MAKE} -C .. install
 clean:
 	rm -f *.o *.mod *.a
 
