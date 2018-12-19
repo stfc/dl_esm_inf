@@ -129,7 +129,7 @@ The constructor takes two arguments:
  2. The type of grid point at which the field is defined
     (``GO_U_POINTS``, ``GO_V_POINTS``, ``GO_T_POINTS`` or ``GO_F_POINTS``)
 
-Note that the grid object need not have been fully configured (by a
+Note that the grid object must have been fully configured (by a
 call to ``grid_init`` for instance) before it is passed into this
 constructor.
 
