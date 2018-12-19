@@ -42,19 +42,20 @@
 #
 # export F90=gfortran
 
-API_LIB = dl_esm_inf_fd.a
+API_LIB ?= lib_fd.a
+F90 ?= gfortran
+
+.PHONY: doc clean install fd_lib dm_fd_lib all
 
 all: fd_lib
 
 # Build the library without MPI
 fd_lib:
-	${MAKE} -C src fake_parallel
-	${MAKE} -C src API_LIB="${API_LIB}"
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=no 
 
 # Build the library with MPI
 dm_fd_lib:
-	${MAKE} -C src parallel
-	${MAKE} -C src API_LIB="${API_LIB}"
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=yes 
 
 install: fd_lib lib include
 	cp src/${API_LIB} ./lib/.
@@ -67,13 +68,12 @@ include:
 	mkdir include
 
 clean:
-	rm -f src/parallel_mod.f90
 	${MAKE} -C src clean
 
 distclean: clean
 	rm -f lib/${API_LIB}
 	rm -f include/*.[Mm][Oo][Dd]
 
-.PHONY: doc
+
 doc:
 	doxygen src/doxyfile
