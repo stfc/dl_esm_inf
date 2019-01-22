@@ -1,3 +1,7 @@
+!> This module is for kernels that implement what will one
+!! day be infrastructure calls. For the moment we provide
+!! these in normal kernel form so that they can be included
+!! in a standard invoke().
 module infrastructure_mod
   use kind_params_mod
   use kernel_mod
@@ -5,11 +9,6 @@ module infrastructure_mod
   use grid_mod
   use field_mod
   implicit none
-
-  !> This module is for kernels that implement what will one
-  !! day be infrastructure calls. For the moment we provide
-  !! these in normal kernel form so that they can be included
-  !! in a standard invoke().
 
   type, extends(kernel_type) :: copy
      type(arg), dimension(2) :: meta_args =    &
@@ -33,9 +32,9 @@ contains
   subroutine field_copy_code(ji, jj,                     &
                              output, input)
     implicit none
-    integer,                  intent(in)  :: ji, jj
-    real(wp), dimension(:,:), intent(in)  :: input
-    real(wp), dimension(:,:), intent(out) :: output
+    integer,                     intent(in)  :: ji, jj
+    real(go_wp), dimension(:,:), intent(in)  :: input
+    real(go_wp), dimension(:,:), intent(out) :: output
 
     output(ji,jj) = input(ji,jj)
 

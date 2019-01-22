@@ -1,3 +1,5 @@
+!> Module defining the region_type, used to define a region within
+!! some global domain.
 module region_mod
   implicit none
 

@@ -7,6 +7,11 @@ supports two-dimensional, finite-difference models.
 The first version of this library was developed to support 2D finite-
 difference shallow-water models in the GOcean Project.
 
+## Example ##
+
+The `finite_difference/example` directory contains a very simple example
+of how to construct a model grid and associate fields with it.
+
 ## Concepts ##
 
 dl_esm_inf provides certain types of object from which an earth-system

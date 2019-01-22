@@ -19,30 +19,40 @@ contains
   !===================================================
 
   !> Initialise the GOcean environment
-  subroutine gocean_init()
+  subroutine gocean_initialise()
 #if _OPENACC
     use openacc
 #endif
+    use parallel_mod, only: parallel_init
     implicit none
+
+    call parallel_init()
 
 #if _OPENACC
     call acc_init(acc_device_nvidia)
 #endif
-
-  end subroutine gocean_init
+  end subroutine gocean_initialise
 
   !===================================================
 
-  !> Stop the model run. Currently simply does
-  !! a Fortran STOP.
+  !> Clean-up the GOcean environment
+  subroutine gocean_finalise()
+    use parallel_mod, only: parallel_finalise
+
+    call parallel_finalise()
+
+  end subroutine gocean_finalise
+
+  !===================================================
+
+  !> Stop the model run. Passes message on down to parallel_abort().
   !! @param[in] msg Message to print - reason we're stopping
   subroutine gocean_stop(msg)
-    use iso_fortran_env, only : error_unit ! access computing environment
+    use parallel_mod, only: parallel_abort
     implicit none
     character(len=*), intent(in) :: msg
 
-    write(error_unit, *) msg
-    stop 1
+    call parallel_abort(msg)
 
   end subroutine gocean_stop
 
@@ -54,7 +64,7 @@ contains
     IMPLICIT none
     CHARACTER(LEN=*), INTENT(in) :: fmtstr
     INTEGER,          INTENT(in) :: istep
-    REAL(wp),         INTENT(in) :: fvar
+    REAL(go_wp),      INTENT(in) :: fvar
 
     WRITE(output_unit,FMT=fmtstr) istep, fvar
 
@@ -80,7 +90,7 @@ contains
     use iso_fortran_env, only : output_unit ! access computing environment
     implicit none
     character(len=*), intent(in) :: fmtstr
-    real(wp),         intent(in) :: fvar
+    real(go_wp),      intent(in) :: fvar
 
     write(output_unit,FMT=fmtstr) fvar
 

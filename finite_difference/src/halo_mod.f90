@@ -1,3 +1,4 @@
+!> Module providing a type for describing halo regions
 module halo_mod
   use region_mod
   implicit none
