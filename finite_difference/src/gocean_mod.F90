@@ -11,7 +11,7 @@ module gocean_mod
                       write_log_i, write_log_r
   end interface
 
-  public gocean_init, gocean_stop
+  public gocean_initialise, gocean_finalise, gocean_stop
   public model_write_log
 
 contains

@@ -304,7 +304,7 @@ contains
     !! the local copy is up-to-date with that on any remove
     !! accelerator device (if using OpenACC or OpenCL).
     class(r2d_field), target :: self
-    real(wp), dimension(:,:), pointer :: dptr
+    real(go_wp), dimension(:,:), pointer :: dptr
     if(self%data_on_device)then
        !$acc update host(self%data)
        ! If FortCL is compiled without OpenCL enabled then this
@@ -321,7 +321,7 @@ contains
     !> Setter for the data associated with a field.
     class(r2d_field) :: self
     integer :: flag
-    real(wp), dimension(:,:) :: array
+    real(go_wp), dimension(:,:) :: array
     self%data = array
     flag = 0
   end function set_data
