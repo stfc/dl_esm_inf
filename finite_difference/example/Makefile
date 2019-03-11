@@ -57,9 +57,14 @@ serial-model: inf_lib_serial model.exe
 # This is a very basic target and assumes that valgrind and 'mpirun'
 # are available.
 # TODO use a proper testing framework!
-test:
+test: serial-test
+
+serial-test: serial-model
+	${MAKE} clean
 	${MAKE} serial-model
 	valgrind ./model.exe
+
+parallel-test: model
 	${MAKE} clean
 	${MAKE} model
 	mpirun -np 2 valgrind ./model.exe

@@ -36,9 +36,10 @@ language: c
 sudo: required
 before_install:
   - sudo apt-get install gfortran
+  - sudo apt-get install valgrind
 
 script:
   - . compiler_setup/gnu.sh
   - make -C finite_difference
-  - make -C finite_difference/example serial-model
+  - make -C finite_difference/example serial-test
 
