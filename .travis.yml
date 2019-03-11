@@ -35,7 +35,7 @@
 language: c
 sudo: required
 before_install:
-  - sudo apt-get install gfortran valgrind libopenmpi-dev
+  - sudo apt-get install gfortran valgrind libopenmpi-dev openmpi-bin
 
 script:
   - . compiler_setup/gnu.sh
