@@ -53,19 +53,33 @@ else
 	API_LIB ?= lib_fd.a
 endif
 
-MODULES = argument_mod.o \
-          global_parameters_mod.o \
-          field_mod.o \
-          gocean_mod.o \
-          grid_mod.o \
-          halo_mod.o \
-          kernel_mod.o \
-          kind_params_mod.o \
-          parallel_common_mod.o \
-          $(PARALLEL_MOD).o \
-          region_mod.o \
-          subdomain_mod.o \
-          tile_mod.o
+ BASE_SOURCES = argument_mod.f90 \
+          global_parameters_mod.f90 \
+          field_mod.f90 \
+          gocean_mod.F90 \
+          grid_mod.f90 \
+          halo_mod.f90 \
+          kernel_mod.f90 \
+          kind_params_mod.f90 \
+          parallel_common_mod.f90 \
+          $(PARALLEL_MOD).f90 \
+          region_mod.f90 \
+          subdomain_mod.f90 \
+          tile_mod.f90
+
+# Get the absolute path to the makefile
+mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
+# Then get the absolute path of the makefile directory,
+# which is the source directory.
+ROOT  := $(dir $(mkfile_path))
+
+# Convert all source files to use the absolute path.
+# This way the makefile can be used in any build directory
+SOURCES = $(BASE_SOURCES:%=$(ROOT)/%)
+
+# Create a list of all object files from the F90/f90 source files
+MODULES := $(BASE_SOURCES:%.f90=%.o)
+MODULES := $(MODULES:%.F90=%.o)
 
 .PHONY: install clean all
 
@@ -101,8 +115,8 @@ tile_mod.o: region_mod.o
 
 subdomain_mod.o: $(PARALLEL_MOD).o region_mod.o
 
-%.o: %.[Ff]90
+%.o: $(ROOT)/%.[Ff]90
 	$(F90) $(F90FLAGS) -c $<
 
-$(PARALLEL_MOD).o:	parallel/$(PARALLEL_MOD).f90
+$(PARALLEL_MOD).o:	$(ROOT)/parallel/$(PARALLEL_MOD).f90
 	$(F90) $(F90FLAGS) -c $< -o $@
