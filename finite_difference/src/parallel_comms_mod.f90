@@ -242,7 +242,6 @@ contains
     logical :: addcorner
     integer :: nprocp, irank
     type(subdomain_type), pointer :: subdomain
-    integer :: nimpp
 
     cyclic_bc = pbc ! \todo remove need to set this module variable
     
@@ -315,7 +314,7 @@ contains
        ! Look for the process which owns the neighbouring point in the
        ! minus I direction.
 
-       iproc = iprocmap(decomp,ielb-1,j1)
+       iproc = iprocmap(decomp, ielb-1, j1)
        IF ( iproc.GT.0 ) THEN
 
           ! Find where in the j direction the common border between these
@@ -710,17 +709,14 @@ end if
 
             ! Ensure we don't include halos from the global domain borders if
             ! we have cyclic bc's.
-!          ielb_iproc = pielb(iproc)
             ieub_iproc = decomp%subdomains(iproc)%global%xstop
             IF(cyclic_bc)THEN
-               !             IF(pilbext(iproc))ielb_iproc = pielb(iproc)+halo_depthx
                IF( (.NOT. trimmed(eidx,iproc)) .AND. &
                     piubext(iproc)) ieub_iproc = decomp%subdomains(iproc)%global%xstop-halo_depthx
             END IF
 
-!           Find where in the i direction the common border between these
-!           sub-domains ends.
-
+            ! Find where in the i direction the common border between these
+            ! sub-domains ends (in the global domain).
             i2 = MIN(imax,ieub_iproc)
 
             if(DEBUG)then
@@ -739,23 +735,19 @@ end if
             ! Construct the rest of the data describing the zone,
             ! convert to local indexes and extend to multiple halo widths.
             ! Convert to local coords:
-            ! Dist into zone = ipos - start + 1
-            ! Pos in zone in local = (start of internal region) + (dist into zone) - 1
             ! Convert from global i1 to local i in current domain
-            ! if i1 == nimpp then we must start at i=1 (because nimpp is
-            ! absolute position of starting edge of domain including overlap
-            ! regions)
-            nimpp = subdomain%global%xstart
-            isrcs(:) = i1 - nimpp + 1
-            write(*,*) "xstart, i1, isrcs: ",nimpp,i1,isrcs(1)
-            ! Convert from global i1 to local i in the destination domain
-            idess(:) = i1- decomp%subdomains(iproc)%global%xstart + 1
+            isrcs(:) = i1 - subdomain%global%xstart + subdomain%internal%xstart
+
+            ! Convert from global i1 to local i in the *destination* domain
+            idess(:) = i1- decomp%subdomains(iproc)%global%xstart + &
+                 decomp%subdomains(iproc)%internal%xstart
             idesr(:) = isrcs(:)
             isrcr(:) = idess(:)
             nxr(:) = i2-i1+1
             nxs(:) = nxr(:)
 
-            jsrcs(:) = subdomain%internal%ystart ! First row of 'internal' region of domain
+            jsrcs(:) = subdomain%internal%ystart ! First row of 'internal'
+                                                 ! region of domain
             DO ihalo=1,halo_depthy,1
                ! Source for a receive must be within internal region
                jsrcr(ihalo) = decomp%subdomains(iproc)%internal%ystop-ihalo+1
@@ -766,22 +758,22 @@ end if
             ! Destination for a send must be a halo region
             jdess(:) = decomp%subdomains(iproc)%internal%ystop + 1
 
-!           Examine whether corner points should be added to the START.
+            ! Examine whether corner points should be added to the START.
 
             naddmaxr = 0
             naddmaxs = 0
             DO ihalo=1,halo_depthy,1
 
-!             Send corner data while we have data to send
-!             and while there is a point that depends on it.
+               ! Send corner data while we have data to send
+               ! and while there is a point that depends on it.
 
-            IF ( i1-ihalo.GE.imin .AND.  &
-                 iprocmap(decomp,i1-ihalo,jelb-ihalo).GT.0 ) THEN
-              naddmaxs = ihalo
-            ENDIF
+               IF ( i1-ihalo.GE.imin .AND.  &
+                    iprocmap(decomp,i1-ihalo,jelb-ihalo).GT.0 ) THEN
+                  naddmaxs = ihalo
+               ENDIF
 
-!           Receive corner data only when we are at the corner
-!           and while the sending sub-domain is the same as for the edge.
+               ! Receive corner data only when we are at the corner and
+               ! while the sending sub-domain is the same as for the edge.
 
             IF ( i1.EQ.imin .AND. &
                  iprocmap(decomp,i1-ihalo,jelb-ihalo).EQ.iproc ) THEN
@@ -789,46 +781,48 @@ end if
             ENDIF
           ENDDO
 
-!         Add the extra points.
+          ! Add the extra points.
 
           DO ihalo=1,halo_depthy,1
             nadd = MIN(ihalo,naddmaxs)
             idess(ihalo) = idess(ihalo)-nadd
             isrcs(ihalo) = isrcs(ihalo)-nadd
             nxs(ihalo) = nxs(ihalo)+nadd
-if(DEBUG)then
-            IF ( nadd.GT.0 ) THEN
-               WRITE (*,"(I3,': Adding starting corner to send for halo ',I2,' with ',I3,' points')") irank-1,ihalo, nadd
-            ENDIF
-end if
+            if(DEBUG)then
+               IF ( nadd.GT.0 ) THEN
+                  WRITE (*,"(I3,': Adding starting corner to send for &
+                       & halo ',I2,' with ',I3,' points')") irank-1,ihalo, nadd
+               ENDIF
+            end if
             nadd = MIN(ihalo,naddmaxr)
             idesr(ihalo) = idesr(ihalo)-nadd
             isrcr(ihalo) = isrcr(ihalo)-nadd
             nxr(ihalo) = nxr(ihalo)+nadd
 
-if(DEBUG)then
-            IF ( nadd.GT.0 ) THEN
-              WRITE (*,"(I3,': Adding starting corner to receive for halo ',I2,' with ',I3,' points')") irank-1,ihalo, nadd
-            ENDIF
-end if
+            if(DEBUG)then
+               IF ( nadd.GT.0 ) THEN
+                  WRITE (*,"(I3,': Adding starting corner to receive for &
+                       & halo ',I2,' with ',I3,' points')") irank-1,ihalo, nadd
+               ENDIF
+            end if
           ENDDO
 
-!         Examine whether corner points should be added to the END.
+          ! Examine whether corner points should be added to the END.
 
           naddmaxr = 0
           naddmaxs = 0
           DO ihalo=1,halo_depthy,1
 
-!           Send corner data while we have data to send
-!           and while there is a point that depends on it.
+             ! Send corner data while we have data to send
+             ! and while there is a point that depends on it.
 
             IF ( i2+ihalo.LE.imax .AND. &
                  iprocmap(decomp,i2,jelb-ihalo).GT.0 ) THEN
               naddmaxs = ihalo
             ENDIF
 
-!           Receive corner data only when we are at the corner
-!           and while the sending sub-domain is the same as for the edge.
+            ! Receive corner data only when we are at the corner
+            ! and while the sending sub-domain is the same as for the edge.
 
             IF ( i2.EQ.imax .AND. & 
                  iprocmap(decomp,i2+ihalo,jelb-ihalo).EQ.iproc ) THEN
@@ -836,27 +830,29 @@ end if
             ENDIF
           ENDDO 
 
-!         Add the extra points.
+          ! Add the extra points.
 
           DO ihalo=1,halo_depthy,1
             nadd = MIN(ihalo,naddmaxs)
             nxs(ihalo) = nxs(ihalo)+nadd
-if(DEBUG)then
-            IF ( nadd.GT.0 ) THEN
-               WRITE (*,"(I3,': Adding starting corner to send for halo ',I2,' with ',I3,' points')") irank-1,ihalo, nadd
-            ENDIF
-end if
+            if(DEBUG)then
+               IF ( nadd.GT.0 ) THEN
+                  WRITE (*,"(I3,': Adding starting corner to send for &
+                       & halo ',I2,' with ',I3,' points')") irank-1,ihalo, nadd
+               ENDIF
+            end if
             nadd = MIN(ihalo,naddmaxr)
             nxr(ihalo) = nxr(ihalo)+nadd
-if(DEBUG)then
-            IF ( nadd.GT.0 ) THEN
-              WRITE (*,"(I3,': Adding starting corner to receive for halo ',I2,' with ',I3,' points')") irank-1,ihalo, nadd
-            ENDIF
-end if
+            if(DEBUG)then
+               IF ( nadd.GT.0 ) THEN
+                  WRITE (*,"(I3,': Adding starting corner to receive for & 
+                       & halo ',I2,' with ',I3,' points')") irank-1,ihalo, nadd
+               ENDIF
+            end if
           ENDDO
 
-!         Add a send and a receive to the lists for this section
-!         of border.
+          ! Add a send and a receive to the lists for this section
+          ! of border.
 
           CALL addsend (nsend,Jplus,iproc-1,       &
                         isrcs,jsrcs,idess,jdess,nxs,nys, &
@@ -868,14 +864,12 @@ end if
                         tmask,ierr)
           IF ( ierr.NE.0 ) RETURN
 
-!         Move the start point to one beyond this strip.
-
+          ! Move the start point to one beyond this strip.
           i1 = i2+1
 
         ELSE
 
-!         No process found, continue searching up the boundary.
-
+           ! No process found, continue searching up the boundary.
           i1 = i1+1
         ENDIF
       ENDDO
@@ -911,9 +905,8 @@ end if
                             piubext(iproc))ieub_iproc = decomp%subdomains(iproc)%global%xstop-halo_depthx
             END IF
 
-!           Find where in the i direction the common border between these
-!           sub-domains ends.
-
+            ! Find where in the i direction the common border between these
+            ! sub-domains ends (in the global domain).
             i2 = MIN(imax, ieub_iproc)
 
             if(DEBUG)then
@@ -923,9 +916,8 @@ end if
 
             ! Construct the rest of the data describing the zone,
             ! convert to local indexes and extend to multiple halo widths.
-
-            isrcs(:) = i1 - nimpp + 1
-            idess(:) = i1 - decomp%subdomains(iproc)%global%xstart + 1
+            isrcs(:) = i1 - subdomain%global%xstart + subdomain%internal%xstart
+            idess(:) = i1 - decomp%subdomains(iproc)%global%xstart + decomp%subdomains(iproc)%internal%xstart
             idesr(:) = isrcs(:)
             isrcr(:) = idess(:)
             nxr(:) = i2-i1+1
@@ -972,11 +964,12 @@ end if
             idess(ihalo) = idess(ihalo) -nadd
             isrcs(ihalo) = isrcs(ihalo) -nadd
             nxs(ihalo) = nxs(ihalo)+nadd
-if(DEBUG)then
-            IF ( nadd.GT.0 ) THEN
-               WRITE (*,"(I3,': Adding starting corner to send for halo ',I2,' with ',I3,' points')") irank-1,ihalo, nadd
+            if(DEBUG)then
+               IF ( nadd.GT.0 ) THEN
+                  WRITE (*,"(I3,': Adding starting corner to send for halo ',I2, &
+                    & ' with ',I3,' points')") irank-1,ihalo, nadd
             ENDIF
-end if
+         end if
             nadd = MIN(ihalo,naddmaxr)
             idesr(ihalo) = idesr(ihalo) - nadd
             isrcr(ihalo) = isrcr(ihalo) - nadd
