@@ -39,7 +39,7 @@ program model
   use gocean_mod
   implicit none
   ! Total size of the model domain
-  integer :: jpiglo = 100, jpjglo = 100
+  integer :: jpiglo = 100, jpjglo = 50
   ! (Uniform) grid resolution
   real(go_wp) :: dx = 1.0
   real(go_wp) :: dy = 1.0
@@ -88,10 +88,10 @@ program model
   t_field = r2d_field(model_grid, GO_T_POINTS)
   f_field = r2d_field(model_grid, GO_F_POINTS)
 
-  call init_field_by_rank(u_field)
-  call init_field_by_rank(v_field)
-  call init_field_by_rank(t_field)
-  call init_field_by_rank(f_field)
+  call init_field_hill(u_field, model_grid)
+  call init_field_hill(v_field, model_grid)
+  call init_field_hill(t_field, model_grid)
+  call init_field_hill(f_field, model_grid)
 
   write(*,*) "Halo exchange for u:"
   call u_field%halo_exch(1)
@@ -113,9 +113,21 @@ contains
     type(r2d_field), intent(inout) :: field
     ! Locals
     integer :: my_rank
-
-    field%data(:,:) = my_rank
+    my_rank = get_rank()
+    field%data(:,:) = real(my_rank)
     
   end subroutine init_field_by_rank
-  
+
+  subroutine init_field_hill(field, grid)
+    type(r2d_field), intent(inout) :: field
+    type(grid_type), intent(inout) :: grid
+    integer :: ji, jj
+    field%data(:,:) = 0.0
+    do jj = field%internal%ystart, field%internal%ystop
+       do ji = field%internal%xstart, field%internal%xstop
+          field%data(ji,jj) = field%grid%subdomain%global%xstart + ji + &
+               field%grid%subdomain%global%ystart + jj
+       end do
+    end do
+  end subroutine init_field_hill
 end program model
