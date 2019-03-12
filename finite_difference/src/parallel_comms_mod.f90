@@ -1623,7 +1623,8 @@ end if
        IF ( .NOT.got ) THEN
 
           ! If no value was returned use the minimum possible tag max.
-          ! (p. 28 of Version 2.1 of the MPI standard or p. 19 of V.1 of the standard.)
+          ! (p. 28 of Version 2.1 of the MPI standard or p. 19 of V.1 of
+          ! the standard.)
           max_tag = 32767
        ENDIF
        if(DEBUG)then
@@ -1647,12 +1648,10 @@ end if
     IF ( h.GT.max_flags ) THEN
 
        ! If no free flags array was found, flag an error.
-
        STOP 'ERROR: get_exch_handle: no free flag array'
     ELSE
 
        ! Assign a new tag.
-
        exch_busy(h) = .TRUE.
 
        IF ( current_tag.GE.(max_tag-MaxCommDir) ) THEN
@@ -1667,13 +1666,13 @@ end if
        max_tag_used = MAX(max_tag_used,current_tag)
        exch_tag(h) = current_tag
 
-       if (  DEBUG .or. DEBUG_COMMS)then
-          IF ( lwp ) THEN
-             WRITE (*,'(1x,a,i6,a,i8,a,i3,a,i3,a)')  &
-               'Process ',get_rank(),' exch tag ',exch_tag(h) &
-               ,' assigned flags ',h,' (',COUNT(exch_busy),' busy)'
-          ENDIF
-       endif
+       !if (  DEBUG .or. DEBUG_COMMS)then
+       !   IF ( lwp ) THEN
+       !      WRITE (*,'(1x,a,i6,a,i8,a,i3,a,i3,a)')  &
+       !        'Process ',get_rank(),' exch tag ',exch_tag(h) &
+       !        ,' assigned flags ',h,' (',COUNT(exch_busy),' busy)'
+       !   ENDIF
+       !endif
     ENDIF
 
     get_exch_handle = h
@@ -1695,12 +1694,12 @@ end if
     
     IF ( h.GT.0 .AND. h.LE.max_flags ) THEN
        exch_busy(h) = .FALSE.
-       if( DEBUG .or. DEBUG_COMMS)then
-          IF ( lwp ) THEN
-             WRITE (*,'(1x,a,i6,a,i8,a,i3)') 'Process ',get_rank(), &
-                  ' exch tag ',exch_tag(h), ' freed    flags ',h
-          endif
-       endif
+       !if( DEBUG .or. DEBUG_COMMS)then
+       !   IF ( lwp ) THEN
+       !      WRITE (*,'(1x,a,i6,a,i8,a,i3)') 'Process ',get_rank(), &
+       !           ' exch tag ',exch_tag(h), ' freed    flags ',h
+       !   endif
+       !endif
     ELSE
        WRITE (*,*) 'free_exch_handle: invalid handle ',h
     ENDIF
