@@ -398,14 +398,25 @@ contains
     grid%yt(:,ystart)  = (grid%subdomain%global%ystart - 0.5_go_wp) * &
          grid%dy_t(:,ystart)
 
-    DO ji = xstart+1, xstop
-      grid%xt(ji,ystart:ystop) = grid%xt(ji-1, ystart:ystop) + grid%dx
+    DO ji = xstart+1, grid%nx
+      grid%xt(ji,:) = grid%xt(ji-1, :) + grid%dx
     END DO
             
-    DO jj = ystart+1, ystop
-      grid%yt(xstart:xstop,jj) = grid%yt(xstart:xstop, jj-1) + grid%dy
+    DO jj = ystart+1, grid%ny
+      grid%yt(:, jj) = grid%yt(:, jj-1) + grid%dy
     END DO
 
+    ! Add the coordinates for points that are external to the domain.
+    ! This aids the output of full fields including halos regions for the
+    ! purposes of debugging.
+    do ji = xstart-1, 1, -1
+       grid%xt(ji,:) = grid%xt(ji+1, :) - grid%dx
+    end do
+
+    do jj = ystart-1, 1, -1
+       grid%yt(:,jj) = grid%yt(:, jj+1) - grid%dy
+    end do
+    
   end subroutine grid_init
 
   !================================================
