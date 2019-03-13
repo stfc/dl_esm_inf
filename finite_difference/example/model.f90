@@ -97,14 +97,16 @@ program model
   call u_field%halo_exch(1)
   write(*,*) "Halo exchange for v:"
   call v_field%halo_exch(1)
-  !call t_field%halo_exch(1)
+  write(*,*) "Halo exchange for t:"
+  call t_field%halo_exch(1)
   !call f_field%halo_exch(1)
 
   call dump_field(u_field, "u_fld", halo_depth=1)
   call dump_field(v_field, "v_fld")
 
   ! Check the halo regions
-  call check_hill_halos(u_field)
+  call check_hill_halos(t_field, "t_fld")
+  call check_hill_halos(u_field, "u_fld")
   
   ! All done!
   if (my_rank == 1) write(*,'(/"Example model set-up complete."/)')
@@ -154,11 +156,12 @@ contains
   function hill(ji, jj)
     integer, intent(in) :: ji, jj
     real(go_wp) :: hill
-    hill = real(ji + jj)
+    hill = real(1000*ji + jj)
   end function hill
   
-  subroutine check_hill_halos(field)
+  subroutine check_hill_halos(field, name)
     type(r2d_field), intent(in) :: field
+    character(len=*), intent(in) :: name
     ! Locals
     integer :: ji, jj, iglobal, jglobal
     real(go_wp), parameter :: TOL_ZERO = 1.0E-8
@@ -170,7 +173,8 @@ contains
           iglobal = field%grid%subdomain%global%xstart + ji - 1
           jglobal = field%grid%subdomain%global%ystart + jj - 1 
           if( abs(field%data(ji, jj) - hill(iglobal, jglobal)) > TOL_ZERO)then
-             write(*,*) "ERROR in halo value: ", ji, jj, iglobal, jglobal, &
+             write(*,'("ERROR in halo value for ",(A),": ",4I5,2F9.1)') &
+                  TRIM(name), ji, jj, iglobal, jglobal, &
                   field%data(ji,jj), hill(iglobal,jglobal)
           end if
        end do
