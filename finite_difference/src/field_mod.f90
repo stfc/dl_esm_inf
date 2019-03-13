@@ -1015,7 +1015,7 @@ contains
     end select
 
     call exchs_generic(shift, b2=self%data, nhalo=1, nhexch=1, handle=exch, &
-                       comm1=JPlus, comm2=Jminus, comm3=NONE, comm4=NONE)
+                       comm1=JPlus, comm2=Jminus, comm3=IPlus, comm4=IMinus)
   end subroutine halo_exch
   
   !===================================================

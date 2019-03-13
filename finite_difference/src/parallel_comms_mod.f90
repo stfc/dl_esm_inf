@@ -64,7 +64,8 @@ module parallel_comms_mod
   INTEGER, SAVE :: nsend,nrecv
 
   ! Total number of points in each message
-  INTEGER, SAVE, DIMENSION(MaxComm,halo_depthx) :: nsendp, nsendp2d, nrecvp, nrecvp2d
+  INTEGER, SAVE, DIMENSION(MaxComm,halo_depthx) :: nsendp, nsendp2d, &
+                                                   nrecvp, nrecvp2d
 
   ! Process dependent partitioning information.
 
@@ -319,25 +320,24 @@ contains
 
           ! Find where in the j direction the common border between these
           ! sub-domains ends.
+          j2 = MIN(jeub, decomp%subdomains(iproc)%global%ystop)
 
-          j2 = MIN(jeub,decomp%subdomains(iproc)%internal%ystop)
-
-! ( {i,I}nternal cells, {h,H}alo cells )
-!
-!                    PE=iproc                PE=myself
-!
-!                 nleit(iproc)      data        nldi
-!                                    s          
-!                      |         <--------       |
-!                                    r
-!                                -------->
-!          -----------------------     ---------------------
-!          | In-1 | In | H1 | H2 |     | h2 | h1 | i1 | i2 |
-!          -----------------------     ---------------------
-!                                In -> h1
-!                              In-1 -> h2
-!                                H1 <- i1
-!                                H2 <- i2
+          ! ( {i,I}nternal cells, {h,H}alo cells )
+          !
+          !                    PE=iproc                PE=myself
+          !
+          !                 nleit(iproc)      data        nldi
+          !                                    s          
+          !                      |         <--------       |
+          !                                    r
+          !                                -------->
+          !          -----------------------     ---------------------
+          !          | In-1 | In | H1 | H2 |     | h2 | h1 | i1 | i2 |
+          !          -----------------------     ---------------------
+          !                                In -> h1
+          !                              In-1 -> h2
+          !                                H1 <- i1
+          !                                H2 <- i2
 
           ! Construct the rest of the data describing the zone,
           ! convert to local indices and extend to multiple halo widths.
@@ -346,19 +346,18 @@ contains
           DO ihalo=1,halo_depthx
             ! Source for the receive must be within internal domain of the
             ! (sending) PE, iproc
-            isrcr(ihalo) = decomp%subdomains(iproc)%internal%xstop - &
-                            halo_depthx - ihalo + 1
+            isrcr(ihalo) = decomp%subdomains(iproc)%internal%xstop - ihalo + 1
             idesr(ihalo) = ihalo ! Halo goes from 1..halo_depthx
             nxr(ihalo) = ihalo
             nxs(ihalo) = ihalo
           ENDDO
 
-          ! MIN below allows for fact that NEMO sets nlci==nlei at the E 
-          ! boundary of the global domain when using cyclic bc's
-          idess(:) = MIN(decomp%subdomains(iproc)%internal%xstop+1,decomp%subdomains(iproc)%internal%xstop)  ! Send _to_ E halo column of iproc
+          ! Destination for a send must be a halo region
+          idess(:) = decomp%subdomains(iproc)%internal%xstop+1
           ! Source for a send is always within internal region
-          jsrcs(:) = j1-jelb+subdomain%internal%ystart !Add nldj 'cos jsrcs is local address in domain
-          jdess(:) = j1-decomp%subdomains(iproc)%global%ystart+decomp%subdomains(iproc)%internal%ystart ! ditto
+          jsrcs(:) = j1 - subdomain%global%ystart + subdomain%internal%ystart
+          jdess(:) = j1 - decomp%subdomains(iproc)%global%ystart + &
+                          decomp%subdomains(iproc)%internal%ystart
           jdesr(:) = jsrcs(:)
           jsrcr(:) = jdess(:)
           nyr(:) = j2-j1+1
@@ -512,51 +511,45 @@ end if
 
           j2 = MIN(jeub,decomp%subdomains(iproc)%internal%ystop)!pjeub(iproc))
 
-if(DEBUG)then
-          WRITE (*,FMT="(I3,': ARPDBG strip for plus I is ',I3,',',I3)") &
+          if(DEBUG)then
+             WRITE (*,FMT="(I3,': ARPDBG strip for plus I is ',I3,',',I3)") &
                irank,j1,j2
-end if
+          end if
 
-! ( {i,I}nternal cells, {h,H}alo cells )
-!
-!                    PE=myself                PE=iproc
-!
-!                     nlei          data      nldit(iproc)
-!                                    s          
-!                      |         -------->       |
-!                                    r
-!                                <--------
-!          -----------------------     ---------------------
-!          | In-1 | In | H1 | H2 |     | h2 | h1 | i1 | i2 |
-!          -----------------------     ---------------------
-!                                In -> h1
-!                              In-1 -> h2
-!                                H1 <- i1
-!                                H2 <- i2
+          ! ( {i,I}nternal cells, {h,H}alo cells )
+          !
+          !                    PE=myself                PE=iproc
+          !
+          !                     nlei          data      nldit(iproc)
+          !                                    s          
+          !                      |         -------->       |
+          !                                    r
+          !                                <--------
+          !          -----------------------     ---------------------
+          !          | In-1 | In | H1 | H2 |     | h2 | h1 | i1 | i2 |
+          !          -----------------------     ---------------------
+          !                                In -> h1
+          !                              In-1 -> h2
+          !                                H1 <- i1
+          !                                H2 <- i2
 
-!         Construct the rest of the data describing the zone,
-!         convert to local indexes and extend to multiple halo widths.
-
-          isrcr(:) = 1 + halo_depthx ! nldit(iproc) ARPDBG because NEMO sets nldi
-                                ! to unity if nbondi == -1 (W boundary of 
-                                ! global domain)
+          ! Construct the rest of the data describing the zone,
+          ! convert to local indexes and extend to multiple halo widths.
           DO ihalo=1,halo_depthx
-             ! NEMO sets nlei = nlci if nbondi == 1 (E boundary of 
-             ! global domain). Normally, nlci = jpi = halo_depthx + iesub + halo_depthx
-             ! \TODO fix the next line as I don't think blah%nx includes halos
-             ! at the minute
-             isrcs(ihalo) = subdomain%global%nx - halo_depthx - ihalo + 1 ! Outermost halo -> innermost col.
+             isrcr(ihalo) = decomp%subdomains(iproc)%internal%xstart + ihalo
+             ! Outermost halo -> innermost col.
+             isrcs(ihalo) = subdomain%internal%xstop - ihalo + 1
              idess(ihalo) = ihalo ! Halo runs from 1..halo_depthx
              nxr(ihalo) = ihalo
              nxs(ihalo) = ihalo
+             ! Destination for a receive is in local halo region
+             idesr(ihalo) = subdomain%internal%xstop + ihalo
           ENDDO
-          idesr(:) = subdomain%internal%xstop !MIN(nlei + 1, subdomain%internal%xstop) ! Allow for case when on boundary
-                                         ! of global domain and thus have 
-                                         ! no (explicit) halo
-          ! Source for a send is within local internal domain
-          jsrcs(:) = j1-jelb+subdomain%internal%ystart
           ! Destination for a send is within halo on remote domain
-          jdess(:) = j1-decomp%subdomains(iproc)%global%ystart+decomp%subdomains(iproc)%internal%ystart
+          jdess(:) = j1 - decomp%subdomains(iproc)%global%ystart  + &
+                          decomp%subdomains(iproc)%internal%ystart
+          ! Source for a send is within local internal domain
+          jsrcs(:) = j1-subdomain%global%ystart + subdomain%internal%ystart
 
           jdesr(:) = jsrcs(:)
           jsrcr(:) = jdess(:)
@@ -597,14 +590,13 @@ end if
             nyr(ihalo) = nyr(ihalo)+nadd
           ENDDO
 
-!         Examine whether corner points should be added to the end.
-
+          ! Examine whether corner points should be added to the end.
           naddmaxr = 0
           naddmaxs = 0
           DO ihalo=1,halo_depthx,1
 
-!           Send corner data while we have data to send
-!           and while there is a point that depends on it.
+             ! Send corner data while we have data to send
+             ! and while there is a point that depends on it.
 
             IF ( j2+ihalo.LE.jeub .AND. &
                  iprocmap(decomp,ieub+ihalo,j2).GT.0 ) THEN
@@ -684,10 +676,10 @@ end if
       IF(cyclic_bc)THEN
          ! West
          IF((.NOT. trimmed(widx,irank)) .AND. &
-                        pilbext(irank)) ielb_no_halo = ielb_no_halo + halo_depthx
+                   pilbext(irank)) ielb_no_halo = ielb_no_halo + halo_depthx
          ! East
          IF((.NOT. trimmed(eidx,irank)) .AND. &
-                        piubext(irank)) ieub_no_halo = ieub_no_halo - halo_depthx
+                   piubext(irank)) ieub_no_halo = ieub_no_halo - halo_depthx
       END IF
 
       ! Start from the lower bound of the sub-domain (in global coords), 
@@ -1631,7 +1623,8 @@ end if
        IF ( .NOT.got ) THEN
 
           ! If no value was returned use the minimum possible tag max.
-          ! (p. 28 of Version 2.1 of the MPI standard or p. 19 of V.1 of the standard.)
+          ! (p. 28 of Version 2.1 of the MPI standard or p. 19 of V.1 of
+          ! the standard.)
           max_tag = 32767
        ENDIF
        if(DEBUG)then
@@ -1655,12 +1648,10 @@ end if
     IF ( h.GT.max_flags ) THEN
 
        ! If no free flags array was found, flag an error.
-
        STOP 'ERROR: get_exch_handle: no free flag array'
     ELSE
 
        ! Assign a new tag.
-
        exch_busy(h) = .TRUE.
 
        IF ( current_tag.GE.(max_tag-MaxCommDir) ) THEN
@@ -1675,13 +1666,13 @@ end if
        max_tag_used = MAX(max_tag_used,current_tag)
        exch_tag(h) = current_tag
 
-       if (  DEBUG .or. DEBUG_COMMS)then
-          IF ( lwp ) THEN
-             WRITE (*,'(1x,a,i6,a,i8,a,i3,a,i3,a)')  &
-               'Process ',get_rank(),' exch tag ',exch_tag(h) &
-               ,' assigned flags ',h,' (',COUNT(exch_busy),' busy)'
-          ENDIF
-       endif
+       !if (  DEBUG .or. DEBUG_COMMS)then
+       !   IF ( lwp ) THEN
+       !      WRITE (*,'(1x,a,i6,a,i8,a,i3,a,i3,a)')  &
+       !        'Process ',get_rank(),' exch tag ',exch_tag(h) &
+       !        ,' assigned flags ',h,' (',COUNT(exch_busy),' busy)'
+       !   ENDIF
+       !endif
     ENDIF
 
     get_exch_handle = h
@@ -1703,12 +1694,12 @@ end if
     
     IF ( h.GT.0 .AND. h.LE.max_flags ) THEN
        exch_busy(h) = .FALSE.
-       if( DEBUG .or. DEBUG_COMMS)then
-          IF ( lwp ) THEN
-             WRITE (*,'(1x,a,i6,a,i8,a,i3)') 'Process ',get_rank(), &
-                  ' exch tag ',exch_tag(h), ' freed    flags ',h
-          endif
-       endif
+       !if( DEBUG .or. DEBUG_COMMS)then
+       !   IF ( lwp ) THEN
+       !      WRITE (*,'(1x,a,i6,a,i8,a,i3)') 'Process ',get_rank(), &
+       !           ' exch tag ',exch_tag(h), ' freed    flags ',h
+       !   endif
+       !endif
     ELSE
        WRITE (*,*) 'free_exch_handle: invalid handle ',h
     ENDIF
