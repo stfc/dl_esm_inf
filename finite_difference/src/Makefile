@@ -89,8 +89,12 @@ FORTCL_DIR = $(ROOT)/../../external/FortCL/src
 
 all: ${API_LIB}
 
+# Create the archive. Note that we include the FortCL objects in this
+# archive but take care to exclude clfortran.o (as that only has
+# interface definitions, not implementation).
 ${API_LIB}: ${MODULES}
-	${AR} ${ARFLAGS} ${API_LIB} ${MODULES}
+	${AR} ${ARFLAGS} ${API_LIB} ${FORTCL_DIR}/*.o ${MODULES}
+	${AR} d ${API_LIB} clfortran.o
 
 install:
 	${MAKE} -C .. install

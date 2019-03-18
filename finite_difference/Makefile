@@ -59,8 +59,9 @@ fd_lib: fortcl_stub
 dm_fd_lib: fortcl_stub
 	${MAKE} -C src API_LIB="${API_LIB}" MPI=yes
 
+# OpenCL without MPI
 cl_fd_lib: fortcl
-	${MAKE} -C src API_LIB="${API_LIB}"
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=no
 
 install: fd_lib lib include
 	cp src/${API_LIB} ./lib/.
@@ -82,9 +83,9 @@ clean:
 	${MAKE} -C src clean
 
 distclean: clean
+	${MAKE} -C ${FORTCL_DIR} allclean
 	rm -f lib/${API_LIB}
 	rm -f include/*.[Mm][Oo][Dd]
-
 
 doc:
 	doxygen src/doxyfile
