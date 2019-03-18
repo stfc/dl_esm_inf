@@ -43,6 +43,10 @@
 # export F90=gfortran
 
 MPI ?= no
+OCL ?= no
+
+# Location of the FortCL git submodule
+FORTCL_DIR = ../../external/FortCL
 
 ifeq ($(MPI), yes)
 	PARALLEL_MOD=parallel_mod
@@ -52,6 +56,12 @@ else
 	PARALLEL_MOD=parallel_stub_mod
 	F90 ?= gfortran
 	API_LIB ?= lib_fd.a
+endif
+
+ifeq ($(OCL), yes)
+	FORTCL_TARGET=
+else
+	FORTCL_TARGET=stub
 endif
 
 BASE_SOURCES = argument_mod.f90 \
@@ -85,21 +95,27 @@ MODULES := $(MODULES:%.F90=%.o)
 # Location of the FortCL library (git sub-module)
 FORTCL_DIR = $(ROOT)/../../external/FortCL/src
 
-.PHONY: install clean all
+.PHONY: install clean all distclean
 
 all: ${API_LIB}
 
 # Create the archive. Note that we include the FortCL objects in this
 # archive but take care to exclude clfortran.o (as that only has
 # interface definitions, not implementation).
-${API_LIB}: ${MODULES}
+${API_LIB}: fortcl ${MODULES}
 	${AR} ${ARFLAGS} ${API_LIB} ${FORTCL_DIR}/*.o ${MODULES}
 	${AR} d ${API_LIB} clfortran.o
+
+fortcl:
+	${MAKE} -C ${FORTCL_DIR} ${FORTCL_TARGET}
 
 install:
 	${MAKE} -C .. install
 clean:
 	rm -f *.o *.mod *.a
+
+distclean: clean
+	${MAKE} -C ${FORTCL_DIR} allclean
 
 # Inter-module dependencies, alphabetical order
 argument_mod.o: global_parameters_mod.o

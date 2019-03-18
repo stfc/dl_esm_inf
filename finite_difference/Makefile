@@ -44,34 +44,26 @@
 
 API_LIB ?= lib_fd.a
 F90 ?= gfortran
-# FortCL is a git submodule of the dl_esm_inf repository.
-FORTCL_DIR = ../external/FortCL
 
 .PHONY: doc clean install fd_lib dm_fd_lib cl_fd_lib all
 
 all: fd_lib
 
-# Build the library without MPI
-fd_lib: fortcl_stub
-	${MAKE} -C src API_LIB="${API_LIB}" MPI=no 
+# Build the library without MPI or OpenCL
+fd_lib:
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=no OCL=no
 
-# Build the library with MPI
-dm_fd_lib: fortcl_stub
-	${MAKE} -C src API_LIB="${API_LIB}" MPI=yes
+# Build the library with MPI but no OpenCL
+dm_fd_lib:
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=yes OCL=no
 
 # OpenCL without MPI
-cl_fd_lib: fortcl
-	${MAKE} -C src API_LIB="${API_LIB}" MPI=no
+cl_fd_lib:
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=no OCL=yes
 
 install: fd_lib lib include
 	cp src/${API_LIB} ./lib/.
 	cp src/*.[Mm][Oo][Dd] ./include/.
-
-fortcl_stub:
-	${MAKE} -C ${FORTCL_DIR} stub
-
-fortcl:
-	${MAKE} -C ${FORTCL_DIR}
 
 lib:
 	mkdir lib
@@ -83,7 +75,7 @@ clean:
 	${MAKE} -C src clean
 
 distclean: clean
-	${MAKE} -C ${FORTCL_DIR} allclean
+	${MAKE} -C src distclean
 	rm -f lib/${API_LIB}
 	rm -f include/*.[Mm][Oo][Dd]
 
