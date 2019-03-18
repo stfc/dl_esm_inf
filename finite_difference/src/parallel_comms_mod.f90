@@ -1737,7 +1737,7 @@ end if
     INTEGER, INTENT(out) :: handle
     ! Shift in xstart,xstop,ystart,ystop relative to T points upon which
     ! halos have been defined
-    integer, dimension(2), intent(in) :: shift
+    integer, dimension(2,2), intent(in) :: shift
     REAL(go_wp),OPTIONAL, INTENT(inout), DIMENSION(:,:)   :: b2
     INTEGER, OPTIONAL, INTENT(inout), DIMENSION(:,:)   :: ib2
     REAL(go_wp),OPTIONAL, INTENT(inout), DIMENSION(:,:,:) :: b3
@@ -1925,12 +1925,18 @@ end if
              case(IMinus)
                 ! Sending data in +i direction so have to correct these
                 ! upper i bounds to allow for staggering relative to T
-                istart = istart + shift(1)
+                istart = istart + shift(2,1)
                 iend = istart
+             case(IPlus)
+                iend = iend + shift(1,1)
+                istart = iend
              case(JMinus)
                 ! Sending data in +j direction so have to correct these
                 ! upper j bounds to allow for staggering relative to T
-                jstart = jstart + shift(2)
+                jend = jend + shift(2,2)
+                jstart = jend
+             case(JPlus)
+                jstart = jstart + shift(1,2)
                 jend = jstart
              end select
              
@@ -2093,12 +2099,12 @@ end if
              if(dirrecv(irecv) == IPlus)then
                 ! Receiving data sent in the -i direction so need to correct
                 ! these upper i bounds to allow for staggering relative to T
-                istart = istart + shift(1)
+                istart = istart + shift(2,1)
                 iend = istart
              else if(dirrecv(irecv) == JPlus)then
                 ! Receiving data setn in the -j direction so need to correct
                 ! these upper j bounds to allow for staggering relative to T
-                jstart = jstart + shift(2)
+                jstart = jstart + shift(2,2)
                 jend = jstart
              end if
              

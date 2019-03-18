@@ -343,7 +343,7 @@ contains
     fld%num_halos = 0
 
   end subroutine field_init
-
+  
   !===================================================
 
   subroutine cu_field_init(fld)
@@ -988,32 +988,34 @@ contains
     ! Locals
     integer :: ihalo
     integer :: exch  !> Handle for exchange
-    !> Array to hold corrections to upper bounds to allow for staggering
-    !! of different grid-point types
-    integer, dimension(2) :: shift = 0
+    !> Array to hold corrections to lower and upper bounds to allow for
+    !! staggering of different grid-point types
+    integer, dimension(2,2) :: shift = 0
 
-    select case(self%grid%offset)
-       case(GO_OFFSET_NE)
-          ! pts to N and E of T point have same i,j indices
-          ! Lower bounds are all the same
-          select case(self%defined_on)
-          case(GO_U_POINTS)
-             ! Upper x bound for U is one less than for T
-             shift(1) = -1
-          case(GO_V_POINTS)
-             ! Upper y bound for V is one less than for T
-             shift(2) = -1
-          case(GO_F_POINTS)
-             shift(:) = -1
-          case(GO_T_POINTS)
-             shift(:) = 0
-          case default
-             call gocean_stop('Unsupported grid-point type in halo_exch')
-          end select
-       case default
-          call gocean_stop('Unsupported offset in halo_exch')
-    end select
-
+    !select case(self%grid%offset)
+    !   case(GO_OFFSET_NE)
+    !      ! pts to N and E of T point have same i,j indices
+    !      select case(self%defined_on)
+    !      case(GO_U_POINTS)
+             shift(1,1) = self%internal%xstart - self%grid%subdomain%internal%xstart
+             shift(2,1) = self%internal%xstop - self%grid%subdomain%internal%xstop
+             shift(1, 2) = self%internal%ystart - self%grid%subdomain%internal%ystart
+             shift(2, 2) = self%internal%ystop - self%grid%subdomain%internal%ystop
+    !      case(GO_V_POINTS)
+    !         ! Upper y bound for V is one less than for T
+    !         shift(2) = -1
+    !      case(GO_F_POINTS)
+    !         shift(:) = -1
+    !      case(GO_T_POINTS)
+    !         shift(:) = 0
+    !      case default
+    !         call gocean_stop('Unsupported grid-point type in halo_exch')
+    !      end select
+    !   case default
+    !      call gocean_stop('Unsupported offset in halo_exch')
+    !end select
+             write(*,*) "xshifts: ", shift(:,1)
+             write(*,*) "yshifts: ", shift(:,2)
     call exchs_generic(shift, b2=self%data, nhalo=1, nhexch=1, handle=exch, &
                        comm1=JPlus, comm2=Jminus, comm3=IPlus, comm4=IMinus)
   end subroutine halo_exch
