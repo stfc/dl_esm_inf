@@ -93,7 +93,7 @@ MODULES := $(BASE_SOURCES:%.f90=%.o)
 MODULES := $(MODULES:%.F90=%.o)
 
 # Location of the FortCL library (git sub-module)
-FORTCL_DIR = $(ROOT)/../../external/FortCL/src
+FORTCL_DIR = $(ROOT)../../external/FortCL/src
 
 .PHONY: install clean all distclean
 
@@ -107,11 +107,13 @@ ${API_LIB}: fortcl ${MODULES}
 	${AR} d ${API_LIB} clfortran.o
 
 fortcl:
-	${MAKE} -C ${FORTCL_DIR} ${FORTCL_TARGET}
+	${MAKE} -C ${FORTCL_DIR} F90=${F90} ${FORTCL_TARGET}
 
 install:
 	${MAKE} -C .. install
+
 clean:
+	${MAKE} -C ${FORTCL_DIR} clean
 	rm -f *.o *.mod *.a
 
 distclean: clean
