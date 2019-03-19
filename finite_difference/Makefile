@@ -45,17 +45,21 @@
 API_LIB ?= lib_fd.a
 F90 ?= gfortran
 
-.PHONY: doc clean install fd_lib dm_fd_lib all
+.PHONY: doc clean install fd_lib dm_fd_lib cl_fd_lib all
 
 all: fd_lib
 
-# Build the library without MPI
+# Build the library without MPI or OpenCL
 fd_lib:
-	${MAKE} -C src API_LIB="${API_LIB}" MPI=no 
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=no OCL=no
 
-# Build the library with MPI
+# Build the library with MPI but no OpenCL
 dm_fd_lib:
-	${MAKE} -C src API_LIB="${API_LIB}" MPI=yes 
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=yes OCL=no
+
+# OpenCL without MPI
+cl_fd_lib:
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=no OCL=yes
 
 install: fd_lib lib include
 	cp src/${API_LIB} ./lib/.
@@ -71,9 +75,9 @@ clean:
 	${MAKE} -C src clean
 
 distclean: clean
+	${MAKE} -C src distclean
 	rm -f lib/${API_LIB}
 	rm -f include/*.[Mm][Oo][Dd]
-
 
 doc:
 	doxygen src/doxyfile
