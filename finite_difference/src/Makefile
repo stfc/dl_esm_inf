@@ -107,7 +107,7 @@ ${API_LIB}: fortcl ${MODULES}
 	${AR} d ${API_LIB} clfortran.o
 
 fortcl:
-	${MAKE} -C ${FORTCL_DIR} F90=${F90} ${FORTCL_TARGET}
+	${MAKE} -f ${FORTCL_DIR}/Makefile F90=${F90} ${FORTCL_TARGET}
 
 install:
 	${MAKE} -C .. install
