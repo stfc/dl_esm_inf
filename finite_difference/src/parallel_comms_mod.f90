@@ -2102,7 +2102,7 @@ end if
                 istart = istart + shift(2,1)
                 iend = istart
              else if(dirrecv(irecv) == JPlus)then
-                ! Receiving data setn in the -j direction so need to correct
+                ! Receiving data sent in the -j direction so need to correct
                 ! these upper j bounds to allow for staggering relative to T
                 jstart = jstart + shift(2,2)
                 jend = jstart

@@ -393,10 +393,8 @@ contains
        end do
     end do
 
-    grid%xt(xstart, :) = (grid%subdomain%global%xstart - 0.5_go_wp) * &
-         grid%dx_t(xstart,:)
-    grid%yt(:,ystart)  = (grid%subdomain%global%ystart - 0.5_go_wp) * &
-         grid%dy_t(:,ystart)
+    grid%xt(xstart, :) = grid%subdomain%global%xstart * grid%dx_t(xstart,:)
+    grid%yt(:,ystart)  = grid%subdomain%global%ystart * grid%dy_t(:,ystart)
 
     DO ji = xstart+1, grid%nx
       grid%xt(ji,:) = grid%xt(ji-1, :) + grid%dx
@@ -407,7 +405,7 @@ contains
     END DO
 
     ! Add the coordinates for points that are external to the domain.
-    ! This aids the output of full fields including halos regions for the
+    ! This aids the output of full fields including halo regions for the
     ! purposes of debugging.
     do ji = xstart-1, 1, -1
        grid%xt(ji,:) = grid%xt(ji+1, :) - grid%dx
