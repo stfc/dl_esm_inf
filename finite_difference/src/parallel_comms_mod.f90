@@ -1949,7 +1949,8 @@ end if
                    sendBuff(ic,isend) = b2(i,j)
                 END DO
              END DO
-             write(*,"(I3,': packed: ',6E15.4)") get_rank(), sendBuff(1:6,isend)
+             write(*,"(I3,': packed: ',6E15.4)") get_rank(), &
+                                                 sendBuff(1:min(ic,6),isend)
 !             CALL timing_stop('2dr_pack')
 
              CALL MPI_Isend(sendBuff(1,isend),ic,MPI_DOUBLE_PRECISION, &
@@ -2110,13 +2111,14 @@ end if
              
              write(*,"(I3,': unpacking to:',I3,':',I3,',',I3,':',I3)") &
                   get_rank(), istart, iend, jstart, jend
-             write(*,"(I3,': unpacked: ',6E15.4)") get_rank(), recvBuff(1:6,irecv)
              DO j=jstart, jend, 1
                 DO i=istart, iend, 1
                    ic = ic + 1
                    b2(i,j) = recvBuff(ic,irecv)
                 END DO
              END DO
+             write(*,"(I3,': unpacked: ',6E15.4)") get_rank(), &
+                                                   recvBuff(1:min(6,ic),irecv)
 
              ! CALL timing_stop('2dr_unpack')
 
