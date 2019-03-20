@@ -102,6 +102,11 @@ module grid_mod
 
      !> Coordinates of grid (T) points in horizontal plane
      real(go_wp), allocatable :: xt(:,:), yt(:,:)
+
+     ! TODO: For OpenCL compilation tests in PSyclone we need a device_ptr
+     ! here. Till full support for OpenCL is woring, provide a dummy variable:
+     integer*8 :: tmask_device
+
    contains
      procedure :: get_tmask
 

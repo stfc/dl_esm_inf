@@ -70,6 +70,10 @@ module field_mod
      !> Whether the data for this field lives in a remote memory space
      !! (e.g. on a GPU)
      logical :: data_on_device
+
+     ! TODO: For OpenCL compilation tests in PSyclone we need a device_ptr
+     ! here. Till full support for OpenCL is woring, provide a dummy variable:
+     integer*8 :: device_ptr
   end type field_type
 
   !> A real, 2D field.
