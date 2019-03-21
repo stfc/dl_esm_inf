@@ -498,8 +498,11 @@ contains
       ! The T mask has been used to determine the grid%subdomain
       ! which describes the area on the grid that is actually being
       ! modelled (as opposed to having values supplied from B.C.'s etc.)
-      fld%internal%xstart = fld%grid%subdomain%internal%xstart
-      fld%internal%xstop  = fld%grid%subdomain%internal%xstop - 1
+       fld%internal%xstart = fld%grid%subdomain%internal%xstart
+       ! Now that all fields are allocated to be the same size, we always have
+       ! as many U-points as T-points
+      !fld%internal%xstop  = fld%grid%subdomain%internal%xstop - 1
+      fld%internal%xstop  = fld%grid%subdomain%internal%xstop
     else
       call gocean_stop('ERROR: cu_ne_init: implement periodic boundary conditions!')
     end if
@@ -603,31 +606,6 @@ contains
     implicit none
     class(field_type), intent(inout) :: fld
 
-    ! ji indexing:
-    ! Lowermost ji index of the V points will be the same as the T's.
-    ! If the domain starts at 1 then T(1,:) are external and v(1,:)
-    ! are boundary points.
-    ! Uppermost ji index is nx. T(nx,:) are external and v(nx,:)
-    ! are boundary points.
-
-    ! jj indexing:
-    ! If domain starts at 1 then T(:,1) are external and V(:,1) are
-    ! boundary points.
-    ! Uppermost jj index is ny. T(ny,:) are external and so are V(ny,:)
-    ! (see diagram at start of module). It is V(ny-1,:) that are the 
-    ! boundary points.
-
-    ! When updating a quantity on V points with this offset
-    ! we write to (using 'x' to indicate a location that is written):
-    !
-    ! i=1       Nx
-    !  o  o  o  o   Ny
-    !  b  b  b  b   Ny-1
-    !  b  x  x  b
-    !  b  x  x  b
-    !  b  b  b  b   j=1
-    !
-
     if(fld%grid%boundary_conditions(1) /= GO_BC_PERIODIC)then
       ! If we do not have periodic boundary conditions then we do
       ! not need to allow for boundary points here - they are
@@ -639,7 +617,10 @@ contains
     end if
 
     if(fld%grid%boundary_conditions(2) /= GO_BC_PERIODIC)then
-      fld%internal%ystart = fld%grid%subdomain%internal%ystart
+       fld%internal%ystart = fld%grid%subdomain%internal%ystart
+       ! Since we allocate all fields with the same extents, we always have
+       ! as many V points as T points
+      !fld%internal%ystop  = fld%grid%subdomain%internal%ystop - 1
       fld%internal%ystop  = fld%grid%subdomain%internal%ystop - 1
     else
       call gocean_stop('ERROR: cv_ne_init: implement periodic BCs!')
@@ -859,7 +840,7 @@ contains
       ! not need to allow for boundary points here - they are
       ! already contained within the region.
       fld%internal%xstart = fld%grid%subdomain%internal%xstart
-      fld%internal%xstop  = fld%grid%subdomain%internal%xstop - 1
+      fld%internal%xstop  = fld%grid%subdomain%internal%xstop
     else
       call gocean_stop('ERROR: cf_ne_init: implement periodic BCs!')
       stop
@@ -867,7 +848,7 @@ contains
 
     if(fld%grid%boundary_conditions(2) /= GO_BC_PERIODIC)then
       fld%internal%ystart = fld%grid%subdomain%internal%ystart
-      fld%internal%ystop  = fld%grid%subdomain%internal%ystop - 1
+      fld%internal%ystop  = fld%grid%subdomain%internal%ystop
     else
       call gocean_stop('ERROR: cf_ne_init: implement periodic BCs!')
     end if
@@ -988,35 +969,8 @@ contains
     ! Locals
     integer :: ihalo
     integer :: exch  !> Handle for exchange
-    !> Array to hold corrections to lower and upper bounds to allow for
-    !! staggering of different grid-point types
-    integer, dimension(2,2) :: shift = 0
 
-    !select case(self%grid%offset)
-    !   case(GO_OFFSET_NE)
-    !      ! pts to N and E of T point have same i,j indices
-    !      select case(self%defined_on)
-    !      case(GO_U_POINTS)
-             shift(1,1) = self%internal%xstart - self%grid%subdomain%internal%xstart
-             shift(2,1) = self%internal%xstop - self%grid%subdomain%internal%xstop
-             shift(1, 2) = self%internal%ystart - self%grid%subdomain%internal%ystart
-             shift(2, 2) = self%internal%ystop - self%grid%subdomain%internal%ystop
-    !      case(GO_V_POINTS)
-    !         ! Upper y bound for V is one less than for T
-    !         shift(2) = -1
-    !      case(GO_F_POINTS)
-    !         shift(:) = -1
-    !      case(GO_T_POINTS)
-    !         shift(:) = 0
-    !      case default
-    !         call gocean_stop('Unsupported grid-point type in halo_exch')
-    !      end select
-    !   case default
-    !      call gocean_stop('Unsupported offset in halo_exch')
-    !end select
-             write(*,*) "xshifts: ", shift(:,1)
-             write(*,*) "yshifts: ", shift(:,2)
-    call exchs_generic(shift, b2=self%data, nhalo=1, nhexch=1, handle=exch, &
+    call exchs_generic(b2=self%data, nhalo=1, nhexch=1, handle=exch, &
                        comm1=JPlus, comm2=Jminus, comm3=IPlus, comm4=IMinus)
   end subroutine halo_exch
   

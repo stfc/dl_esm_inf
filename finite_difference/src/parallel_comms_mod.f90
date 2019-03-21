@@ -211,12 +211,13 @@ module parallel_comms_mod
 
 contains
 
-  subroutine map_comms (decomp, tmask, pbc, ierr )
+  subroutine map_comms (decomp, tmask, pbc, ierr)
     !!------------------------------------------------------------------
     ! Maps out the communications requirements for the partitioned
     ! domain, adding communications descriptions to the list.
     !
     !     Mike Ashworth, CLRC Daresbury Laboratory, July 1999
+    !     Andy Porter, STFC Daresbury Laboratory, March 2019
     !!------------------------------------------------------------------
     IMPLICIT NONE
 
@@ -1399,7 +1400,6 @@ end if
        WRITE(*,FMT="(I4,': ARPDBG:    ny = ',I4)") irank-1,nysend(icomm)
        WRITE(*,FMT="(I4,': ARPDBG:    nz = ',I4)") irank-1,nzsend(icomm) 
        WRITE (*,FMT="(I4,': ARPDBG:nsendp = ',I4)") irank-1,nsendp(icomm,1)
-       WRITE (*,FMT="(I4,': ARPDBG:nsendp2d = ',I4)") irank-1,nsendp2d(icomm,1)
        WRITE (*,FMT="(I4,': ARPDBG SEND ends')")    irank-1
     end if
 
@@ -1498,70 +1498,58 @@ end if
        WRITE (*,FMT="(I3,': ARPDBG RECV ends')")    irank-1
     end if
 
-  END SUBROUTINE addrecv
+  end subroutine addrecv
 
-    function iprocmap (decomp, ia, ja )
-!!------------------------------------------------------------------
-! Returns the process number (1...N) of the process whose sub-domain
-! contains the point with global coordinates (i,j).
-! If no process owns the point, returns zero.
+  function iprocmap (decomp, ia, ja)
+    !!------------------------------------------------------------------
+    !> Returns the process number (1...N) of the process whose sub-domain
+    !! contains the point with global coordinates (ia, ja).
+    !! If no process owns the point, returns zero.
 
-!     i                       int   input     global x-coordinate
-!     j                       int   input     global y-coordinate
+    !         Mike Ashworth, CLRC Daresbury Laboratory, July 1999
+    !         Andrew Porter, STFC Daresbury Laboratory, May  2008
+    !!------------------------------------------------------------------
+    implicit none
+    !> The process owning the supplied point or zero if none.
+    integer                              :: iprocmap
+    !> The domain decomposition
+    type(decomposition_type), intent(in) :: decomp
+    !> Global x, y grid indices of the point to search for
+    integer,                  intent(in) :: ia, ja
+    ! Local variables.
+    integer :: iproc, i, j, iwidth, nprocp
 
-!         Mike Ashworth, CLRC Daresbury Laboratory, July 1999
-!         Andrew Porter, STFC Daresbury Laboratory, May  2008
-      !!------------------------------------------------------------------
-      implicit none
+    nprocp = get_num_ranks()
+    iprocmap = 0
 
-      !  Function arguments.
-      integer                              :: iprocmap
-      type(decomposition_type), intent(in) :: decomp
-      integer,                  intent(in) :: ia, ja
-      ! Local variables.
-      integer :: iproc, i, j, iwidth, nprocp
+    ! Make sure we don't change variable values in calling
+    ! routine...
+    i = ia
+    j = ja
+    IF(cyclic_bc)THEN
+       ! Allow for fact that first and last columns in global domain
+       ! are actually halos
+       iwidth = decomp%global_nx - 2*halo_depthx
+       IF(i >= decomp%global_nx) i = ia - iwidth
+       IF(i <= 1     ) i = ia + iwidth
+       ! No cyclic BCs in North/South direction
+       !IF(j > jpjglo) j = ja - jpjglo
+       !IF(j < 1     ) j = ja + jpjglo
+    END IF
 
-      nprocp = get_num_ranks()
-      iprocmap = 0
+    ! Search the processes for the one owning point (i,j).
 
-      ! Make sure we don't change variable values in calling
-      ! routine...
-      i = ia
-      j = ja
-      IF(cyclic_bc)THEN
-         ! Allow for fact that first and last columns in global domain
-         ! are actually halos
-         iwidth = decomp%global_nx - 2*halo_depthx
-         IF(i >= decomp%global_nx) i = ia - iwidth
-         IF(i <= 1     ) i = ia + iwidth
-         ! No cyclic BCs in North/South direction
-         !IF(j > jpjglo) j = ja - jpjglo
-         !IF(j < 1     ) j = ja + jpjglo
-      END IF
+    DO iproc=1,nprocp
+       IF (decomp%subdomains(iproc)%global%xstart.LE.i .AND. &
+            i.LE.decomp%subdomains(iproc)%global%xstop .AND.  &
+            decomp%subdomains(iproc)%global%ystart.LE.j .AND. &
+            j.LE.decomp%subdomains(iproc)%global%ystop) THEN
+          iprocmap = iproc
+          EXIT
+       END IF
+    ENDDO
 
-        ! Search the processes for the one owning point (i,j).
-
-      DO iproc=1,nprocp
-         IF (decomp%subdomains(iproc)%global%xstart.LE.i .AND. &
-             i.LE.decomp%subdomains(iproc)%global%xstop .AND.  &
-             decomp%subdomains(iproc)%global%ystart.LE.j .AND. &
-             j.LE.decomp%subdomains(iproc)%global%ystop) THEN
-           iprocmap = iproc
-           EXIT
-         END IF
-      ENDDO
-
-! ARP - for debugging only
-!!$        IF(iprocmap == 0)THEN
-!!$           WRITE(*,"('iprocmap: failed to find owner PE for (',I3,1x,I3,')')") ia, ja
-!!$           WRITE(*,*) 'PE domains are [xmin:xmax][ymin:ymax]:'
-!!$           DO iproc=1,nprocp,1
-!!$              WRITE(*,"(I3,': [',I3,':',I3,'][',I3,':',I3,']')") &
-!!$                    iproc, pielb(iproc), pieub(iproc), pjelb(iproc), pjeub(iproc)
-!!$           END DO
-!!$        END IF
-
-      END FUNCTION iprocmap
+  end function iprocmap
 
       
   INTEGER FUNCTION exchmod_alloc()
@@ -1708,7 +1696,7 @@ end if
 
   !================================================================
 
-  SUBROUTINE exchs_generic ( shift, b2, ib2, b3, ib3, nhalo, nhexch, &
+  SUBROUTINE exchs_generic ( b2, ib2, b3, ib3, nhalo, nhexch, &
                              handle, comm1, comm2, comm3, comm4)
 
     ! *******************************************************************
@@ -1735,9 +1723,6 @@ end if
     ! Subroutine arguments.
     INTEGER, INTENT(in)  :: nhalo,nhexch
     INTEGER, INTENT(out) :: handle
-    ! Shift in xstart,xstop,ystart,ystop relative to T points upon which
-    ! halos have been defined
-    integer, dimension(2,2), intent(in) :: shift
     REAL(go_wp),OPTIONAL, INTENT(inout), DIMENSION(:,:)   :: b2
     INTEGER, OPTIONAL, INTENT(inout), DIMENSION(:,:)   :: ib2
     REAL(go_wp),OPTIONAL, INTENT(inout), DIMENSION(:,:,:) :: b3
@@ -1920,25 +1905,6 @@ end if
              iend = istart+nxsend(isend)-1
              jstart = jsrcsend(isend)
              jend = jstart+nysend(isend)-1
-
-             select case(dirsend(isend))
-             case(IMinus)
-                ! Sending data in +i direction so have to correct these
-                ! upper i bounds to allow for staggering relative to T
-                istart = istart + shift(2,1)
-                iend = istart
-             case(IPlus)
-                iend = iend + shift(1,1)
-                istart = iend
-             case(JMinus)
-                ! Sending data in +j direction so have to correct these
-                ! upper j bounds to allow for staggering relative to T
-                jend = jend + shift(2,2)
-                jstart = jend
-             case(JPlus)
-                jstart = jstart + shift(1,2)
-                jend = jstart
-             end select
              
              write(*,"(I3,': packing from:',I3,':',I3,',',I3,':',I3)") &
                   get_rank(),istart,iend,jstart,jend
@@ -2097,18 +2063,6 @@ end if
              istart = idesrecv(irecv)
              iend   = istart+nxrecv(irecv)-1
 
-             if(dirrecv(irecv) == IPlus)then
-                ! Receiving data sent in the -i direction so need to correct
-                ! these upper i bounds to allow for staggering relative to T
-                istart = istart + shift(2,1)
-                iend = istart
-             else if(dirrecv(irecv) == JPlus)then
-                ! Receiving data sent in the -j direction so need to correct
-                ! these upper j bounds to allow for staggering relative to T
-                jstart = jstart + shift(2,2)
-                jend = jstart
-             end if
-             
              write(*,"(I3,': unpacking to:',I3,':',I3,',',I3,':',I3)") &
                   get_rank(), istart, iend, jstart, jend
              DO j=jstart, jend, 1
