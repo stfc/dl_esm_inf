@@ -72,7 +72,8 @@ module field_mod
      logical :: data_on_device
 
      ! TODO: For OpenCL compilation tests in PSyclone we need a device_ptr
-     ! here. Till full support for OpenCL is woring, provide a dummy variable:
+     ! here (see #10). Till full support for OpenCL is woring, provide a
+     ! dummy variable:
      integer*8 :: device_ptr
   end type field_type
 

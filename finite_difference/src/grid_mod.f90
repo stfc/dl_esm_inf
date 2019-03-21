@@ -104,7 +104,8 @@ module grid_mod
      real(go_wp), allocatable :: xt(:,:), yt(:,:)
 
      ! TODO: For OpenCL compilation tests in PSyclone we need a device_ptr
-     ! here. Till full support for OpenCL is woring, provide a dummy variable:
+     ! here (see #10). Till full support for OpenCL is woring, provide a
+     ! dummy variable:
      integer*8 :: tmask_device
 
    contains
