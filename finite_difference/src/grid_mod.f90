@@ -51,11 +51,13 @@ module grid_mod
      !> Specifies the convention by which grid-point
      !! types are indexed relative to a T point.
      integer :: offset
-     !> Extent of T-point grid in x. Note that this is the whole grid,
-     !! not just the region that is simulated.
+     !> Extent of T-point grid of whole, global domain.
+     integer :: global_nx, global_ny
+     !> Extent of T-point grid in x on local subdomain. Note that this
+     !! is the whole grid, not just the region that is simulated.
      integer :: nx
-     !> Extent of T-point grid in y. Note that this is the whole grid,
-     !! not just the region that is simulated.
+     !> Extent of T-point grid in y. Note that this is the whole grid
+     !! (local to this process), not just the region that is simulated.
      integer :: ny
      !> Grid spacing in x (m)
      real(go_wp) :: dx
@@ -225,7 +227,7 @@ contains
     implicit none
     type(grid_type), intent(inout) :: grid
     type(decomposition_type), intent(in) :: decomp
-    real(go_wp),        intent(in)    :: dxarg, dyarg
+    real(go_wp),              intent(in) :: dxarg, dyarg
     integer, allocatable, dimension(:,:), intent(in), optional :: tmask
     ! Locals
     integer :: myrank
@@ -239,6 +241,8 @@ contains
     ! into our grid object.
     myrank = get_rank()
     grid%subdomain = decomp%subdomains(myrank)
+    grid%global_nx = decomp%global_nx
+    grid%global_ny = decomp%global_ny
 
     ! Store the global dimensions of the grid...
 
@@ -308,7 +312,7 @@ contains
           call gocean_stop('grid_init: ERROR: No T-mask supplied and '// &
                            'grid does not have periodic boundary conditions!')
        end if
-       !> TODO add support for PBCs in paralel
+       !> TODO add support for PBCs in parallel
        if(get_num_ranks() > 1)then
           call gocean_stop('grid_init: PBCs not yet implemented with MPI')
        end if
