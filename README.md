@@ -9,12 +9,17 @@ difference shallow-water models in the GOcean Project.
 
 ## Building ##
 
-The `finite_difference` directory contains a Makefile which picks up
+The ``finite_difference`` directory contains a Makefile which picks up
 the compiler and associated flags from environment variables, e.g.:
 
   export F90=mpif90
   export F90FLAGS=-O2
   export AR=ar
+
+The ``compiler_setup`` directory contains ``gnu.sh`` which may be used
+to set-up these environment variables in order to use the Gnu compiler:
+
+  . compiler_setup/gnu.sh
 
 The `fd_lib` target builds the serial version of the library and the
 `dm_fd_lib` target builds the distributed-memory (MPI) version. For
