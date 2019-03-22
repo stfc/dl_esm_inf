@@ -1817,9 +1817,6 @@ end if
 
           tag = tag_orig + dirrecv(irecv)
 
-          if (DEBUG .or. DEBUG_COMMS)then
-             WRITE (*,FMT="(I4,': tag ',I4,' ireceiving from ',I4,' data ',I4)") get_rank(),tag ,source(irecv), nrecvp(irecv,1)
-          end if
           ! ARPDBG - nrecvp second rank is for multiple halo widths but
           !          that isn't used
           IF ( PRESENT(b2) ) THEN
