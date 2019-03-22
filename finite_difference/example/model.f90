@@ -39,7 +39,7 @@ program model
   use gocean_mod
   implicit none
   ! Total size of the model domain
-  integer :: jpiglo = 10, jpjglo = 4
+  integer :: jpiglo = 4, jpjglo = 10
   ! (Uniform) grid resolution
   real(go_wp) :: dx = 1.0
   real(go_wp) :: dy = 1.0
@@ -88,10 +88,10 @@ program model
   t_field = r2d_field(model_grid, GO_T_POINTS)
   f_field = r2d_field(model_grid, GO_F_POINTS)
 
-  call init_field_hill(u_field)
-  call init_field_hill(v_field)
-  call init_field_hill(t_field)
-  call init_field_hill(f_field)
+  call init_field_by_rank(u_field)
+  call init_field_by_rank(v_field)
+  call init_field_by_rank(t_field)
+  call init_field_by_rank(f_field)
 
   write(*,"(I3,' Halo exchange for u:')") my_rank
   call u_field%halo_exch(1)
@@ -102,16 +102,6 @@ program model
   write(*,"(I3,' Halo exchange for f:')") my_rank
   call f_field%halo_exch(1)
 
-  call dump_field(u_field, "u_fld", halo_depth=1)
-  call dump_field(v_field, "v_fld", halo_depth=1)
-  call dump_field(f_field, "f_fld", halo_depth=1)
-
-  ! Check the halo regions
-  call check_hill_halos(t_field, "t_fld")
-  call check_hill_halos(u_field, "u_fld")
-  call check_hill_halos(u_field, "v_fld")
-  call check_hill_halos(u_field, "f_fld")
-  
   ! All done!
   if (my_rank == 1) write(*,'(/"Example model set-up complete."/)')
 
@@ -130,212 +120,4 @@ contains
     
   end subroutine init_field_by_rank
 
-  subroutine init_field_hill(field)
-    type(r2d_field), intent(inout) :: field
-    integer :: ji, jj
-    integer :: istart, istop, jstart, jstop
-    istart = field%internal%xstart
-    istop =  field%internal%xstop
-    jstart = field%internal%ystart
-    jstop =  field%internal%ystop
-    
-    field%data(:,:) = 0.0
-    do jj = jstart, jstop
-       do ji = istart, istop
-          field%data(ji,jj) = hill(field, ji, jj)
-       end do
-    end do
-    ! Set external points to plausible but wrong values
-    do jj = 1, field%grid%ny
-       field%data(1:istart-1,jj) = field%data(istart,jj)
-       field%data(istop+1:,jj) = field%data(istop,jj)
-    end do
-    do ji = 1, field%grid%nx
-       field%data(ji,1:jstart-1) = field%data(ji,jstart)
-       field%data(ji,jstop+1:) = field%data(ji,jstop)
-    end do
-  end subroutine init_field_hill
-
-  function hill(field, ji, jj)
-    use field_mod, only: r2d_field
-    type(r2d_field), intent(in) :: field
-    integer, intent(in) :: ji, jj
-    real(go_wp) :: hill, xpos, ypos
-    ! Global position of the T point
-    xpos = field%grid%xt(ji,jj)
-    ypos = field%grid%yt(ji,jj)
-    select case(field%grid%offset)
-    case(GO_OFFSET_SW)
-       select case(field%defined_on)
-       case(GO_U_POINTS)
-          xpos = xpos - 0.5*field%grid%dx_u(ji, jj)
-       case(GO_F_POINTS)
-          xpos = xpos - 0.5*field%grid%dx_f(ji, jj)
-          ypos = ypos - 0.5*field%grid%dy_f(ji, jj)
-       case(GO_V_POINTS)
-          ypos = ypos - 0.5*field%grid%dy_v(ji, jj)
-       end select
-    case(GO_OFFSET_NE)
-       select case(field%defined_on)
-       case(GO_U_POINTS)
-          xpos = xpos + 0.5*field%grid%dx_u(ji, jj)
-       case(GO_F_POINTS)
-          xpos = xpos + 0.5*field%grid%dx_f(ji, jj)
-          ypos = ypos + 0.5*field%grid%dy_f(ji, jj)
-       case(GO_V_POINTS)
-          ypos = ypos + 0.5*field%grid%dy_v(ji, jj)
-       end select
-    case default
-       call gocean_stop("hill: unsupported grid offset")
-    end select
-    hill = real(10000.0*xpos + ypos)
-  end function hill
-  
-  subroutine check_hill_halos(field, name)
-    use parallel_mod, only: get_rank
-    type(r2d_field), intent(in) :: field
-    character(len=*), intent(in) :: name
-    ! Locals
-    integer :: ji, jj, iglobal, jglobal
-    real(go_wp), parameter :: TOL_ZERO = 1.0E-8
-    integer :: my_rank
-
-    my_rank = get_rank()
-    
-    if(field%grid%subdomain%global%xstart > 1)then
-       write(*,"(I4,' Subdomain has a halo region in the -x direction')") &
-            my_rank
-       ! Local and global x location of the L1 halo
-       ji = field%internal%xstart - 1
-       iglobal = field%grid%subdomain%global%xstart - 1
-       do jj = field%internal%ystart, field%internal%ystop
-          jglobal = field%grid%subdomain%global%ystart + jj - &
-               field%internal%ystart 
-          if( abs(field%data(ji, jj) - hill(field, ji, jj)) > TOL_ZERO)then
-             write(*,'(I4," ERROR in halo value for ",(A),": ",4I5,2F9.1)') &
-                  my_rank, TRIM(name), ji, jj, iglobal, jglobal, &
-                  field%data(ji,jj), hill(field, ji, jj)
-          end if
-       end do
-    end if
-    if(field%grid%subdomain%global%xstop < field%grid%global_nx)then
-       write(*,"(I4,' Subdomain has a halo region in the +x direction')") &
-            my_rank
-       ! Local and global x location of the L1 halo
-       ji = field%internal%xstop + 1
-       iglobal = field%grid%subdomain%global%xstop + 1
-       do jj = field%internal%ystart, field%internal%ystop
-          jglobal = field%grid%subdomain%global%ystart + jj - &
-               field%internal%ystart 
-          if( abs(field%data(ji, jj) - hill(field, ji, jj)) > TOL_ZERO)then
-             write(*,'(I4," ERROR in halo value for ",(A),": ",4I5,2F9.1)') &
-                  my_rank, TRIM(name), ji, jj, iglobal, jglobal, &
-                  field%data(ji,jj), hill(field, ji, jj)
-          end if
-       end do
-    end if
-    if(field%grid%subdomain%global%ystart > 1)then
-       write(*,"(I4,' Subdomain has a halo region in the -y direction')") &
-            my_rank
-       jj = field%internal%ystart - 1
-       jglobal = field%grid%subdomain%global%ystart - 1
-       do ji = field%internal%xstart, field%internal%xstop
-          iglobal = field%grid%subdomain%global%xstart + ji - &
-               field%internal%xstart
-          if( abs(field%data(ji, jj) - hill(field, ji, jj)) > TOL_ZERO)then
-             write(*,'(I4," ERROR in halo value for ",(A),": ",4I5,2F9.1)') &
-                  my_rank, TRIM(name), ji, jj, iglobal, jglobal, &
-                  field%data(ji,jj), hill(field, ji, jj)
-          end if
-       end do
-    end if
-    if(field%grid%subdomain%global%ystop < field%grid%global_ny)then
-       write(*,"(I4,' Subdomain has a halo region in the +y direction')") &
-            my_rank
-       jj = field%internal%ystop + 1
-       jglobal = field%grid%subdomain%global%ystop + 1
-       do ji = field%internal%xstart, field%internal%xstop
-          iglobal = field%grid%subdomain%global%xstart + ji - &
-               field%internal%xstart
-          if( abs(field%data(ji, jj) - hill(field, ji, jj)) > TOL_ZERO)then
-             write(*,'(I4," ERROR in halo value for ",(A),": ",4I5,2F9.1)') &
-                  my_rank, TRIM(name), ji, jj, iglobal, jglobal, &
-                  field%data(ji,jj), hill(field, ji, jj)
-          end if
-       end do
-    end if
-
-  end subroutine check_hill_halos
-  
-  subroutine dump_field(field, name, halo_depth)
-    use parallel_mod, only: get_rank
-    type(r2d_field), intent(in) :: field
-    character(len=*), intent(in) :: name
-    integer, intent(in), optional :: halo_depth
-    ! Locals
-    integer, parameter :: unit_no = 21
-    integer :: ji, jj
-    character(len=5) :: rank_str
-    integer :: lhalo
-    real :: xpos, ypos
-    
-    ! Each rank creates its own file
-    my_rank = get_rank()
-    write(rank_str, "(I5.5)") my_rank
-    open(unit=unit_no, file=name//"_"//TRIM(rank_str)//".dat", &
-         status="unknown", action="write")
-
-    if(present(halo_depth))then
-       lhalo = halo_depth
-       if(lhalo >= field%internal%xstart .or. &
-            lhalo >= field%internal%ystart)then
-          write (*,*) "field_dump: error: requested halo depth is &
-               & greater than the halo depth of supplied field - not &
-               & writing data"
-          return
-       end if
-    else
-       lhalo = 0
-    end if
-    
-    do jj = field%internal%ystart-lhalo, field%internal%ystop+lhalo, 1
-       do ji = field%internal%xstart-lhalo, field%internal%xstop+lhalo, 1
-    ! Global position of the T point
-    xpos = field%grid%xt(ji,jj)
-    ypos = field%grid%yt(ji,jj)
-    select case(field%grid%offset)
-    case(GO_OFFSET_SW)
-       select case(field%defined_on)
-       case(GO_U_POINTS)
-          xpos = xpos - 0.5*field%grid%dx_u(ji, jj)
-       case(GO_F_POINTS)
-          xpos = xpos - 0.5*field%grid%dx_f(ji, jj)
-          ypos = ypos - 0.5*field%grid%dy_f(ji, jj)
-       case(GO_V_POINTS)
-          ypos = ypos - 0.5*field%grid%dy_v(ji, jj)
-       end select
-    case(GO_OFFSET_NE)
-       select case(field%defined_on)
-       case(GO_U_POINTS)
-          xpos = xpos + 0.5*field%grid%dx_u(ji, jj)
-       case(GO_F_POINTS)
-          xpos = xpos + 0.5*field%grid%dx_f(ji, jj)
-          ypos = ypos + 0.5*field%grid%dy_f(ji, jj)
-       case(GO_V_POINTS)
-          ypos = ypos + 0.5*field%grid%dy_v(ji, jj)
-       end select
-    case default
-       call gocean_stop("dump_field: unsupported grid offset")
-    end select
-
-          write(unit_no,'(3e16.7e3)') xpos, &
-                                      ypos, &
-                                      field%data(ji,jj)
-       end do
-       ! Blank line at end of scan for gnuplot
-       write(unit_no,*)
-    end do
-    close(unit_no)
-       
-  end subroutine dump_field
 end program model

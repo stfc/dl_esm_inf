@@ -1,7 +1,7 @@
 !------------------------------------------------------------------------------
 ! BSD 2-Clause License
 ! 
-! Copyright (c) 2017-2018, Science and Technology Facilities Council
+! Copyright (c) 2017-2019, Science and Technology Facilities Council
 ! All rights reserved.
 ! 
 ! Redistribution and use in source and binary forms, with or without
@@ -456,53 +456,17 @@ contains
     ! Set up a field defined on U points when the grid types have 
     ! a North-East offset relative to the T point.
 
-    ! It is the T points that define the whole domain and we are
-    ! simulating a region within this domain. As a minimum, we will
-    ! require one external T point around the whole perimeter of the
-    ! simulated domain in order to specify boundary conditions. The U
-    ! pts on the boundary will then lie between the last external and
-    ! first internal T points. 
-    ! With a (N)E offset this means:
-
-    ! ji indexing: 
-    ! Lowermost i index of the u points will be the same as the T's.
-    ! i.e. if we start at 1 then T(1,:) are external and u(1,:) are 
-    ! boundary points too.
-    ! However, the U points with ji==nx will lie outside the model
-    ! domain. U points with ji==nx-1 will be the Eastern-most *boundary*
-    ! points.
-    ! jj indexing:
-    ! Lowermost j index of the U points - U pts with jj the same as
-    ! external T points will also be external to domain and therefore
-    ! unused. U points with jj one greater than lowest ext. T pts will
-    ! be *boundary* points. U pts with jj==ny will be boundary points.
-
-    ! When updating a quantity on U points with this offset
-    ! we write to (using 'x' to indicate a location that is written and 
-    ! 'b' a boundary point):
-    !
-    ! i= 1          nx-1  nx
-    !    b   b   b   b    o   ny
-    !    b   x   x   b    o 
-    !    b   x   x   b    o 
-    !    b   x   x   b    o   
-    !    b   b   b   b    o   1
-    !                         j
-
-    ! i.e. fld(2:M,2:N+1) = ...
-
     if(fld%grid%boundary_conditions(1) /= GO_BC_PERIODIC)then
-      ! If we do not have periodic boundary conditions then we do
-      ! not need to allow for boundary points here - they are
-      ! already contained within the region defined by T mask.
-      ! The T mask has been used to determine the grid%subdomain
-      ! which describes the area on the grid that is actually being
-      ! modelled (as opposed to having values supplied from B.C.'s etc.)
+       ! If we do not have periodic boundary conditions then we do
+       ! not need to allow for boundary points here - they are
+       ! already contained within the region defined by T mask.
+       ! The T mask has been used to determine the grid%subdomain
+       ! which describes the area on the grid that is actually being
+       ! modelled (as opposed to having values supplied from B.C.'s etc.)
        fld%internal%xstart = fld%grid%subdomain%internal%xstart
        ! Now that all fields are allocated to be the same size, we always have
        ! as many U-points as T-points
-      !fld%internal%xstop  = fld%grid%subdomain%internal%xstop - 1
-      fld%internal%xstop  = fld%grid%subdomain%internal%xstop
+       fld%internal%xstop  = fld%grid%subdomain%internal%xstop
     else
       call gocean_stop('ERROR: cu_ne_init: implement periodic boundary conditions!')
     end if
@@ -620,8 +584,7 @@ contains
        fld%internal%ystart = fld%grid%subdomain%internal%ystart
        ! Since we allocate all fields with the same extents, we always have
        ! as many V points as T points
-      !fld%internal%ystop  = fld%grid%subdomain%internal%ystop - 1
-      fld%internal%ystop  = fld%grid%subdomain%internal%ystop - 1
+       fld%internal%ystop  = fld%grid%subdomain%internal%ystop
     else
       call gocean_stop('ERROR: cv_ne_init: implement periodic BCs!')
     end if
