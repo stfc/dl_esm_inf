@@ -103,11 +103,11 @@ all: ${API_LIB}
 # archive but take care to exclude clfortran.o (as that only has
 # interface definitions, not implementation).
 ${API_LIB}: fortcl ${MODULES}
-	${AR} ${ARFLAGS} ${API_LIB} ${FORTCL_DIR}/*.o ${MODULES}
+	${AR} ${ARFLAGS} ${API_LIB} *.o
 	${AR} d ${API_LIB} clfortran.o
 
 fortcl:
-	${MAKE} -C ${FORTCL_DIR} F90=${F90} ${FORTCL_TARGET}
+	${MAKE} -f ${FORTCL_DIR}/Makefile F90=${F90} ${FORTCL_TARGET}
 
 install:
 	${MAKE} -C .. install
