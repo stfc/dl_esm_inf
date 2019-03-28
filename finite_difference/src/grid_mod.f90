@@ -113,7 +113,7 @@ module grid_mod
      module procedure grid_constructor
   end interface grid_type
 
-  public grid_init
+  public grid_init, HALO_WIDTH_X, HALO_WIDTH_Y
 
 contains
 

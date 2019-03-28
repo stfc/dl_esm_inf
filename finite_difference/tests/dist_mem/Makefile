@@ -27,7 +27,7 @@
 #------------------------------------------------------------------------------
 # Author: A. R. Porter, STFC Daresbury Laboratory
 
-# Makefile for dist_mem test for the dl_esm_inf finite difference library.
+# Makefile for dist_mem tests for the dl_esm_inf finite difference library.
 #
 # This Makefile picks up the compiler to use plus any associated flags from
 # environment variables. e.g. to use gfortran:
@@ -39,20 +39,24 @@
 #
 all: tests
 
+# Location of the dl_esm_inf library
 INF_DIR=../..
 INF_INC = ${INF_DIR}/src
 INF_LIB = ${INF_DIR}/src/dl_esm_inf_fd.a
 
-# Run tests. 
-# This is a very basic target and assumes that 'mpirun'
-# is available.
-tests: test_xsplit test_ysplit
+# Compile and run tests. This is a very basic target and assumes that
+# OpenMPI's 'mpirun' is available (because of the way we set environment
+# variables).
+tests: test_xsplit test_ysplit test_xysplit
 
 test_xsplit: inf_lib test_halos.exe
 	mpirun -x JPIGLO=10 -x JPJGLO=4 -np 2 ./test_halos.exe
 
 test_ysplit: inf_lib test_halos.exe
 	mpirun -x JPIGLO=4 -x JPJGLO=10 -np 2 ./test_halos.exe
+
+test_xysplit: inf_lib test_halos.exe
+	mpirun -x JPIGLO=10 -x JPJGLO=10 -np 4 ./test_halos.exe
 
 .PHONY: inf_lib
 inf_lib:
