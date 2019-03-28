@@ -9,7 +9,8 @@ module parallel_comms_mod
 
   integer, parameter :: jpk = 1 !< Only 1 vertical level
   logical, parameter :: DEBUG = .true.
-  logical, parameter :: DEBUG_COMMS = .true.
+  !> En/Disable debug output on a per-message basis
+  logical, parameter :: DEBUG_COMMS = .False.
   logical :: lwp !< Whether or not to write out from this rank
 
   ! Set by mapcomms
@@ -116,10 +117,6 @@ module parallel_comms_mod
                          ! 1  2  3  4  5  6  7  8
                          ! W  E  S  N SW NE NW  SE
 
-  ! cyclic_bc     True if a cyclic boundary condition is to be applied
-  !               Set using the value of jperio.
-  LOGICAL :: cyclic_bc
-
   ! Stores whether a domain's boundaries have been trimmed as
   ! trimmed(boundary, PE) where boundary is one of {n,e,s,w}idx
   ! for the Northern, Eastern, Southern or Western boundary, respectively.
@@ -143,7 +140,7 @@ module parallel_comms_mod
   ! Public variables
   PUBLIC :: MaxComm,nsend,nrecv,nxsend,nysend,destination,dirrecv, &
             dirsend,isrcsend,jsrcsend,idesrecv, jdesrecv,          &
-            nxrecv, nyrecv, source, cyclic_bc, idessend, jdessend
+            nxrecv, nyrecv, source, idessend, jdessend
 
   PUBLIC :: nsendp,nsendp2d,nrecvp,nrecvp2d
 
@@ -240,6 +237,7 @@ contains
                           ! in N/S transfers)
     INTEGER :: ielb_iproc, ieub_iproc ! Lower and upper bounds for proc
                                       ! iproc corrected for E & W halos
+    INTEGER :: jelb_iproc, jeub_iproc
     INTEGER :: ielb_no_halo, ieub_no_halo ! Lower and upper bounds for local
                                           ! domain corrected for E & W halos
     INTEGER, DIMENSION(MAX_HALO_DEPTH) :: idesr, jdesr, idess, jdess, &
@@ -252,9 +250,13 @@ contains
     halo_depthx = halo_depths(1)
     halo_depthy = halo_depths(2)
     if(halo_depthx > MAX_HALO_DEPTH .OR. halo_depthy > MAX_HALO_DEPTH)then
-       call parallel_abort("Specified halo depth exceeds MAX_HALO_DEPTH limit in parallel_comms_mod")
+       call parallel_abort("map_comms: specified halo depth exceeds "// &
+                           "MAX_HALO_DEPTH limit in parallel_comms_mod")
     end if
-    cyclic_bc = pbc ! \todo remove need to set this module variable
+    if( pbc )then
+       call parallel_abort("map_comms: periodic-boundary conditions are "// &
+                           "not yet supported")
+    end if
     
     nprocp = get_num_ranks()
     irank = get_rank()
@@ -302,6 +304,8 @@ contains
     nsend = 0
     nrecv = 0
 
+    ! For convenience take copies of the upper and lower bounds of the
+    ! subdomain owned by this process.
     subdomain => decomp%subdomains(irank)
     jelb = subdomain%global%ystart
     jeub = subdomain%global%ystop
@@ -407,8 +411,9 @@ contains
             jsrcs(ihalo) = jsrcs(ihalo) - nadd
             nys(ihalo) = nys(ihalo)+nadd
             if(DEBUG)then
-               IF ( nadd.GT.0 ) THEN
-                  write (*,"(I3,': Adding starting corner to send for halo ',I2,' with ',I3,' points')") irank, ihalo, nadd
+               if ( nadd > 0 ) then
+                  write (*,"(I3,': Adding starting corner to send for halo '" &
+                         //",I2,' with ',I3,' points')") irank, ihalo, nadd
                end if
             end if
             nadd = MIN(ihalo,naddmaxr)
@@ -416,11 +421,12 @@ contains
             jsrcr(ihalo) = jsrcr(ihalo) - nadd
             nyr(ihalo) = nyr(ihalo)+nadd
             if(DEBUG)then
-               IF ( nadd.GT.0 ) THEN
-                  WRITE (*,"(I3,': Adding starting corner to receive for halo ',I2,' with ',I3,' points')") irank,ihalo, nadd
-               ENDIF
+               if ( nadd > 0 ) then
+                  write (*,"(I3,': Adding starting corner to receive for " &
+                         //"halo ',I2,' with ',I3,' points')") irank,ihalo, nadd
+               endif
             end if
-          ENDDO ! Loop over 'overlap' points in i direction
+          enddo ! Loop over 'overlap' points in i direction
 
           ! Examine whether corner points should be added to the end.
 
@@ -450,23 +456,24 @@ contains
           DO ihalo=1,halo_depthx,1
             nadd = MIN(ihalo,naddmaxs)
             nys(ihalo) = nys(ihalo)+nadd
-if(DEBUG)then
-            IF ( nadd.GT.0 ) THEN
-               WRITE (*,"(I3,': Adding starting corner to send for halo ',I2,' with ',I3,' points')") irank,ihalo, nadd
-            ENDIF
-end if
+            if(DEBUG)then
+               IF ( nadd.GT.0 ) THEN
+                  WRITE (*,"(I3,': Adding starting corner to send for halo '," &
+                       //"I2,' with ',I3,' points')") irank,ihalo, nadd
+               ENDIF
+            end if
             nadd = MIN(ihalo,naddmaxr)
             nyr(ihalo) = nyr(ihalo)+nadd
-if(DEBUG)then
-            IF ( nadd.GT.0  ) THEN
-              WRITE (*,"(I3,': Adding starting corner to receive for halo ',I2,' with ',I3,' points')") irank,ihalo, nadd
-            ENDIF
-end if
+            if(DEBUG)then
+               IF ( nadd.GT.0  ) THEN
+                  WRITE (*,"(I3,': Adding starting corner to receive for halo " &
+                       //"',I2,' with ',I3,' points')") irank,ihalo, nadd
+               ENDIF
+            end if
           ENDDO
 
-!         Add a send and a receive to the lists for this section
-!         of border.
-
+          ! Add a send and a receive to the lists for this section
+          ! of border.
           CALL addsend (nsend,Iplus,iproc-1, &
                         isrcs,jsrcs,idess,jdess,   &
                         nxs,nys,tmask,ierr)
@@ -478,36 +485,32 @@ end if
                         isrcr,jsrcr,idesr,jdesr,    &
                         nxr,nyr,tmask,ierr)
           IF ( ierr.NE.0 ) RETURN
-if(DEBUG)then
-          IF ( lwp ) THEN
-            WRITE (*,'(a,7i6)') 'Adding receive ',iproc-1 &
+          if(DEBUG)then
+             IF ( lwp ) THEN
+                WRITE (*,'(a,7i6)') 'Adding receive ',iproc-1 &
                    ,isrcr(1),jsrcr(1),idesr(1),jdesr(1),nxr(1),nyr(1)
-!            WRITE (*,'(21x,6i6)') &
-!                   isrcr(2),jsrcr(2),idesr(2),jdesr(2),nxr(2),nyr(2)
-          ENDIF
-end if
+             ENDIF
+          end if
 
-!         Move the start point to one beyond this strip.
-
+          ! Move the start point to one beyond this strip.
           j1 = j2+1
 
         ELSE
 
-!         No process found, continue searching up the boundary.
-
+           ! No process found, continue searching up the boundary.
           j1 = j1+1
         ENDIF
       ENDDO
 
-!     =================================================================
-!     Looking at the border where we will
-!     send data in the plus I direction (Iminus) and
-!     receive data that has been sent in the minus I direction (Iplus).
-!     =================================================================
+      ! =================================================================
+      ! Looking at the border where we will
+      ! send data in the plus I direction (Iminus) and
+      ! receive data that has been sent in the minus I direction (Iplus).
+      ! =================================================================
 
-!     Start from the lower bound of the sub-domain, and carry on looking
-!     for communications with neighbours until we have reached
-!     the upper bound.
+      ! Start from the lower bound of the sub-domain, and carry on looking
+      ! for communications with neighbours until we have reached
+      ! the upper bound.
 
       j1 = jelb
       DO WHILE (j1.LE.jeub)
@@ -574,19 +577,18 @@ end if
 
              ! Send corner data while we have data to send
              ! and while there is a point that depends on it.
-
-            IF ( j1-ihalo.GE.jelb .AND.  &
+             IF ( j1-ihalo.GE.jelb .AND.  &
                  iprocmap(decomp,ieub+ihalo,j1).GT.0 ) THEN
-              naddmaxs = ihalo
-            ENDIF
+                naddmaxs = ihalo
+             ENDIF
 
-            ! Receive corner data only when we are at the corner
-            ! and while the sending sub-domain is the same as for the edge.
+             ! Receive corner data only when we are at the corner
+             ! and while the sending sub-domain is the same as for the edge.
 
-            IF ( j1.EQ.jelb .AND.  &
+             IF ( j1.EQ.jelb .AND.  &
                  iprocmap(decomp,ieub+ihalo,j1-ihalo).EQ.iproc ) THEN
-              naddmaxr = ihalo
-            ENDIF
+                naddmaxr = ihalo
+             ENDIF
           ENDDO
 
           ! Add the extra points.
@@ -646,8 +648,8 @@ end if
 
           ! Add a send and a receive to the lists for this section
           ! of border.
-          CALL addsend (nsend,Iminus,iproc-1,     &
-                        isrcs,jsrcs,idess,jdess,nxs,nys,&
+          CALL addsend (nsend,Iminus,iproc-1,            &
+                        isrcs,jsrcs,idess,jdess,nxs,nys, &
                         tmask,ierr)
           IF ( ierr.NE.0 ) RETURN
 
@@ -675,14 +677,6 @@ end if
       ! halos if we have cyclic b.c.'s
       ielb_no_halo = ielb
       ieub_no_halo = ieub
-      IF(cyclic_bc)THEN
-         ! West
-         IF((.NOT. trimmed(widx,irank)) .AND. &
-                   pilbext(irank)) ielb_no_halo = ielb_no_halo + halo_depthx
-         ! East
-         IF((.NOT. trimmed(eidx,irank)) .AND. &
-                   piubext(irank)) ieub_no_halo = ieub_no_halo - halo_depthx
-      END IF
 
       ! Start from the lower bound of the sub-domain (in global coords), 
       ! and carry on looking
@@ -704,10 +698,6 @@ end if
             ! Ensure we don't include halos from the global domain borders if
             ! we have cyclic bc's.
             ieub_iproc = decomp%subdomains(iproc)%global%xstop
-            IF(cyclic_bc)THEN
-               IF( (.NOT. trimmed(eidx,iproc)) .AND. &
-                    piubext(iproc)) ieub_iproc = decomp%subdomains(iproc)%global%xstop-halo_depthx
-            END IF
 
             ! Find where in the i direction the common border between these
             ! sub-domains ends (in the global domain).
@@ -753,14 +743,12 @@ end if
             jdess(:) = decomp%subdomains(iproc)%internal%ystop + 1
 
             ! Examine whether corner points should be added to the START.
-
             naddmaxr = 0
             naddmaxs = 0
             DO ihalo=1,halo_depthy,1
 
                ! Send corner data while we have data to send
                ! and while there is a point that depends on it.
-
                IF ( i1-ihalo.GE.imin .AND.  &
                     iprocmap(decomp,i1-ihalo,jelb-ihalo).GT.0 ) THEN
                   naddmaxs = ihalo
@@ -768,40 +756,39 @@ end if
 
                ! Receive corner data only when we are at the corner and
                ! while the sending sub-domain is the same as for the edge.
-
-            IF ( i1.EQ.imin .AND. &
-                 iprocmap(decomp,i1-ihalo,jelb-ihalo).EQ.iproc ) THEN
-              naddmaxr = ihalo
-            ENDIF
-          ENDDO
-
-          ! Add the extra points.
-
-          DO ihalo=1,halo_depthy,1
-            nadd = MIN(ihalo,naddmaxs)
-            idess(ihalo) = idess(ihalo)-nadd
-            isrcs(ihalo) = isrcs(ihalo)-nadd
-            nxs(ihalo) = nxs(ihalo)+nadd
-            if(DEBUG)then
-               IF ( nadd.GT.0 ) THEN
-                  WRITE (*,"(I3,': Adding starting corner to send for &
-                       & halo ',I2,' with ',I3,' points')") irank-1,ihalo, nadd
+               IF ( i1.EQ.imin .AND. &
+                    iprocmap(decomp,i1-ihalo,jelb-ihalo).EQ.iproc ) THEN
+                  naddmaxr = ihalo
                ENDIF
-            end if
-            nadd = MIN(ihalo,naddmaxr)
-            idesr(ihalo) = idesr(ihalo)-nadd
-            isrcr(ihalo) = isrcr(ihalo)-nadd
-            nxr(ihalo) = nxr(ihalo)+nadd
+            ENDDO
 
-            if(DEBUG)then
-               IF ( nadd.GT.0 ) THEN
-                  WRITE (*,"(I3,': Adding starting corner to receive for &
+            ! Add the extra points.
+
+            DO ihalo=1,halo_depthy,1
+               nadd = MIN(ihalo,naddmaxs)
+               idess(ihalo) = idess(ihalo)-nadd
+               isrcs(ihalo) = isrcs(ihalo)-nadd
+               nxs(ihalo) = nxs(ihalo)+nadd
+               if(DEBUG)then
+                  IF ( nadd.GT.0 ) THEN
+                     WRITE (*,"(I3,': Adding starting corner to send for &
                        & halo ',I2,' with ',I3,' points')") irank-1,ihalo, nadd
-               ENDIF
-            end if
-          ENDDO
+                  ENDIF
+               end if
+               nadd = MIN(ihalo,naddmaxr)
+               idesr(ihalo) = idesr(ihalo)-nadd
+               isrcr(ihalo) = isrcr(ihalo)-nadd
+               nxr(ihalo) = nxr(ihalo)+nadd
 
-          ! Examine whether corner points should be added to the END.
+               if(DEBUG)then
+                  IF ( nadd.GT.0 ) THEN
+                     WRITE (*,"(I3,': Adding starting corner to receive for &
+                       & halo ',I2,' with ',I3,' points')") irank-1,ihalo, nadd
+                  ENDIF
+               end if
+            ENDDO
+
+            ! Examine whether corner points should be added to the END.
 
           naddmaxr = 0
           naddmaxs = 0
@@ -889,39 +876,34 @@ end if
 
          iproc = iprocmap(decomp,i1,jeub+1)
          IF ( iproc.GT.0 ) THEN
-           ! Ensure we don't include halos from the global borders if we
-           ! have cyclic b.c.'s
            ielb_iproc = decomp%subdomains(iproc)%global%xstart
            ieub_iproc = decomp%subdomains(iproc)%global%xstop
-           if(cyclic_bc)THEN
-!              IF(pilbext(iproc))ielb_iproc = pielb(iproc)+halo_depthx
-               IF((.NOT. trimmed(eidx,iproc)) .AND. &
-                            piubext(iproc))ieub_iproc = decomp%subdomains(iproc)%global%xstop-halo_depthx
-            END IF
 
-            ! Find where in the i direction the common border between these
-            ! sub-domains ends (in the global domain).
-            i2 = MIN(imax, ieub_iproc)
+           ! Find where in the i direction the common border between these
+           ! sub-domains ends (in the global domain).
+           i2 = MIN(imax, ieub_iproc)
 
-            if(DEBUG)then
-               WRITE (*,FMT="(I3,': ARPDBG strip for plus J is ',I3,',',I3)") &
+           if(DEBUG)then
+              WRITE (*,FMT="(I3,': ARPDBG strip for plus J is ',I3,',',I3)") &
                  irank-1,i1,i2
-            end if
+           end if
 
-            ! Construct the rest of the data describing the zone,
-            ! convert to local indexes and extend to multiple halo widths.
-            isrcs(:) = i1 - subdomain%global%xstart + subdomain%internal%xstart
-            idess(:) = i1 - decomp%subdomains(iproc)%global%xstart + decomp%subdomains(iproc)%internal%xstart
-            idesr(:) = isrcs(:)
-            isrcr(:) = idess(:)
-            nxr(:) = i2-i1+1
-            nxs(:) = nxr(:)
+           ! Construct the rest of the data describing the zone,
+           ! convert to local indexes and extend to multiple halo widths.
+           isrcs(:) = i1 - subdomain%global%xstart + subdomain%internal%xstart
+           idess(:) = i1 - decomp%subdomains(iproc)%global%xstart + &
+                decomp%subdomains(iproc)%internal%xstart
+           idesr(:) = isrcs(:)
+           isrcr(:) = idess(:)
+           nxr(:) = i2-i1+1
+           nxs(:) = nxr(:)
 
             ! Source for a receive must be within an internal region
             jsrcr(:) = decomp%subdomains(iproc)%internal%ystart
 
             DO ihalo=1,halo_depthy,1
-               jsrcs(ihalo) = subdomain%internal%ystop-ihalo+1 ! innermost row -> outermost halo
+               ! innermost row -> outermost halo
+               jsrcs(ihalo) = subdomain%internal%ystop-ihalo+1
                jdess(ihalo) = ihalo        ! Halo runs from 1..halo_depthy
                nyr(ihalo)   = ihalo
                nys(ihalo)   = ihalo
@@ -959,8 +941,8 @@ end if
             nxs(ihalo) = nxs(ihalo)+nadd
             if(DEBUG)then
                IF ( nadd.GT.0 ) THEN
-                  WRITE (*,"(I3,': Adding starting corner to send for halo ',I2, &
-                    & ' with ',I3,' points')") irank-1,ihalo, nadd
+                  WRITE (*,"(I3,': Adding starting corner to send for halo '," &
+                  //"I2,' with ',I3,' points')") irank-1,ihalo, nadd
                ENDIF
             end if
             nadd = MIN(ihalo,naddmaxr)
@@ -970,7 +952,8 @@ end if
 
             if(DEBUG)then
                IF ( nadd.GT.0 ) THEN
-                  WRITE (*,"(I3,': Adding starting corner to receive for halo ',I2,' with ',I3,' points')") irank-1,ihalo, nadd
+                  WRITE (*,"(I3,': Adding starting corner to receive for " &
+                       //"halo ',I2,' with ',I3,' points')") irank-1,ihalo, nadd
                ENDIF
             end if
           ENDDO
@@ -1058,38 +1041,12 @@ end if
 
         ! ioutside is to be x-coord just OUTSIDE our domain
         ! iinside is to be x-coord just WITHIN our domain
-        ! All the following complexity is to allow for fact that the first 
-        ! and last columns of the global domain are actually halos when
-        ! we have cyclic E/W boundary conditions.
-        IF( (iubext .OR. ilbext) .AND. cyclic_bc) THEN
-           ioutside = ielb
-           iinside = ielb
-           IF(ilbext .AND. (.NOT. trimmed(widx,irank)) )THEN
-              ! If on W boundary with cyclic bc's, ielb _is_ the halo column
-              ! so add 1 to move inside domain
-              iinside = iinside+west(idirn)
-           ELSE
-              ioutside = ioutside-west(idirn)
-           END IF
-           IF(iubext .AND. (.NOT. trimmed(eidx,irank)) )THEN
-              ! If upper bound is on domain boundary then iesub already
-              ! includes the halo column
-              ioutside = ioutside+east(idirn)*(iesub-1)
-              iinside = iinside+east(idirn)*(iesub-2)
-           ELSE
-              ioutside = ioutside+east(idirn)*iesub
-              iinside = iinside+east(idirn)*(iesub-1)
-           END IF
+        ioutside = west(idirn)*(subdomain%global%xstart-1) + &
+             east(idirn)*(subdomain%global%xstop+1)
+        iinside = west(idirn)*subdomain%global%xstart + &
+             east(idirn)*subdomain%global%xstop
 
-        ELSE
-           ! No cyclic BCs and not on East/West global boundary
-           ioutside = west(idirn)*(subdomain%global%xstart-1) + &
-                      east(idirn)*(subdomain%global%xstop+1)
-           iinside = west(idirn)*subdomain%global%xstart + &
-                     east(idirn)*subdomain%global%xstop
-        END IF
-
-        ! For a NW corner:
+        ! For e.g. a NW corner:
         !               | 
         !       iproc   |  iprocy
         !       ________|______
@@ -1103,11 +1060,6 @@ end if
         ! x coord just INSIDE our domain but y OUTSIDE
         iprocy = iprocmap(decomp,iinside, &
              south(idirn)*(jelb-1)+north(idirn)*(jeub+1))
-
-        if(DEBUG)then
-           WRITE(*,FMT="(I3,': ARPDBG corner: idirn, ioutside, iinside, iprocx, iprocy = ',5I4)") &
-             irank-1, idirn,ioutside,iinside,iprocx,iprocy
-        end if
 
         ! Loop over all required halo widths
 
@@ -1126,16 +1078,10 @@ end if
           IF ( iproc.GT.0 .AND. iprocx.GT.0 .AND. iprocy.GT.0 .AND. &
                iproc.NE.iprocx .AND. iproc.NE.iprocy ) THEN
 
-             ! Ensure we don't include halos from the global borders if we
-             ! have cyclic E/W boundaries.
              ielb_iproc = decomp%subdomains(iproc)%global%xstart
              ieub_iproc = decomp%subdomains(iproc)%global%xstop
-             IF( cyclic_bc )THEN
-                IF(pilbext(iproc))ielb_iproc = &
-                     decomp%subdomains(iproc)%global%xstart+ihalo
-                IF(piubext(iproc))ieub_iproc = &
-                     decomp%subdomains(iproc)%global%xstop-ihalo
-             END IF
+             jelb_iproc = decomp%subdomains(iproc)%global%ystart
+             jeub_iproc = decomp%subdomains(iproc)%global%ystop
 
              if(DEBUG)then
                 write(*, &
@@ -1146,17 +1092,9 @@ end if
              ! If the furthest corner point needs a communication,
              ! we will need them all.
              if (ihalo .EQ. halo_depthx) then
-               ! Ensure we don't include halos from the global borders if we
-               ! have cyclic E/W boundaries.
                ielb_iproc = decomp%subdomains(iproc)%global%xstart
                ieub_iproc = decomp%subdomains(iproc)%global%xstop
 
-               IF( cyclic_bc )THEN
-                  IF(pilbext(iproc))ielb_iproc = &
-                       decomp%subdomains(iproc)%global%xstart+halo_depthx
-                  IF(piubext(iproc))ieub_iproc = &
-                       decomp%subdomains(iproc)%global%xstop-halo_depthx
-               END IF
                ! Set the flag to add everything to the communications list.
                addcorner = .TRUE.
              ENDIF
@@ -1169,23 +1107,10 @@ end if
              ldiff0 = ielb_iproc - ieub_no_halo
              ldiff1 = ielb_no_halo - ieub_iproc
 
-             ! Allow for wrap-around if necessary
-             IF(cyclic_bc)THEN
-                IF(ldiff0 < 1)THEN
-                  !ARPDBG -2 for consistency with procmap
-                  ldiff0 = ldiff0 + (decomp%global_nx - 2)
-               END IF
-               IF(ldiff1 < 1)THEN
-                  !ARPDBG -2 for consistency with procmap
-                  ldiff1 = ldiff1 + (decomp%global_nx - 2)
-               END IF
-             END IF
              nxs(ihalo) = ihalo -  east(idirn)*(ldiff0-1) &
                                 -  west(idirn)*(ldiff1-1)
-             ! Have no cyclic b.c.'s in N/S direction so probably don't need
-             ! the following checks on ldiff{0,1}
-             ldiff0 = decomp%subdomains(iproc)%global%xstart - jeub
-             ldiff1 = jelb - decomp%subdomains(iproc)%global%ystop
+             ldiff0 = jelb_iproc - jeub
+             ldiff1 = jelb - jeub_iproc
              nys(ihalo) = ihalo - north(idirn)*(ldiff0-1) &
                                 - south(idirn)*(ldiff1-1)
 
@@ -1195,17 +1120,6 @@ end if
                   west(idirn)*(subdomain%internal%xstart + ihalo - 1)
              jsrcs(ihalo) = north(idirn)*(subdomain%internal%ystop - ihalo + 1) + &
                   south(idirn)*(subdomain%internal%ystart + ihalo - 1)
-             IF( cyclic_bc )THEN
-                IF( ilbext )THEN
-                   ! nldi is still within halo for domains on W edge of
-                   ! global domain
-                   isrcs(ihalo) = isrcs(ihalo) + west(idirn)
-                ELSE IF( iubext )THEN
-                   ! Final column is actually halo for domains on E edge of
-                   ! global domain
-                   isrcs(ihalo) = isrcs(ihalo) - east(idirn)
-                END IF
-             END IF
 
              ! Destination for a send must be within a halo region on the
              ! REMOTE domain
@@ -1222,27 +1136,6 @@ end if
              isrcr(ihalo) = west(idirn)* &
                  (decomp%subdomains(iproc)%internal%xstop - ihalo + 1) + &
                  east(idirn)*(decomp%subdomains(iproc)%internal%xstart + ihalo -1)
-             IF( cyclic_bc )THEN
-
-               ! This _could_ be a corner exchange wrapped around by the cyclic
-               ! boundary conditions:
-               !
-               !  ||------|                      ||
-               !  ||      |           |          ||
-               !  ||a_____|__ _ _     |          ||
-               !  ||                  -----------||
-               !  ||                    |       a||
-               !  ||                    |________||
-               IF(pilbext(iproc))THEN
-                  ! nldi is still within halo for domains on E edge of
-                  ! global domain
-                  isrcr(ihalo) = isrcr(ihalo) + east(idirn)
-               ELSE IF(piubext(iproc))THEN
-                  ! Final column is actually halo for domains on W edge of
-                  ! global domain
-                  isrcr(ihalo) = isrcr(ihalo) - west(idirn)
-               END IF
-             END IF
              jsrcr(ihalo) = south(idirn)* &
                   (decomp%subdomains(iproc)%internal%ystop - ihalo + 1) + &
                   north(idirn)*(decomp%subdomains(iproc)%internal%ystart + ihalo - 1)
@@ -1487,19 +1380,19 @@ end if
     nrecvp(icomm, 1) = nzrecv(icomm) * nrecvp2d(icomm, 1)
     
     if(DEBUG)then
-       WRITE (*,FMT="(I3,': ARPDBG adding RECV:')") irank-1
-       WRITE (*,FMT="(I3,': ARPDBG: icomm = ',I2)") irank-1,icomm
-       WRITE (*,FMT="(I3,': ARPDBG:   dir = ',I2)") irank-1,dir
-       WRITE (*,FMT="(I3,': ARPDBG:  proc = ',I4)") irank-1,proc
-       WRITE (*,FMT="(I3,': ARPDBG:  isrc = ',I4)") irank-1,isrcrecv(icomm)
-       WRITE (*,FMT="(I3,': ARPDBG:  jsrc = ',I4)") irank-1,jsrcrecv(icomm)
-       WRITE (*,FMT="(I3,': ARPDBG:  ides = ',I4)") irank-1,idesrecv(icomm)
-       WRITE (*,FMT="(I3,': ARPDBG:  jdes = ',I4)") irank-1,jdesrecv(icomm)
-       WRITE (*,FMT="(I3,': ARPDBG:    nx = ',I4)") irank-1,nxrecv(icomm)
-       WRITE (*,FMT="(I3,': ARPDBG:    ny = ',I4)") irank-1,nyrecv(icomm)
-       WRITE (*,FMT="(I3,': ARPDBG:nrecvp = ',I4)") irank-1,nrecvp(icomm,1)
-       WRITE (*,FMT="(I3,': ARPDBG:nrecvp2d = ',I4)") irank-1,nrecvp2d(icomm,1)
-       WRITE (*,FMT="(I3,': ARPDBG RECV ends')")    irank-1
+       WRITE (*,FMT="(I4,': ARPDBG adding RECV:')") irank-1
+       WRITE (*,FMT="(I4,': ARPDBG: icomm = ',I2)") irank-1,icomm
+       WRITE (*,FMT="(I4,': ARPDBG:   dir = ',I2)") irank-1,dir
+       WRITE (*,FMT="(I4,': ARPDBG:  proc = ',I4)") irank-1,proc
+       WRITE (*,FMT="(I4,': ARPDBG:  isrc = ',I4)") irank-1,isrcrecv(icomm)
+       WRITE (*,FMT="(I4,': ARPDBG:  jsrc = ',I4)") irank-1,jsrcrecv(icomm)
+       WRITE (*,FMT="(I4,': ARPDBG:  ides = ',I4)") irank-1,idesrecv(icomm)
+       WRITE (*,FMT="(I4,': ARPDBG:  jdes = ',I4)") irank-1,jdesrecv(icomm)
+       WRITE (*,FMT="(I4,': ARPDBG:    nx = ',I4)") irank-1,nxrecv(icomm)
+       WRITE (*,FMT="(I4,': ARPDBG:    ny = ',I4)") irank-1,nyrecv(icomm)
+       WRITE (*,FMT="(I4,': ARPDBG:nrecvp = ',I4)") irank-1,nrecvp(icomm,1)
+       WRITE (*,FMT="(I4,': ARPDBG:nrecvp2d = ',I4)") irank-1,nrecvp2d(icomm,1)
+       WRITE (*,FMT="(I4,': ARPDBG RECV ends')")    irank-1
     end if
 
     if(nxrecv(icomm) < 1)then
@@ -1532,33 +1425,17 @@ end if
     !> Global x, y grid indices of the point to search for
     integer,                  intent(in) :: ia, ja
     ! Local variables.
-    integer :: iproc, i, j, iwidth, nprocp
+    integer :: iproc, iwidth, nprocp
 
     nprocp = get_num_ranks()
     iprocmap = 0
 
-    ! Make sure we don't change variable values in calling
-    ! routine...
-    i = ia
-    j = ja
-    IF(cyclic_bc)THEN
-       ! Allow for fact that first and last columns in global domain
-       ! are actually halos
-       iwidth = decomp%global_nx - 2*halo_depthx
-       IF(i >= decomp%global_nx) i = ia - iwidth
-       IF(i <= 1     ) i = ia + iwidth
-       ! No cyclic BCs in North/South direction
-       !IF(j > jpjglo) j = ja - jpjglo
-       !IF(j < 1     ) j = ja + jpjglo
-    END IF
-
     ! Search the processes for the one owning point (i,j).
-
     DO iproc=1,nprocp
-       IF (decomp%subdomains(iproc)%global%xstart.LE.i .AND. &
-            i.LE.decomp%subdomains(iproc)%global%xstop .AND.  &
-            decomp%subdomains(iproc)%global%ystart.LE.j .AND. &
-            j.LE.decomp%subdomains(iproc)%global%ystop) THEN
+       IF (decomp%subdomains(iproc)%global%xstart.LE.ia .AND. &
+            ia.LE.decomp%subdomains(iproc)%global%xstop .AND.  &
+            decomp%subdomains(iproc)%global%ystart.LE.ja .AND. &
+            ja.LE.decomp%subdomains(iproc)%global%ystop) THEN
           iprocmap = iproc
           EXIT
        END IF
@@ -1660,7 +1537,6 @@ end if
        IF ( current_tag.GE.(max_tag-MaxCommDir) ) THEN
 
           ! Wrap around.
-
           current_tag = min_tag
           n_tag_cycles = n_tag_cycles+1
        ELSE
@@ -1669,13 +1545,6 @@ end if
        max_tag_used = MAX(max_tag_used,current_tag)
        exch_tag(h) = current_tag
 
-       !if (  DEBUG .or. DEBUG_COMMS)then
-       !   IF ( lwp ) THEN
-       !      WRITE (*,'(1x,a,i6,a,i8,a,i3,a,i3,a)')  &
-       !        'Process ',get_rank(),' exch tag ',exch_tag(h) &
-       !        ,' assigned flags ',h,' (',COUNT(exch_busy),' busy)'
-       !   ENDIF
-       !endif
     ENDIF
 
     get_exch_handle = h
