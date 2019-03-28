@@ -80,7 +80,7 @@ program model
   call grid_init(model_grid, decomp, dx, dy, tmask)
 
   !> \TODO put these inside library initialisation
-  call map_comms(decomp, tmask, .false., ierr)
+  call map_comms(decomp, tmask, .false., (/1,1/), ierr)
   
   !> Create a field on U-points of the grid
   u_field = r2d_field(model_grid, GO_U_POINTS)

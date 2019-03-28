@@ -1566,12 +1566,6 @@ contains
     
     IF ( h.GT.0 .AND. h.LE.max_flags ) THEN
        exch_busy(h) = .FALSE.
-       !if( DEBUG .or. DEBUG_COMMS)then
-       !   IF ( lwp ) THEN
-       !      WRITE (*,'(1x,a,i6,a,i8,a,i3)') 'Process ',get_rank(), &
-       !           ' exch tag ',exch_tag(h), ' freed    flags ',h
-       !   endif
-       !endif
     ELSE
        WRITE (*,*) 'free_exch_handle: invalid handle ',h
     ENDIF
@@ -1725,7 +1719,8 @@ contains
           ENDIF
 
           if(DEBUG_COMMS)then
-             WRITE (*,FMT="(I4,': exchs post recv : hand = ',I2,' dirn = ',I1,' src = ',I3,' tag = ',I4,' npoints = ',I6)") &
+             WRITE (*,FMT="(I4,': exchs post recv : hand = ',I2,' dirn = '," &
+             //"I1,' src = ',I3,' tag = ',I4,' npoints = ',I6)") &
                   get_rank(),handle,dirrecv(irecv), &
                   source(irecv), tag, nrecvp(irecv,1)
           endif
@@ -1766,11 +1761,15 @@ contains
 
           if( DEBUG_COMMS)then
              IF(PRESENT(b3))THEN
-                WRITE (*,FMT="(I4,': handle ',I4,' tag ',I4,' sending to ',I4,' data ',I4,' direction ',I3)") &  
-               get_rank(), handle, tag, destination(isend),nsendp(isend,1),dirsend(isend)
+                WRITE (*,FMT="(I4,': handle ',I4,' tag ',I4,' sending to '," &
+                     //"I4,' data ',I4,' direction ',I3)")                   &  
+                     get_rank(), handle, tag, destination(isend),            &
+                     nsendp(isend,1),dirsend(isend)
              ELSE IF(PRESENT(b2))THEN
-                WRITE (*,FMT="(I4,': handle ',I4,' tag ',I4,' sending to ',I4,' data ',I4,' direction ',I3)") &  
-               get_rank(), handle, tag, destination(isend),nsendp2d(isend,1),dirsend(isend)
+                WRITE (*,FMT="(I4,': handle ',I4,' tag ',I4,' sending to '," &
+                     //"I4,' data ',I4,' direction ',I3)")                   &  
+                     get_rank(), handle, tag, destination(isend),            &
+                     nsendp2d(isend,1),dirsend(isend)
              END IF
           endif
 
@@ -1785,18 +1784,24 @@ contains
              iend = istart+nxsend(isend)-1
              jstart = jsrcsend(isend)
              jend = jstart+nysend(isend)-1
-             
-             write(*,"(I3,': packing from:',I3,':',I3,',',I3,':',I3)") &
-                  get_rank(),istart,iend,jstart,jend
 
+             if(DEBUG_COMMS)then
+                write(*,"(I3,': packing from:',I3,':',I3,',',I3,':',I3)") &
+                  get_rank(),istart,iend,jstart,jend
+             end if
+             
              DO j=jstart, jend, 1
                 DO i=istart, iend, 1
                    ic = ic + 1
                    sendBuff(ic,isend) = b2(i,j)
                 END DO
              END DO
-             write(*,"(I3,': packed: ',6E15.4)") get_rank(), &
-                                                 sendBuff(1:min(ic,6),isend)
+
+             if(DEBUG_COMMS)then
+                write(*,"(I3,': packed: ',6E15.4)") get_rank(), &
+                     sendBuff(1:min(ic,6),isend)
+             end if
+             
 !             CALL timing_stop('2dr_pack')
 
              CALL MPI_Isend(sendBuff(1,isend),ic,MPI_DOUBLE_PRECISION, &
@@ -1857,12 +1862,6 @@ contains
                             MPI_DOUBLE_PRECISION,                  &
                             destination(isend), tag, mpi_comm_world, &
                             exch_flags(handle,isend,indexs),ierr)
-
-!!$if defined DEBUG_COMMS
-!!$             WRITE (*,FMT="(I4,': Isend of ',I3,' patches, ',I6,' points, to ',I3)") &
-!!$                     narea-1, npatchsend(isend,1),ic, &
-!!$                     destination(isend)
-!!$endif
 
            ELSEIF ( PRESENT(ib3) ) THEN
 
@@ -1943,62 +1942,59 @@ contains
              istart = idesrecv(irecv)
              iend   = istart+nxrecv(irecv)-1
 
-             write(*,"(I3,': unpacking to:',I3,':',I3,',',I3,':',I3)") &
-                  get_rank(), istart, iend, jstart, jend
+             if(DEBUG_COMMS)then
+                write(*,"(I3,': unpacking to:',I3,':',I3,',',I3,':',I3)") &
+                     get_rank(), istart, iend, jstart, jend
+             end if
+             
              DO j=jstart, jend, 1
                 DO i=istart, iend, 1
                    ic = ic + 1
                    b2(i,j) = recvBuff(ic,irecv)
                 END DO
              END DO
-             write(*,"(I3,': unpacked: ',6E15.4)") get_rank(), &
-                                                   recvBuff(1:min(6,ic),irecv)
 
+             if(DEBUG_COMMS)then
+                write(*,"(I3,': unpacked: ',6E15.4)") get_rank(), &
+                                                   recvBuff(1:min(6,ic),irecv)
+             end if
+             
              ! CALL timing_stop('2dr_unpack')
 
           ELSE IF ( PRESENT(ib2) ) THEN
 
              ! Copy received data back into array
              ic = 0
-                jstart = jdesrecv(irecv)
-                jend   = jstart+nyrecv(irecv)-1
-                istart = idesrecv(irecv)
-                iend   = istart+nxrecv(irecv)-1
+             jstart = jdesrecv(irecv)
+             jend   = jstart+nyrecv(irecv)-1
+             istart = idesrecv(irecv)
+             iend   = istart+nxrecv(irecv)-1
+             DO j=jstart, jend, 1
+                DO i=istart, iend, 1
+                   ic = ic + 1
+                   ib2(i,j) = recvIBuff(ic,irecv)
+                END DO
+             END DO
+
+          ELSE IF (PRESENT(b3) ) THEN
+
+             ! CALL timing_start('3dr_unpack')
+             ic = 0
+
+             jstart = jdesrecv(irecv)
+             jend   = jstart+nyrecv(irecv)-1
+             istart = idesrecv(irecv)
+             iend   = istart+nxrecv(irecv)-1
+
+             DO k=1,nzrecv(irecv),1
                 DO j=jstart, jend, 1
                    DO i=istart, iend, 1
                       ic = ic + 1
-                      ib2(i,j) = recvIBuff(ic,irecv)
+                      b3(i,j,k) = recvBuff(ic,irecv)
                    END DO
                 END DO
-
-           ELSE IF (PRESENT(b3) ) THEN
-
-              ! CALL timing_start('3dr_unpack')
-             ic = 0
-
-                jstart = jdesrecv(irecv)
-                jend   = jstart+nyrecv(irecv)-1
-                istart = idesrecv(irecv)
-                iend   = istart+nxrecv(irecv)-1
-
-                DO k=1,nzrecv(irecv),1
-                   DO j=jstart, jend, 1
-                      DO i=istart, iend, 1
-                         ic = ic + 1
-                         b3(i,j,k) = recvBuff(ic,irecv)
-                      END DO
-                   END DO
-                END DO
-
-                ! ARPDBG - wipe anything below the ocean bottom
-!!$                DO k=nzrecvp(ipatch,irecv,1)+1,jpk,1
-!!$                   DO j=jstart, jend, 1
-!!$                      DO i=istart, iend, 1
-!!$                         b3(i,j,k) = 0.0_go_wp
-!!$                      END DO
-!!$                   END DO
-!!$                END DO
-
+             END DO
+             
 !             CALL timing_stop('3dr_unpack')
 
           ELSEIF ( PRESENT(ib3) ) THEN
