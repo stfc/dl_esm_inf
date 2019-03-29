@@ -42,7 +42,7 @@ all: tests
 # Location of the dl_esm_inf library
 INF_DIR=../..
 INF_INC = ${INF_DIR}/src
-INF_LIB = ${INF_DIR}/src/dl_esm_inf_fd.a
+INF_LIB = ${INF_DIR}/src/lib_fd.a
 
 # Compile and run tests. This is a very basic target and assumes that
 # OpenMPI's 'mpirun' is available (because of the way we set environment

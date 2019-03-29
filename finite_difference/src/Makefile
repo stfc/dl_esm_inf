@@ -108,15 +108,6 @@ ${API_LIB}: fortcl ${MODULES}
 	${AR} ${ARFLAGS} ${API_LIB} *.o
 	${AR} d ${API_LIB} clfortran.o
 
-<<<<<<< HEAD
-.PHONY: parallel
-parallel:
-	ln -sf parallel/parallel_utils_mod.f90 .
-
-.PHONY: fake_parallel
-fake_parallel:
-	ln -sf parallel/parallel_utils_stub_mod.f90 parallel_utils_mod.f90
-=======
 fortcl:
 	${MAKE} -f ${FORTCL_DIR}/Makefile F90=${F90} ${FORTCL_TARGET}
 
@@ -126,7 +117,6 @@ install:
 clean:
 	${MAKE} -C ${FORTCL_DIR} clean
 	rm -f *.o *.mod *.a
->>>>>>> master
 
 distclean: clean
 	${MAKE} -C ${FORTCL_DIR} allclean
@@ -134,36 +124,23 @@ distclean: clean
 # Inter-module dependencies, alphabetical order
 argument_mod.o: global_parameters_mod.o
 
+decomposition_mod.o: region_mod.o
+
 field_mod.o: kind_params_mod.o tile_mod.o grid_mod.o \
              halo_mod.o region_mod.o gocean_mod.o
 
-gocean_mod.o: $(PARALLEL_MOD).o
+gocean_mod.o: parallel_mod.o
 
-grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o $(PARALLEL_MOD).o \
+grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o parallel_mod.o \
 			subdomain_mod.o
 
 halo_mod.o: region_mod.o
 
-<<<<<<< HEAD
-parallel_comms_mod.o: parallel_utils_mod.o decomposition_mod.o
-parallel_mod.o: parallel_comms_mod.o parallel_utils_mod.o
-
-tile_mod.o: region_mod.o
-
-subdomain_mod.o: decomposition_mod.o
-
-decomposition_mod.o: region_mod.o
-
-%.o: %.[Ff]90
-	$(F90) $(F90FLAGS) -c $<
-
-clean:
-	rm -f parallel_utils_mod.f90
-	rm -f *.o *.mod *.a
-=======
 kernel_mod.o: argument_mod.o
 
-$(PARALLEL_MOD).o: parallel_common_mod.o
+parallel_mod.o: parallel_comms_mod.o
+
+parallel_comms_mod.o: $(PARALLEL_MOD).o
 
 tile_mod.o: region_mod.o
 
@@ -174,4 +151,3 @@ subdomain_mod.o: $(PARALLEL_MOD).o region_mod.o
 
 $(PARALLEL_MOD).o:	$(ROOT)/parallel/$(PARALLEL_MOD).f90
 	$(F90) $(F90FLAGS) -c $< -o $@
->>>>>>> master
