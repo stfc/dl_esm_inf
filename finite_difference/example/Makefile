@@ -57,16 +57,21 @@ serial-model: inf_lib_serial model.exe
 # This is a very basic target and assumes that valgrind and 'mpirun'
 # are available.
 # TODO use a proper testing framework!
-test:
+test: serial-test
+
+serial-test: serial-model
+	${MAKE} clean
 	${MAKE} serial-model
 	valgrind ./model.exe
+
+parallel-test: model
 	${MAKE} clean
 	${MAKE} model
 	mpirun -np 2 valgrind ./model.exe
 
 INF_DIR=..
 INF_INC = ${INF_DIR}/src
-INF_LIB = ${INF_DIR}/src/dl_esm_inf_fd.a
+INF_LIB = ${INF_DIR}/src/lib_fd.a
 
 .PHONY: inf_lib
 inf_lib:
@@ -77,7 +82,7 @@ inf_lib_serial:
 	${MAKE} -C ${INF_DIR} F90=${F90} fd_lib
 
 # Normal targets
-model.exe: inf_lib model.o
+model.exe: model.o
 	${F90} -o $@ ${LDFLAGS} model.o ${INF_LIB}
 
 %.o: %.f90
