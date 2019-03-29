@@ -72,7 +72,8 @@ program model
   if(ierr /= 0)then
      call gocean_stop('Failed to allocate T-mask')
   end if
-  ! To keep things simple we set all points to be wet and within the domain
+  ! To keep things simple for this example we set all points to be wet
+  ! and within the domain
   tmask = 1
 
   !> Complete the initialisation of the grid using the T-mask and
@@ -93,13 +94,9 @@ program model
   call init_field_by_rank(t_field)
   call init_field_by_rank(f_field)
 
-  write(*,"(I3,' Halo exchange for u:')") my_rank
   call u_field%halo_exch(1)
-  write(*,"(I3,' Halo exchange for v:')") my_rank
   call v_field%halo_exch(1)
-  write(*,"(I3,' Halo exchange for t:')") my_rank
   call t_field%halo_exch(1)
-  write(*,"(I3,' Halo exchange for f:')") my_rank
   call f_field%halo_exch(1)
 
   ! All done!
