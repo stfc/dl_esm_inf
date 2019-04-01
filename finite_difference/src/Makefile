@@ -138,6 +138,8 @@ halo_mod.o: region_mod.o
 
 kernel_mod.o: argument_mod.o
 
+$(PARALLEL_MOD).o: kind_params_mod.o
+
 parallel_mod.o: parallel_comms_mod.o
 
 parallel_comms_mod.o: $(PARALLEL_MOD).o

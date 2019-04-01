@@ -1,8 +1,9 @@
 module parallel_comms_mod
   use kind_params_mod, only: go_wp
-  use parallel_utils_mod, only: get_num_ranks, get_rank, parallel_abort
+  use parallel_utils_mod, only: get_num_ranks, get_rank, parallel_abort, &
+       MPI_UNDEFINED, MPI_REQUEST_NULL, msg_wait, get_max_tag, post_receive, &
+       post_send
   use decomposition_mod, only: subdomain_type, decomposition_type
-  use mpi !> TODO move MPI-specific stuff out of here
   implicit none
 
   private
@@ -133,6 +134,44 @@ module parallel_comms_mod
   ! computation goes wrong because it does use values over the land
   ! that immediately border the ocean.
   INTEGER, SAVE :: nextra
+  
+  ! exch_flags    -  Array of flag arrays for exchanges
+  ! exch_flags1d  -  Array of only the current MPI receive operations
+  ! exch_tag      -  The tag value associated with this exchange
+  ! exch_busy     -  Indicates whether a slot in the flag array is being used
+
+  INTEGER, PARAMETER :: indexs=1,indexr=2
+  INTEGER, PARAMETER :: max_flags=40
+  INTEGER, PARAMETER :: min_tag=0
+  INTEGER, SAVE :: current_tag,max_tag_used,max_tag,n_tag_cycles=0
+  LOGICAL, SAVE :: first_mod=.TRUE.
+
+  INTEGER, ALLOCATABLE, DIMENSION(:,:,:), SAVE :: exch_flags
+  INTEGER, ALLOCATABLE, DIMENSION(:),     SAVE :: exch_tag, exch_flags1d
+  LOGICAL, ALLOCATABLE, DIMENSION(:),     SAVE :: exch_busy
+
+  TYPE exch_item
+     INTEGER               :: halo_width
+     INTEGER, DIMENSION(4) :: dirn
+     INTEGER               :: isgn
+     CHARACTER(LEN=1)      :: grid
+     LOGICAL               :: lfill
+     integer,  dimension(:,:),   pointer :: i2dptr
+     integer,  dimension(:,:,:), pointer :: i3dptr
+     real(go_wp), dimension(:,:),   pointer :: r2dptr
+     real(go_wp), dimension(:,:,:), pointer :: r3dptr
+  END TYPE exch_item
+
+  TYPE (exch_item), ALLOCATABLE, SAVE :: exch_list(:)
+  INTEGER, SAVE :: nextFreeExchItem, maxExchItems
+  
+  ! Buffer for doing halo-exchange.
+  ! For a 3D array, halos are 2D slabs but copied into these buffers 
+  ! as 1D vectors. 2nd dimension refers to the direction of the 
+  ! communication.
+  ! For a 2D array, halos are 1D vectors anyway.
+  real(go_wp), dimension(:,:), allocatable, save :: sendBuff, recvBuff
+  integer , dimension(:,:), allocatable, save :: sendIBuff, recvIBuff
 
   ! Public routines
   PUBLIC :: map_comms, iprocmap, exchmod_alloc, exchs_generic
@@ -169,44 +208,6 @@ module parallel_comms_mod
   ! Switch for trimming points below ocean floor from halo swaps
   ! Defaults to true unless set via NEMO_MSGTRIM_Z environment var.
   LOGICAL, PUBLIC, SAVE :: msgtrim_z
-
-  ! exch_flags    -  Array of flag arrays for exchanges
-  ! exch_flags1d  -  Array of only the current MPI receive operations
-  ! exch_tag      -  The tag value associated with this exchange
-  ! exch_busy     -  Indicates whether a slot in the flag array is being used
-
-  INTEGER, PARAMETER :: indexs=1,indexr=2
-  INTEGER, PARAMETER :: max_flags=40
-  INTEGER, PARAMETER :: min_tag=0
-  INTEGER :: current_tag,max_tag_used,max_tag,n_tag_cycles=0
-  LOGICAL :: first_mod=.TRUE.
-
-  INTEGER, ALLOCATABLE, DIMENSION(:,:,:), SAVE :: exch_flags
-  INTEGER, ALLOCATABLE, DIMENSION(:),     SAVE :: exch_tag, exch_flags1d
-  LOGICAL, ALLOCATABLE, DIMENSION(:),     SAVE :: exch_busy
-
-  TYPE exch_item
-     INTEGER               :: halo_width
-     INTEGER, DIMENSION(4) :: dirn
-     INTEGER               :: isgn
-     CHARACTER(LEN=1)      :: grid
-     LOGICAL               :: lfill
-     integer,  dimension(:,:),   pointer :: i2dptr
-     integer,  dimension(:,:,:), pointer :: i3dptr
-     real(go_wp), dimension(:,:),   pointer :: r2dptr
-     real(go_wp), dimension(:,:,:), pointer :: r3dptr
-  END TYPE exch_item
-
-  TYPE (exch_item), ALLOCATABLE, SAVE :: exch_list(:)
-  INTEGER, SAVE :: nextFreeExchItem, maxExchItems
-  
-  ! Buffer for doing halo-exchange.
-  ! For a 3D array, halos are 2D slabs but copied into these buffers 
-  ! as 1D vectors. 2nd dimension refers to the direction of the 
-  ! communication.
-  ! For a 2D array, halos are 1D vectors anyway.
-  real(go_wp), dimension(:,:), allocatable, save :: sendBuff, recvBuff
-  integer , dimension(:,:), allocatable, save :: sendIBuff, recvIBuff
 
 contains
 
@@ -1365,7 +1366,6 @@ contains
     ENDIF
 
     ! Add the data into the comms list at the new location.
-
     dirrecv(icomm)  = dir
     source(icomm)   = proc
     isrcrecv(icomm) = isrc(1)
@@ -1442,8 +1442,7 @@ contains
     ENDDO
 
   end function iprocmap
-
-      
+  
   INTEGER FUNCTION exchmod_alloc()
     IMPLICIT none
     ! Locals
@@ -1478,41 +1477,23 @@ contains
 
   END FUNCTION exchmod_alloc
 
-
   INTEGER FUNCTION get_exch_handle ( )
     ! ---------------------------------------------------------------
     ! Gets a new exchange handle
     ! ---------------------------------------------------------------
     IMPLICIT NONE
-
     ! Local variables.
-
-    INTEGER :: h,ierr
-    LOGICAL :: got
+    INTEGER :: h
 
     IF ( first_mod ) THEN
 
        ! First time in the module (i.e. exch or glob) set up the tags.
-
-       ! Set the maximum tag value.
-
-       got = .FALSE.
-       CALL MPI_attr_get(MPI_comm_world,MPI_tag_ub,max_tag,got,ierr)
-       IF ( ierr.NE.0 ) CALL abort ()
-
-       IF ( .NOT.got ) THEN
-
-          ! If no value was returned use the minimum possible tag max.
-          ! (p. 28 of Version 2.1 of the MPI standard or p. 19 of V.1 of
-          ! the standard.)
-          max_tag = 32767
-       ENDIF
+       max_tag = get_max_tag()
        if(DEBUG)then
           IF ( lwp ) WRITE (*,*) 'MAX_TAG: set to ',max_tag
        end if
 
        ! Set the current tag to the minimum.
-
        current_tag = min_tag
        max_tag_used = current_tag
 
@@ -1528,7 +1509,7 @@ contains
     IF ( h.GT.max_flags ) THEN
 
        ! If no free flags array was found, flag an error.
-       STOP 'ERROR: get_exch_handle: no free flag array'
+       call parallel_abort('ERROR: get_exch_handle: no free flag array')
     ELSE
 
        ! Assign a new tag.
@@ -1549,11 +1530,9 @@ contains
 
     get_exch_handle = h
 
-    RETURN
-
   END FUNCTION get_exch_handle
 
-  ! ---------------------------------------------------------------
+  !================================================================
 
   SUBROUTINE free_exch_handle ( h )
     ! Frees exchange handle, h.
@@ -1574,7 +1553,7 @@ contains
 
   !================================================================
 
-  SUBROUTINE exchs_generic ( b2, ib2, b3, ib3, nhalo, nhexch, &
+  SUBROUTINE exchs_generic ( b2, ib2, b3, ib3, &
                              handle, comm1, comm2, comm3, comm4)
 
     ! *******************************************************************
@@ -1584,8 +1563,6 @@ contains
     ! ib2(:,:)               int    input       2D integer local array.
     ! b3(:,:,:)              real   input       3D real*8 local array.
     ! ib3(:,:,:)             int    input       3D integer local array.
-    ! nhalo                  int    input       Width of halo.
-    ! nhexch                 int    input       Number of halo
     ! rows/cols to exchange.
     ! handle                 int    output      Exchange handle.
     ! comm1                  int    input       Send in direction comm1.
@@ -1596,10 +1573,10 @@ contains
     ! Mike Ashworth, CCLRC, March 2005.
     ! Andrew Porter, STFC,  January 2008
     ! *******************************************************************
+    use parallel_utils_mod, only: DIST_MEM_ENABLED
     IMPLICIT none
 
     ! Subroutine arguments.
-    INTEGER, INTENT(in)  :: nhalo,nhexch
     INTEGER, INTENT(out) :: handle
     REAL(go_wp),OPTIONAL, INTENT(inout), DIMENSION(:,:)   :: b2
     INTEGER, OPTIONAL, INTENT(inout), DIMENSION(:,:)   :: ib2
@@ -1620,21 +1597,16 @@ contains
     INTEGER :: istart, iend, jstart, jend
     INTEGER :: index  ! To hold index returned from MPI_waitany
     INTEGER, DIMENSION(3) :: isubsizes, istarts ! isizes
-    INTEGER :: status(MPI_status_size)
-    INTEGER :: astatus(MPI_status_size,MaxComm)
     LOGICAL, SAVE :: first_time = .TRUE.
     INTEGER, PARAMETER :: index_z = 3
     !!--------------------------------------------------------------------
 
+    ! Do nothing if distributed-memory support is not enabled
+    if(.not. DIST_MEM_ENABLED)return
+    
     !CALL timing_start('exchs_generic')
 
     ierr = 0
-
-    ! Check nhexch is in range.
-
-    if(nhexch > halo_depthx .or. nhexch > halo_depthy)then
-       CALL parallel_abort('exchs: halo width greater than maximum')
-    ENDIF
 
     ! Allocate a communications tag/handle and a flags array.
 
@@ -1696,27 +1668,29 @@ contains
 
           ! ARPDBG - nrecvp second rank is for multiple halo widths but
           !          that isn't used
-          IF ( PRESENT(b2) ) THEN
-             CALL MPI_irecv (recvBuff(1,irecv),nrecvp2d(irecv,1), &
-                             MPI_DOUBLE_PRECISION, source(irecv), &
-                             tag, mpi_comm_world,                   &
-                             exch_flags(handle,irecv,indexr), ierr)
-          ELSEIF ( PRESENT(ib2) ) THEN
-             CALL MPI_irecv (recvIBuff(1,irecv),nrecvp2d(irecv,1), &
-                             MPI_INTEGER, source(irecv),         &
-                             tag, mpi_comm_world,                  &
-                             exch_flags(handle,irecv,indexr),ierr)
-          ELSEIF ( PRESENT(b3) ) THEN
-             CALL MPI_irecv (recvBuff(1,irecv),nrecvp(irecv,1),   &
-                             MPI_DOUBLE_PRECISION, source(irecv), &
-                             tag, mpi_comm_world,                   &
-                             exch_flags(handle,irecv,indexr),ierr)
-          ELSEIF ( PRESENT(ib3) ) THEN
-             CALL MPI_irecv (recvIBuff(1,irecv),nrecvp(irecv,1), &
-                             MPI_INTEGER, source(irecv),         &
-                             tag, mpi_comm_world,                  &
-                             exch_flags(handle,irecv,indexr),ierr)
-          ENDIF
+          call post_receive(nrecvp2d(irecv,1), source(irecv), tag, &
+               exch_flags(handle,irecv,indexr), rbuff=recvBuff(:,irecv))
+!!$          IF ( PRESENT(b2) ) THEN
+!!$             CALL MPI_irecv (recvBuff(1,irecv),nrecvp2d(irecv,1), &
+!!$                             MPI_DOUBLE_PRECISION, source(irecv), &
+!!$                             tag, mpi_comm_world,                   &
+!!$                             exch_flags(handle,irecv,indexr), ierr)
+!!$          ELSEIF ( PRESENT(ib2) ) THEN
+!!$             CALL MPI_irecv (recvIBuff(1,irecv),nrecvp2d(irecv,1), &
+!!$                             MPI_INTEGER, source(irecv),         &
+!!$                             tag, mpi_comm_world,                  &
+!!$                             exch_flags(handle,irecv,indexr),ierr)
+!!$          ELSEIF ( PRESENT(b3) ) THEN
+!!$             CALL MPI_irecv (recvBuff(1,irecv),nrecvp(irecv,1),   &
+!!$                             MPI_DOUBLE_PRECISION, source(irecv), &
+!!$                             tag, mpi_comm_world,                   &
+!!$                             exch_flags(handle,irecv,indexr),ierr)
+!!$          ELSEIF ( PRESENT(ib3) ) THEN
+!!$             CALL MPI_irecv (recvIBuff(1,irecv),nrecvp(irecv,1), &
+!!$                             MPI_INTEGER, source(irecv),         &
+!!$                             tag, mpi_comm_world,                  &
+!!$                             exch_flags(handle,irecv,indexr),ierr)
+!!$          ENDIF
 
           if(DEBUG_COMMS)then
              WRITE (*,FMT="(I4,': exchs post recv : hand = ',I2,' dirn = '," &
@@ -1731,17 +1705,14 @@ contains
 
     ENDDO
 
-    IF (.not. first_time) THEN        
+    if (.not. first_time) then        
 
        ! Check that all sends from previous call have completed before 
        ! we continue to modify the send buffers
-       CALL MPI_waitall(nsend, exch_flags1d, astatus, ierr)
-       IF ( ierr.NE.0 ) CALL MPI_abort(mpi_comm_world,1,ierr)
-
-     ELSE
+       call msg_wait(nsend, exch_flags1d, irecv, all=.True.)
+    else
         first_time = .FALSE.
-    END IF ! .not. first_time
-
+    end if ! .not. first_time
 
     ! Send all messages in the communications list.
 
@@ -1804,9 +1775,11 @@ contains
              
 !             CALL timing_stop('2dr_pack')
 
-             CALL MPI_Isend(sendBuff(1,isend),ic,MPI_DOUBLE_PRECISION, &
-                            destination(isend),tag,mpi_comm_world, &
-                            exch_flags(handle,isend,indexs),ierr)
+             call post_send(sendBuff(1,isend),ic,destination(isend),tag, &
+                  exch_flags(handle,isend,indexs))
+             !CALL MPI_Isend(sendBuff(1,isend),ic,MPI_DOUBLE_PRECISION, &
+             !               destination(isend),tag,mpi_comm_world, &
+             !               exch_flags(handle,isend,indexs),ierr)
 
           ELSEIF ( PRESENT(ib2) ) THEN
 
@@ -1858,10 +1831,10 @@ contains
 
              ! CALL timing_stop('3dr_pack')
 
-             CALL MPI_Isend(sendBuff(1,isend),ic,                  &
-                            MPI_DOUBLE_PRECISION,                  &
-                            destination(isend), tag, mpi_comm_world, &
-                            exch_flags(handle,isend,indexs),ierr)
+             !CALL MPI_Isend(sendBuff(1,isend),ic,                  &
+             !               MPI_DOUBLE_PRECISION,                  &
+             !               destination(isend), tag, mpi_comm_world, &
+             !               exch_flags(handle,isend,indexs),ierr)
 
            ELSEIF ( PRESENT(ib3) ) THEN
 
@@ -1915,18 +1888,8 @@ contains
           get_rank(), nrecv,handle
     endif
 
-    CALL MPI_waitany (nrecv, exch_flags1d, irecv, status, ierr)
-    IF ( ierr .NE. MPI_SUCCESS ) THEN
-
-       IF(ierr .EQ. MPI_ERR_REQUEST)THEN
-          WRITE (*,"(I3,': ERROR: exchs_generic: MPI_waitany returned MPI_ERR_REQUEST')") get_rank()
-       ELSE IF(ierr .EQ. MPI_ERR_ARG)THEN
-          WRITE (*,"(I3,': ERROR: exchs_generic: MPI_waitany returned MPI_ERR_ARG')") get_rank()
-       ELSE
-          WRITE (*,"(I3,': ERROR: exchs_generic: MPI_waitany returned unrecognised error')") get_rank()
-       END IF
-       CALL parallel_abort('exchs_generic: MPI_waitany returned error')
-    END IF
+    call msg_wait(nrecv, exch_flags1d, irecv)
+    !CALL MPI_waitany (nrecv, exch_flags1d, irecv, status, ierr)
 
     DO WHILE(irecv .ne. MPI_UNDEFINED)
 
@@ -2018,17 +1981,11 @@ contains
 
           END IF
 
-       CALL MPI_waitany (nrecv, exch_flags1d, irecv, status, ierr)
-       !IF ( ierr.NE.0 ) CALL MPI_abort(mpi_comm_world,1,ierr)
-
+       !CALL MPI_waitany (nrecv, exch_flags1d, irecv, status, ierr)
+       call msg_wait(nrecv, exch_flags1d, irecv, all=.True.)
     END DO ! while irecv != MPI_UNDEFINED
 
     ! CALL timing_stop('mpi_recvs')
-
-    ! All receives done and unpacked so can deallocate the associated
-    ! buffers
-    !IF(ALLOCATED(recvBuff ))DEALLOCATE(recvBuff)
-    !IF(ALLOCATED(recvIBuff))DEALLOCATE(recvIBuff)
 
     if(DEBUG_COMMS)then
        WRITE(*,"(I3,': Finished all ',I3,' receives for handle ',I3)") &
@@ -2047,7 +2004,6 @@ contains
     IF( ALLOCATED(recvIBuff) )DEALLOCATE(recvIBuff)
 
     !CALL timing_stop('exchs_generic','section')
-    !CALL prof_region_end(ARPEXCHS_GENERIC, iprofStat)
 
   END SUBROUTINE exchs_generic
 
