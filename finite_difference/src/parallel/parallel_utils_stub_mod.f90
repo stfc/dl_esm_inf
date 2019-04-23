@@ -84,6 +84,7 @@ contains
     integer, dimension(:) :: flags
     integer :: irecv
     logical, optional,  intent(in) :: all
+    call parallel_abort('msg_wait should not be called in a serial build')
   end subroutine msg_wait
   
   !================================================
@@ -95,6 +96,7 @@ contains
     integer, intent(in) :: tag
     integer, intent(in) :: source
     integer :: exch_flag
+    call parallel_abort('post_receive should not be called in a serial build')
   end subroutine post_receive
     
   !================================================
@@ -105,6 +107,7 @@ contains
     real(kind=go_wp), dimension(nsend), intent(in) :: sendBuff
     integer :: tag ! intent is?
     integer :: exch_flag ! intent is??
+    call parallel_abort('post_send should not be called in a serial build')
   end subroutine post_send
   
   !================================================

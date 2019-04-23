@@ -1242,7 +1242,7 @@ contains
     INTEGER, DIMENSION(:,:),    INTENT( in  ) :: tmask
     INTEGER,                    INTENT( out ) :: ierr
     INTEGER, DIMENSION(:), INTENT( in  ) :: isrc, jsrc, ides, jdes, nx, ny
-    INTEGER :: ihalo, ipatch, irank
+    INTEGER :: ihalo, irank
          
     irank = get_rank()
     ! Clear the error flag.
@@ -1339,9 +1339,7 @@ contains
     INTEGER, DIMENSION(halo_depthx)        :: isrc, jsrc, ides, jdes, nx, ny
 
     ! Local variables.
-    INTEGER :: ihalo, ipatch, irank
-    ! Whether there is still a message after clipping
-    LOGICAL :: something_left
+    INTEGER :: ihalo, irank
 
     irank = get_rank()
     ! Clear the error flag.
@@ -1596,7 +1594,6 @@ contains
     INTEGER :: i, j, k, ic, ipatch ! Loop counters
     INTEGER :: istart, iend, jstart, jend
     INTEGER :: index  ! To hold index returned from MPI_waitany
-    INTEGER, DIMENSION(3) :: isubsizes, istarts ! isizes
     LOGICAL, SAVE :: first_time = .TRUE.
     INTEGER, PARAMETER :: index_z = 3
     !!--------------------------------------------------------------------
@@ -1981,8 +1978,8 @@ contains
 
           END IF
 
-       !CALL MPI_waitany (nrecv, exch_flags1d, irecv, status, ierr)
-       call msg_wait(nrecv, exch_flags1d, irecv, all=.True.)
+       ! Wait for the next message
+       call msg_wait(nrecv, exch_flags1d, irecv)
     END DO ! while irecv != MPI_UNDEFINED
 
     ! CALL timing_stop('mpi_recvs')
