@@ -94,3 +94,6 @@ model.exe: model.o
 clean: 
 	${MAKE} -C ${INF_DIR} clean
 	rm -f *.o *.mod *.MOD *~ *.exe
+
+allclean: clean
+	${MAKE} -C ${INF_DIR} distclean
