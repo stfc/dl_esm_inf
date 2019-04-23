@@ -118,13 +118,6 @@ module parallel_comms_mod
                          ! 1  2  3  4  5  6  7  8
                          ! W  E  S  N SW NE NW  SE
 
-  ! Stores whether a domain's boundaries have been trimmed as
-  ! trimmed(boundary, PE) where boundary is one of {n,e,s,w}idx
-  ! for the Northern, Eastern, Southern or Western boundary, respectively.
-  ! Allocated in finish_partition(), deallocated in...ARPDBG
-  LOGICAL, SAVE, ALLOCATABLE, DIMENSION(:,:) :: trimmed
-  INTEGER, PARAMETER :: nidx = 1, eidx= 2, sidx = 3, widx = 4
-
   ! Value representing land in the mask used for partitioning and message
   ! trimming
   INTEGER, PARAMETER :: LAND = 0
@@ -200,7 +193,7 @@ module parallel_comms_mod
 
   PUBLIC :: opp_dirn, land
 
-  PUBLIC :: trimmed, nidx, eidx, sidx, widx, nextra
+  PUBLIC :: nextra
 
   ! Switch for trimming dry points from halo swaps
   LOGICAL, PARAMETER :: msgtrim   = .TRUE.
@@ -239,8 +232,6 @@ contains
     INTEGER :: ielb_iproc, ieub_iproc ! Lower and upper bounds for proc
                                       ! iproc corrected for E & W halos
     INTEGER :: jelb_iproc, jeub_iproc
-    INTEGER :: ielb_no_halo, ieub_no_halo ! Lower and upper bounds for local
-                                          ! domain corrected for E & W halos
     INTEGER, DIMENSION(MAX_HALO_DEPTH) :: idesr, jdesr, idess, jdess, &
                                 isrcr, jsrcr, isrcs, jsrcs, &
                                 nxr, nyr, nxs, nys
@@ -674,18 +665,12 @@ contains
       ! J direction (Jminus).
       ! =================================================================
 
-      ! Ensure we don't include any values from the model domain W and E
-      ! halos if we have cyclic b.c.'s
-      ielb_no_halo = ielb
-      ieub_no_halo = ieub
-
       ! Start from the lower bound of the sub-domain (in global coords), 
       ! and carry on looking
       ! for communications with neighbours until we have reached
       ! the upper bound.
-
-      imin = ielb_no_halo
-      imax = ieub_no_halo
+      imin = ielb
+      imax = ieub
 
       i1 = imin
       DO WHILE (i1.LE.imax)
@@ -865,9 +850,8 @@ contains
       ! Start from the lower bound of the sub-domain, and carry on looking
       ! for communications with neighbours until we have reached
       ! the upper bound.
-
-      imin = ielb_no_halo
-      imax = ieub_no_halo
+      imin = ielb
+      imax = ieub
       i1 = imin
 
       DO WHILE (i1.LE.imax)
@@ -1105,8 +1089,8 @@ contains
              !  __|__|
              !    |
              !    |
-             ldiff0 = ielb_iproc - ieub_no_halo
-             ldiff1 = ielb_no_halo - ieub_iproc
+             ldiff0 = ielb_iproc - ieub
+             ldiff1 = ielb - ieub_iproc
 
              nxs(ihalo) = ihalo -  east(idirn)*(ldiff0-1) &
                                 -  west(idirn)*(ldiff1-1)
@@ -1242,7 +1226,7 @@ contains
     INTEGER, DIMENSION(:,:),    INTENT( in  ) :: tmask
     INTEGER,                    INTENT( out ) :: ierr
     INTEGER, DIMENSION(:), INTENT( in  ) :: isrc, jsrc, ides, jdes, nx, ny
-    INTEGER :: ihalo, irank
+    INTEGER :: irank
          
     irank = get_rank()
     ! Clear the error flag.
@@ -1266,7 +1250,6 @@ contains
     ENDIF
             
     ! Add the data into the comms list at the new location.
-            
     dirsend(icomm)     = dir
     destination(icomm) = proc
     isrcsend(icomm)    = isrc(1)
@@ -1331,15 +1314,14 @@ contains
     !!------------------------------------------------------------------
     implicit none
 
-    !     Subroutine arguments.
+    ! Subroutine arguments.
     INTEGER,                 INTENT(inout) :: icomm
     INTEGER,                 INTENT( in  ) :: dir, proc
     INTEGER,                 INTENT(out)   :: ierr
     INTEGER, DIMENSION(:,:), INTENT( in  ) :: tmask
     INTEGER, DIMENSION(halo_depthx)        :: isrc, jsrc, ides, jdes, nx, ny
-
     ! Local variables.
-    INTEGER :: ihalo, irank
+    INTEGER :: irank
 
     irank = get_rank()
     ! Clear the error flag.
@@ -1350,7 +1332,7 @@ contains
        RETURN
     ENDIF
 
-    icomm = icomm+1
+    icomm = icomm + 1
 
     ! Check that the comms list has space for another entry.
 
@@ -1423,21 +1405,21 @@ contains
     !> Global x, y grid indices of the point to search for
     integer,                  intent(in) :: ia, ja
     ! Local variables.
-    integer :: iproc, iwidth, nprocp
+    integer :: iproc, nprocp
 
     nprocp = get_num_ranks()
     iprocmap = 0
 
     ! Search the processes for the one owning point (i,j).
-    DO iproc=1,nprocp
-       IF (decomp%subdomains(iproc)%global%xstart.LE.ia .AND. &
-            ia.LE.decomp%subdomains(iproc)%global%xstop .AND.  &
-            decomp%subdomains(iproc)%global%ystart.LE.ja .AND. &
-            ja.LE.decomp%subdomains(iproc)%global%ystop) THEN
+    do iproc=1,nprocp
+       if (decomp%subdomains(iproc)%global%xstart <= ia .and. &
+           ia <= decomp%subdomains(iproc)%global%xstop  .and. &
+           decomp%subdomains(iproc)%global%ystart <= ja .and. &
+           ja <= decomp%subdomains(iproc)%global%ystop) then
           iprocmap = iproc
-          EXIT
-       END IF
-    ENDDO
+          exit
+       end if
+    enddo
 
   end function iprocmap
   
@@ -1540,7 +1522,6 @@ contains
     INTEGER :: h ! Handle to be free'd
 
     ! Free the flags array.
-    
     IF ( h.GT.0 .AND. h.LE.max_flags ) THEN
        exch_busy(h) = .FALSE.
     ELSE
@@ -1586,14 +1567,12 @@ contains
     ! Local variables.
 
     LOGICAL :: enabled(0:MaxCommDir)
-    INTEGER :: ierr, irecv, ircvdt, isend, isnddt, &
-               isrc, jsrc, kdim1, &  ! ides, jdes, nxr, nyr,        &
-               nxs, nys, tag, tag_orig
+    INTEGER :: ierr, irecv, isend, &
+               isrc, jsrc, nxs, nys, tag, tag_orig
     INTEGER :: maxrecvpts, maxsendpts ! Max no. of grid points involved in 
                                       ! any one halo exchange
-    INTEGER :: i, j, k, ic, ipatch ! Loop counters
+    INTEGER :: i, j, k, ic ! Loop counters
     INTEGER :: istart, iend, jstart, jend
-    INTEGER :: index  ! To hold index returned from MPI_waitany
     LOGICAL, SAVE :: first_time = .TRUE.
     INTEGER, PARAMETER :: index_z = 3
     !!--------------------------------------------------------------------
@@ -1601,8 +1580,6 @@ contains
     ! Do nothing if distributed-memory support is not enabled
     if(.not. DIST_MEM_ENABLED)return
     
-    !CALL timing_start('exchs_generic')
-
     ierr = 0
 
     ! Allocate a communications tag/handle and a flags array.
@@ -1667,27 +1644,6 @@ contains
           !          that isn't used
           call post_receive(nrecvp2d(irecv,1), source(irecv), tag, &
                exch_flags(handle,irecv,indexr), rbuff=recvBuff(:,irecv))
-!!$          IF ( PRESENT(b2) ) THEN
-!!$             CALL MPI_irecv (recvBuff(1,irecv),nrecvp2d(irecv,1), &
-!!$                             MPI_DOUBLE_PRECISION, source(irecv), &
-!!$                             tag, mpi_comm_world,                   &
-!!$                             exch_flags(handle,irecv,indexr), ierr)
-!!$          ELSEIF ( PRESENT(ib2) ) THEN
-!!$             CALL MPI_irecv (recvIBuff(1,irecv),nrecvp2d(irecv,1), &
-!!$                             MPI_INTEGER, source(irecv),         &
-!!$                             tag, mpi_comm_world,                  &
-!!$                             exch_flags(handle,irecv,indexr),ierr)
-!!$          ELSEIF ( PRESENT(b3) ) THEN
-!!$             CALL MPI_irecv (recvBuff(1,irecv),nrecvp(irecv,1),   &
-!!$                             MPI_DOUBLE_PRECISION, source(irecv), &
-!!$                             tag, mpi_comm_world,                   &
-!!$                             exch_flags(handle,irecv,indexr),ierr)
-!!$          ELSEIF ( PRESENT(ib3) ) THEN
-!!$             CALL MPI_irecv (recvIBuff(1,irecv),nrecvp(irecv,1), &
-!!$                             MPI_INTEGER, source(irecv),         &
-!!$                             tag, mpi_comm_world,                  &
-!!$                             exch_flags(handle,irecv,indexr),ierr)
-!!$          ENDIF
 
           if(DEBUG_COMMS)then
              WRITE (*,FMT="(I4,': exchs post recv : hand = ',I2,' dirn = '," &
@@ -1712,8 +1668,6 @@ contains
     end if ! .not. first_time
 
     ! Send all messages in the communications list.
-
-!    CALL timing_start('mpi_sends')
 
     DO isend=1,nsend
 
@@ -1745,7 +1699,6 @@ contains
 
           IF ( PRESENT(b2) )THEN
 
-!             CALL timing_start('2dr_pack')
              ic = 0
              ! Stored patch coordinates are for T points
              istart = isrcsend(isend)
@@ -1770,13 +1723,8 @@ contains
                      sendBuff(1:min(ic,6),isend)
              end if
              
-!             CALL timing_stop('2dr_pack')
-
              call post_send(sendBuff(1,isend),ic,destination(isend),tag, &
-                  exch_flags(handle,isend,indexs))
-             !CALL MPI_Isend(sendBuff(1,isend),ic,MPI_DOUBLE_PRECISION, &
-             !               destination(isend),tag,mpi_comm_world, &
-             !               exch_flags(handle,isend,indexs),ierr)
+                            exch_flags(handle,isend,indexs))
 
           ELSEIF ( PRESENT(ib2) ) THEN
 
@@ -1833,29 +1781,7 @@ contains
              !               destination(isend), tag, mpi_comm_world, &
              !               exch_flags(handle,isend,indexs),ierr)
 
-           ELSEIF ( PRESENT(ib3) ) THEN
-
-              ic = 0
-!!$              jstart = jsrcsend(isend,1) !+nhalo
-!!$              istart = isrcsend(isend,1) !+nhalo
-!!$              jend   = jstart+nysend(isend,1)-1
-!!$              iend   = istart+nxsend(isend,1)-1
-!!$              DO k=1,nzsend(isend,1),1
-!!$                 DO j=jstart, jend, 1
-!!$                    DO i=istart, iend, 1
-!!$                       ic = ic + 1
-!!$                       sendIBuff(ic, isend) = ib3(i,j,k)
-!!$                    END DO
-!!$                 END DO
-!!$              END DO
-!!$
-!!$             CALL MPI_Isend(sendIBuff(1,isend),ic,               &
-!!$                            MPI_INTEGER,                         &
-!!$                            destination(isend),tag,mpi_comm_world, &
-!!$                            exch_flags(handle,isend,indexs),ierr)
           ENDIF
-
-          !IF ( ierr.NE.0 ) CALL MPI_abort(mpi_comm_world,1,ierr)
 
        ELSE
 
@@ -1865,16 +1791,12 @@ contains
 
     ENDDO ! Loop over sends
 
-    ! CALL timing_stop('mpi_sends')
-
     if(DEBUG_COMMS)then
        write (*,FMT="(I3,': exch tag ',I4,' finished all ',I4,' sends')") &
             get_rank(), tag, nsend
     end if
 
     ! Wait on the receives that were posted earlier
-
-    ! CALL timing_start('mpi_recvs')
 
     ! Copy just the set of flags we're interested in for passing 
     ! to MPI_waitany
@@ -1885,104 +1807,76 @@ contains
           get_rank(), nrecv,handle
     endif
 
+    ! Get the first available message that we've received
     call msg_wait(nrecv, exch_flags1d, irecv)
-    !CALL MPI_waitany (nrecv, exch_flags1d, irecv, status, ierr)
 
     DO WHILE(irecv .ne. MPI_UNDEFINED)
 
-          IF ( PRESENT(b2) ) THEN
+       IF ( PRESENT(b2) ) THEN
 
-             ! CALL timing_start('2dr_unpack')
+          ! Copy received data back into array
+          ic = 0
+          jstart = jdesrecv(irecv)
+          jend   = jstart+nyrecv(irecv)-1
 
-             ! Copy received data back into array
-             ic = 0
-             jstart = jdesrecv(irecv)
-             jend   = jstart+nyrecv(irecv)-1
+          istart = idesrecv(irecv)
+          iend   = istart+nxrecv(irecv)-1
 
-             istart = idesrecv(irecv)
-             iend   = istart+nxrecv(irecv)-1
-
-             if(DEBUG_COMMS)then
-                write(*,"(I3,': unpacking to:',I3,':',I3,',',I3,':',I3)") &
-                     get_rank(), istart, iend, jstart, jend
-             end if
+          if(DEBUG_COMMS)then
+             write(*,"(I3,': unpacking to:',I3,':',I3,',',I3,':',I3)") &
+                  get_rank(), istart, iend, jstart, jend
+          end if
              
+          DO j=jstart, jend, 1
+             DO i=istart, iend, 1
+                ic = ic + 1
+                b2(i,j) = recvBuff(ic,irecv)
+             END DO
+          END DO
+          
+          if(DEBUG_COMMS)then
+             write(*,"(I3,': unpacked: ',6E15.4)") get_rank(), &
+                  recvBuff(1:min(6,ic),irecv)
+          end if
+             
+       ELSE IF ( PRESENT(ib2) ) THEN
+
+          ! Copy received data back into array
+          ic = 0
+          jstart = jdesrecv(irecv)
+          jend   = jstart+nyrecv(irecv)-1
+          istart = idesrecv(irecv)
+          iend   = istart+nxrecv(irecv)-1
+          DO j=jstart, jend, 1
+             DO i=istart, iend, 1
+                ic = ic + 1
+                ib2(i,j) = recvIBuff(ic,irecv)
+             END DO
+          END DO
+
+       ELSE IF (PRESENT(b3) ) THEN
+
+          ic = 0
+          
+          jstart = jdesrecv(irecv)
+          jend   = jstart+nyrecv(irecv)-1
+          istart = idesrecv(irecv)
+          iend   = istart+nxrecv(irecv)-1
+
+          DO k=1,nzrecv(irecv),1
              DO j=jstart, jend, 1
                 DO i=istart, iend, 1
                    ic = ic + 1
-                   b2(i,j) = recvBuff(ic,irecv)
+                   b3(i,j,k) = recvBuff(ic,irecv)
                 END DO
              END DO
-
-             if(DEBUG_COMMS)then
-                write(*,"(I3,': unpacked: ',6E15.4)") get_rank(), &
-                                                   recvBuff(1:min(6,ic),irecv)
-             end if
+          END DO
              
-             ! CALL timing_stop('2dr_unpack')
-
-          ELSE IF ( PRESENT(ib2) ) THEN
-
-             ! Copy received data back into array
-             ic = 0
-             jstart = jdesrecv(irecv)
-             jend   = jstart+nyrecv(irecv)-1
-             istart = idesrecv(irecv)
-             iend   = istart+nxrecv(irecv)-1
-             DO j=jstart, jend, 1
-                DO i=istart, iend, 1
-                   ic = ic + 1
-                   ib2(i,j) = recvIBuff(ic,irecv)
-                END DO
-             END DO
-
-          ELSE IF (PRESENT(b3) ) THEN
-
-             ! CALL timing_start('3dr_unpack')
-             ic = 0
-
-             jstart = jdesrecv(irecv)
-             jend   = jstart+nyrecv(irecv)-1
-             istart = idesrecv(irecv)
-             iend   = istart+nxrecv(irecv)-1
-
-             DO k=1,nzrecv(irecv),1
-                DO j=jstart, jend, 1
-                   DO i=istart, iend, 1
-                      ic = ic + 1
-                      b3(i,j,k) = recvBuff(ic,irecv)
-                   END DO
-                END DO
-             END DO
-             
-!             CALL timing_stop('3dr_unpack')
-
-          ELSEIF ( PRESENT(ib3) ) THEN
-
-             ic = 0
-!!$             unpack_patches3i: DO ipatch=1,npatchrecv(irecv,nhexch),1
-!!$
-!!$                jstart = jdesrecvp(ipatch,irecv,1)!+nhalo
-!!$                jend   = jstart+nyrecvp(ipatch,irecv,1)-1
-!!$                istart = idesrecvp(ipatch,irecv,1)!+nhalo
-!!$                iend   = istart+nxrecvp(ipatch,irecv,1)-1
-!!$                DO k=1,nzrecvp(ipatch,irecv,1),1
-!!$                   DO j=jstart, jend, 1
-!!$                      DO i=istart, iend, 1
-!!$                         ic = ic + 1
-!!$                         ib3(i,j,k) = recvIBuff(ic,irecv)
-!!$                      END DO
-!!$                   END DO
-!!$                END DO
-!!$             END DO unpack_patches3i
-
-          END IF
+       END IF
 
        ! Wait for the next message
        call msg_wait(nrecv, exch_flags1d, irecv)
     END DO ! while irecv != MPI_UNDEFINED
-
-    ! CALL timing_stop('mpi_recvs')
 
     if(DEBUG_COMMS)then
        WRITE(*,"(I3,': Finished all ',I3,' receives for handle ',I3)") &
@@ -2000,8 +1894,6 @@ contains
     IF( ALLOCATED(recvBuff) ) DEALLOCATE(recvBuff)
     IF( ALLOCATED(recvIBuff) )DEALLOCATE(recvIBuff)
 
-    !CALL timing_stop('exchs_generic','section')
-
-  END SUBROUTINE exchs_generic
+  end subroutine exchs_generic
 
 end module parallel_comms_mod
