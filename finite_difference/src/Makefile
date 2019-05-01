@@ -77,7 +77,6 @@ BASE_SOURCES = argument_mod.f90 \
           parallel_comms_mod.f90 \
           parallel_mod.f90 \
           region_mod.f90 \
-          subdomain_mod.f90 \
           tile_mod.f90
 
 # Get the absolute path to the makefile
@@ -131,8 +130,7 @@ field_mod.o: kind_params_mod.o tile_mod.o grid_mod.o \
 
 gocean_mod.o: parallel_mod.o
 
-grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o parallel_mod.o \
-			subdomain_mod.o
+grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o parallel_mod.o
 
 halo_mod.o: region_mod.o
 
@@ -140,13 +138,11 @@ kernel_mod.o: argument_mod.o
 
 $(PARALLEL_MOD).o: kind_params_mod.o
 
-parallel_mod.o: parallel_comms_mod.o
+parallel_mod.o: decomposition_mod.o parallel_comms_mod.o
 
 parallel_comms_mod.o: $(PARALLEL_MOD).o
 
 tile_mod.o: region_mod.o
-
-subdomain_mod.o: $(PARALLEL_MOD).o region_mod.o
 
 %.o: $(ROOT)/%.[Ff]90
 	$(F90) $(F90FLAGS) -I${FORTCL_DIR} -c $<

@@ -164,8 +164,7 @@ contains
   function r2d_field_constructor(grid,    &
                                  grid_points, &
                                  do_tile) result(self)
-    use decomposition_mod, only: decomposition_type
-    use subdomain_mod, only: decompose
+    use parallel_mod, only: decomposition_type, decompose
 !$    use omp_lib, only : omp_get_max_threads
     implicit none
     ! Arguments
@@ -885,7 +884,7 @@ contains
     IMPLICIT none
     type(r2d_field), intent(in)    :: field_in
     type(r2d_field), intent(inout) :: field_out
-    integer :: it, ji, jj
+!!$    integer :: it, ji, jj
 
     field_out%data(:,:) = field_in%data(:,:)
 !OMP DO SCHEDULE(RUNTIME)

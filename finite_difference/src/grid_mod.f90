@@ -124,6 +124,7 @@ module grid_mod
 contains
 
   !============================================
+
   function get_tmask(self) result(tmask)
     implicit none
     class (grid_type), target, intent(in) :: self
@@ -133,6 +134,8 @@ contains
 
     return
   end function get_tmask
+
+  !============================================
 
   !> Basic constructor for the grid type. Full details, including domain
   !! decomposition, are fleshed-out by the grid_init() routine.
@@ -209,7 +212,9 @@ contains
 
   !> Initialise the supplied grid object for a 2D model. The extent
   !! of the model domain is obtained from the supplied decomposition
-  !! object.
+  !! object. Once the grid is fleshed out, we construct the communication
+  !! tables for the halo exchanges.
+  !!
   !! Ultimately, this routine should be general purpose but it is not
   !! there yet.  For periodic boundary conditions the decomposition
   !! exactly specifies the extent of the simulated region (since we
@@ -229,7 +234,7 @@ contains
   subroutine grid_init(grid, decomp, dxarg, dyarg, tmask)
     use global_parameters_mod, only: ALIGNMENT
     use decomposition_mod, only: subdomain_type, decomposition_type
-    use parallel_mod
+    use parallel_mod, only: map_comms, get_rank, get_num_ranks
     implicit none
     type(grid_type), intent(inout) :: grid
     type(decomposition_type), intent(in) :: decomp
@@ -424,9 +429,18 @@ contains
     do jj = ystart-1, 1, -1
        grid%yt(:,jj) = grid%yt(:, jj+1) - grid%dy
     end do
-    
-  end subroutine grid_init
 
-  !================================================
+    !> Set-up the communication tables for halo exchanges
+    if( grid%boundary_conditions(1) == GO_BC_PERIODIC .or. &
+        grid%boundary_conditions(2) == GO_BC_PERIODIC )then
+       call gocean_stop('map_comms call needs to be implemented for ' &
+                   &  //'periodic boundary conditions.')
+    end if
+    
+    call map_comms(decomp, tmask, .false., (/1,1/), ierr(1))
+
+    if(ierr(1) /= 0)call gocean_stop('Set-up of communication tables (call ' &
+                                 & //'to map_comms()) failed.')
+  end subroutine grid_init
 
 end module grid_mod
