@@ -39,7 +39,7 @@ module parallel_mod
   private
 
   ! The public routines implemented in this module
-  public parallel_init, parallel_finalise, parallel_abort, decompose
+  public parallel_init, parallel_finalise, parallel_abort, go_decompose
 
   ! Export routines from other modules
   public map_comms, get_rank, get_num_ranks
@@ -66,9 +66,9 @@ contains
   !> Decompose a domain consisting of domainx x domainy points
   !! into a 2D grid.
   !! Returns a decomposition_type object describing each of the subdomains.    
-  function decompose(domainx, domainy,             &
-                     ndomains, ndomainx, ndomainy, &
-                     halo_width) result(decomp)
+  function go_decompose(domainx, domainy,             &
+                        ndomains, ndomainx, ndomainy, &
+                        halo_width) result(decomp)
     use decomposition_mod, only: subdomain_type
     implicit none
     !> The decomposition that this function will return
@@ -117,7 +117,7 @@ contains
           ndom = ndomainx * ndomainy
           auto_tile = .FALSE.
        else
-          call parallel_abort('decompose: invalid arguments supplied')
+          call parallel_abort('go_decompose: invalid arguments supplied')
        end if
     else
        ndom = ndomains
@@ -127,7 +127,7 @@ contains
     nranks = get_num_ranks()
     if(present(halo_width))then
        if(halo_width < 1 .and. nranks > 1)then
-          call parallel_abort('decompose: halo width must be > 0 if '// &
+          call parallel_abort('go_decompose: halo width must be > 0 if '// &
                               'running on more than one process')
        end if
        hwidth = halo_width
@@ -153,7 +153,7 @@ contains
     decomp%ndomains = ndom
     allocate(decomp%subdomains(ndom), Stat=ierr)
     if(ierr /= 0)then
-       call parallel_abort('decompose: failed to allocate tiles array')
+       call parallel_abort('go_decompose: failed to allocate tiles array')
     end if
 
     xlen = domainx
@@ -188,7 +188,7 @@ contains
        ntiley = ndomainy
     end if ! automatic determination of tiling grid
 
-    WRITE (*,"('decompose: using grid of ',I3,'x',I3)") ntilex, ntiley
+    WRITE (*,"('go_decompose: using grid of ',I3,'x',I3)") ntilex, ntiley
     decomp%nx = ntilex
     decomp%ny = ntiley
 
@@ -321,6 +321,6 @@ contains
                                                           decomp%max_height
     end if
 
-  end function decompose
+  end function go_decompose
 
 end module parallel_mod

@@ -4,7 +4,7 @@ module grid_mod
   use kind_params_mod
   use region_mod
   use gocean_mod
-  use decomposition_mod, only: subdomain_type
+  use decomposition_mod, only: subdomain_type, decomposition_type
   implicit none
 
   private
@@ -85,6 +85,10 @@ module grid_mod
      !! responsible for
      type(subdomain_type) :: subdomain
 
+     !> Object holding information on all subdomains into which the
+     !! grid has been decomposed.
+     type(decomposition_type) :: decomp
+
      !> Horizontal scale factors at t point (m)
      real(go_wp), allocatable :: dx_t(:,:), dy_t(:,:)
      !> Horizontal scale factors at u point (m)
@@ -112,6 +116,7 @@ module grid_mod
 
    contains
      procedure :: get_tmask
+     procedure :: decompose
 
   end type grid_type
 
@@ -135,6 +140,39 @@ contains
     return
   end function get_tmask
 
+  !================================================
+
+  !> Decompose a domain consisting of domainx x domainy points
+  !! into a 2D grid.
+  subroutine decompose(self, domainx, domainy,       &
+                       ndomains, ndomainx, ndomainy, &
+                       halo_width)
+    use parallel_mod, only: get_num_ranks, get_rank, go_decompose
+    implicit none
+    class (grid_type), target, intent(inout) :: self
+    !> Dimensions of the domain to decompose
+    integer, intent(in) :: domainx, domainy
+    !> No. of domains to decompose into. If not supplied will use the
+    !! number of MPI ranks (or 1 if serial).
+    integer, intent(in), optional :: ndomains
+    !> Optional specification of the dimensions of the tiling grid
+    integer, intent(in), optional :: ndomainx, ndomainy
+    !> Width of halo to allow for when constructing sub-domains.
+    !! Default value is 1. Must be > 0 for a multi-processor run.
+    integer, intent(in), optional :: halo_width
+
+    self%decomp = go_decompose(domainx, domainy, ndomains=ndomains,  &
+                               ndomainx=ndomainx, ndomainy=ndomainy, &
+                               halo_width=halo_width)
+
+    ! Copy the definition of the sub-domain for which we are responsible
+    ! into our grid object.
+    self%subdomain = self%decomp%subdomains(get_rank())
+    self%global_nx = self%decomp%global_nx
+    self%global_ny = self%decomp%global_ny
+
+  end subroutine decompose
+  
   !============================================
 
   !> Basic constructor for the grid type. Full details, including domain
@@ -231,31 +269,20 @@ contains
   !! @param[in] tmask Array holding the T-point mask which defines
   !!                  the contents of the local domain. Need not be
   !!                  supplied if domain is all wet and has PBCs.
-  subroutine grid_init(grid, decomp, dxarg, dyarg, tmask)
+  subroutine grid_init(grid, dxarg, dyarg, tmask)
     use global_parameters_mod, only: ALIGNMENT
     use decomposition_mod, only: subdomain_type, decomposition_type
     use parallel_mod, only: map_comms, get_rank, get_num_ranks
     implicit none
     type(grid_type), intent(inout) :: grid
-    type(decomposition_type), intent(in) :: decomp
     real(go_wp),              intent(in) :: dxarg, dyarg
     integer, allocatable, dimension(:,:), intent(in), optional :: tmask
     ! Locals
-    integer :: myrank
     integer :: mlocal
     integer :: ierr(5)
     integer :: ji, jj
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
-
-    ! Copy the definition of the sub-domain for which we are responsible
-    ! into our grid object.
-    myrank = get_rank()
-    grid%subdomain = decomp%subdomains(myrank)
-    grid%global_nx = decomp%global_nx
-    grid%global_ny = decomp%global_ny
-
-    ! Store the global dimensions of the grid...
 
     ! Extend the domain by unity in each dimension to allow
     ! for staggering of variables. All fields will be
@@ -437,7 +464,7 @@ contains
                    &  //'periodic boundary conditions.')
     end if
     
-    call map_comms(decomp, tmask, .false., (/1,1/), ierr(1))
+    call map_comms(grid%decomp, tmask, .false., (/1,1/), ierr(1))
 
     if(ierr(1) /= 0)call gocean_stop('Set-up of communication tables (call ' &
                                  & //'to map_comms()) failed.')

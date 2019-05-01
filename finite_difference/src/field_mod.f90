@@ -164,7 +164,7 @@ contains
   function r2d_field_constructor(grid,    &
                                  grid_points, &
                                  do_tile) result(self)
-    use parallel_mod, only: decomposition_type, decompose
+    use parallel_mod, only: decomposition_type, go_decompose
 !$    use omp_lib, only : omp_get_max_threads
     implicit none
     ! Arguments
@@ -212,9 +212,9 @@ contains
         endif
     endif
 
-    WRITE (*,"(/'Have ',I3,' OpenMP threads available.')") nthreads
-    decomp = decompose(self%internal%nx, self%internal%ny, &
-                       nthreads, ntilex, ntiley)
+!$  write (*,"(/'Have ',I3,' OpenMP threads available.')") nthreads
+    decomp = go_decompose(self%internal%nx, self%internal%ny, &
+                          nthreads, ntilex, ntiley)
     self%ntiles = nthreads
     allocate(self%tile(self%ntiles), Stat=ierr)
     if(ierr /= 0)then

@@ -62,7 +62,8 @@ module decomposition_mod
      integer :: max_width, max_height
      !> Array of the sub-domain definitions
      type(subdomain_type), allocatable :: subdomains(:)
-     !> An MPI process may have more than one sub-domain
+     !> An MPI process may have more than one subdomain.
+     !! proc_subdomains(:,n) holds the subdomain IDs belonging to rank n.
      integer, allocatable :: proc_subdomains(:,:)
   end type decomposition_type
 
