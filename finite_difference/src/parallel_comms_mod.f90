@@ -1,3 +1,32 @@
+!------------------------------------------------------------------------------
+! BSD 2-Clause License
+! 
+! Copyright (c) 2019, Science and Technology Facilities Council
+! All rights reserved.
+! 
+! Redistribution and use in source and binary forms, with or without
+! modification, are permitted provided that the following conditions are met:
+! 
+! * Redistributions of source code must retain the above copyright notice, this
+!   list of conditions and the following disclaimer.
+! 
+! * Redistributions in binary form must reproduce the above copyright notice,
+!   this list of conditions and the following disclaimer in the documentation
+!   and/or other materials provided with the distribution.
+! 
+! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+! AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+! IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+! DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+! FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+! DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+! SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+! CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+! OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+! OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+!------------------------------------------------------------------------------
+! Authors: M. Ashworth, S. Pickles and A. R. Porter, STFC Daresbury Laboratory
+
 module parallel_comms_mod
   use kind_params_mod, only: go_wp
   use parallel_utils_mod, only: get_num_ranks, get_rank, parallel_abort,     &
@@ -110,19 +139,6 @@ module parallel_comms_mod
   integer, ALLOCATABLE, dimension(:),     SAVE :: exch_tag, exch_flags1d
   logical, ALLOCATABLE, dimension(:),     SAVE :: exch_busy
 
-  type exch_item
-     integer               :: halo_width
-     integer, dimension(4) :: dirn
-     integer               :: isgn
-     CHARACTER(LEN=1)      :: grid
-     logical               :: lfill
-     integer,  dimension(:,:),   pointer :: i2dptr
-     integer,  dimension(:,:,:), pointer :: i3dptr
-     real(go_wp), dimension(:,:),   pointer :: r2dptr
-     real(go_wp), dimension(:,:,:), pointer :: r3dptr
-  end type exch_item
-
-  TYPE (exch_item), ALLOCATABLE, save :: exch_list(:)
   integer, save :: nextFreeExchItem, maxExchItems
   
   ! Buffer for doing halo-exchange.
@@ -1149,7 +1165,7 @@ contains
 
       enddo
 
-    end SUBROUTINE map_comms
+    end subroutine map_comms
 
   subroutine addsend (icomm, dir, proc, isrc, jsrc, &
                       ides, jdes, nx, ny, tmask, ierr )
@@ -1378,29 +1394,22 @@ contains
     enddo
 
   end function iprocmap
-  
-  integer FUNCTION exchmod_alloc()
-    IMPLICIT none
+
+  ! ---------------------------------------------------------------
+  !> Allocate the various arrays required to hold the state of
+  !! halo exchanges.
+  integer function exchmod_alloc()
+    implicit none
     ! Locals
     integer :: ierr, ii
-    ! Since halos are broken up into wet-point-only patches we
-    ! allocate the send and receive buffers  on a per-PE basis once we
-    ! know the sizes of the patches (in exchs_generic).
     maxExchItems = 20
-    allocate(exch_list(maxExchItems),           &
-             exch_flags(max_flags,MaxComm,2),   &
+    allocate(exch_flags(max_flags,MaxComm,2),   &
              exch_flags1d(MaxComm),             &
              exch_busy(max_flags),              &
              exch_tag(max_flags),               &
              STAT=ierr)
 
     if(ierr .eq. 0)then
-
-       do ii=1,maxExchItems,1
-          NULLifY(exch_list(ii)%r2dptr, exch_list(ii)%r3dptr, &
-                  exch_list(ii)%i2dptr, exch_list(ii)%i3dptr)
-       end do
-
        exch_busy   = .FALSE.
     else
        maxExchItems = 0
@@ -1411,12 +1420,11 @@ contains
     ! Pass back the allocation status flag
     exchmod_alloc = ierr
 
-  end FUNCTION exchmod_alloc
+  end function exchmod_alloc
 
-  integer FUNCTION get_exch_handle ( )
-    ! ---------------------------------------------------------------
-    ! Gets a new exchange handle
-    ! ---------------------------------------------------------------
+  ! ---------------------------------------------------------------
+  !> Gets a new exchange handle
+  integer function get_exch_handle ( )
     implicit none
     ! Local variables.
     integer :: h
@@ -1426,7 +1434,7 @@ contains
        ! First time in the module (i.e. exch or glob) set up the tags.
        max_tag = get_max_tag()
        if(DEBUG)then
-          if ( lwp ) write (*,*) 'MAX_TAG: set to ',max_tag
+          if ( lwp ) write (*,*) 'MAX_TAG: set to ', max_tag
        end if
 
        ! Set the current tag to the minimum.
@@ -1466,12 +1474,12 @@ contains
 
     get_exch_handle = h
 
-  end FUNCTION get_exch_handle
+  end function get_exch_handle
 
   !================================================================
 
-  SUBROUTINE free_exch_handle ( h )
-    ! Frees exchange handle, h.
+  subroutine free_exch_handle ( h )
+    !> Frees exchange handle, h.
     implicit none
 
     ! Subroutine arguments.
@@ -1484,11 +1492,11 @@ contains
        write (*,*) 'free_exch_handle: invalid handle ',h
     endif
 
-  end SUBROUTINE free_exch_handle
+  end subroutine free_exch_handle
 
   !================================================================
 
-  SUBROUTINE exchs_generic ( b2, ib2, b3, ib3, &
+  subroutine exchs_generic ( b2, ib2, b3, ib3, &
                              handle, comm1, comm2, comm3, comm4)
 
     ! ******************************************************************
