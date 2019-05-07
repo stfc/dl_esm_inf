@@ -866,7 +866,7 @@ contains
   !===================================================
 
   !> Copy from one patch in an array to another patch
-  !! Will be superceded by interface using field object
+  !! Will be superseded by interface using field object
   !! instead of array data.
   subroutine copy_2dfield_array_patch(field, src, dest)
     implicit none
@@ -884,18 +884,17 @@ contains
     IMPLICIT none
     type(r2d_field), intent(in)    :: field_in
     type(r2d_field), intent(inout) :: field_out
-!!$    integer :: it, ji, jj
+    integer :: it, ji, jj
 
-    field_out%data(:,:) = field_in%data(:,:)
-!OMP DO SCHEDULE(RUNTIME)
-!!$    do it = 1, field_out%ntiles, 1
-!!$       do jj= field_out%tile(it)%whole%ystart, field_out%tile(it)%whole%ystop
-!!$          do ji = field_out%tile(it)%whole%xstart, field_out%tile(it)%whole%xstop
-!!$             field_out%data(ji,jj) = field_in%data(ji,jj)
-!!$          end do
-!!$       end do
-!!$    end do
-!OMP END DO
+!$OMP DO SCHEDULE(RUNTIME)
+    do it = 1, field_out%ntiles, 1
+       do jj= field_out%tile(it)%whole%ystart, field_out%tile(it)%whole%ystop
+          do ji = field_out%tile(it)%whole%xstart, field_out%tile(it)%whole%xstop
+             field_out%data(ji,jj) = field_in%data(ji,jj)
+          end do
+       end do
+    end do
+!$OMP END DO
         
   end subroutine copy_2dfield
 
