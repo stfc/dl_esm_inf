@@ -27,13 +27,12 @@
 !------------------------------------------------------------------------------
 ! Author: A. R. Porter, STFC Daresbury Laboratory
 
-!> A simple example of the expected usage of the dl_esm_inf library in
-!! constructing a finite-difference model.
+!> Tests for the halo-exchange functionality of the dl_esm_inf library.
+!! Domain size must be supplied via the JPIGLO and JPJGLO environment
+!! variables.
 program test_halos
   use kind_params_mod
   use parallel_mod
-  use decomposition_mod, only: decomposition_type
-  use subdomain_mod
   use grid_mod
   use field_mod
   use gocean_mod
@@ -43,8 +42,6 @@ program test_halos
   ! (Uniform) grid resolution
   real(go_wp) :: dx = 1.0
   real(go_wp) :: dy = 1.0
-  !> Our domain decomposition
-  type(decomposition_type) :: decomp
   !> The grid on which our fields are defined
   type(grid_type), target :: model_grid
   !> An example field
@@ -71,8 +68,9 @@ program test_halos
                          (/GO_BC_EXTERNAL,GO_BC_EXTERNAL,GO_BC_NONE/), &
                          GO_OFFSET_NE)
 
-  !> Generate a domain decomposition
-  decomp = decompose(jpiglo, jpjglo)
+  !> Generate a domain decomposition. This automatically uses the number
+  !! of MPI ranks available.
+  call model_grid%decompose(jpiglo, jpjglo)
   my_rank = get_rank()
 
   if(my_rank == 1) then
@@ -80,8 +78,8 @@ program test_halos
   end if
 
   !> Create a T-point mask describing the (local) domain
-  allocate(tmask(decomp%subdomains(my_rank)%global%nx,  &
-                 decomp%subdomains(my_rank)%global%ny), Stat=ierr)
+  allocate(tmask(model_grid%subdomain%global%nx,  &
+                 model_grid%subdomain%global%ny), Stat=ierr)
   if(ierr /= 0)then
      call gocean_stop('Failed to allocate T-mask')
   end if
@@ -90,11 +88,8 @@ program test_halos
 
   !> Complete the initialisation of the grid using the T-mask and
   !! grid resolution
-  call grid_init(model_grid, decomp, dx, dy, tmask)
+  call grid_init(model_grid, dx, dy, tmask)
 
-  !> \TODO put these inside library initialisation
-  call map_comms(decomp, tmask, .false., (/1, 1/), ierr)
-  
   !> Create fields on U,V,T,F-points of the grid
   u_field = r2d_field(model_grid, GO_U_POINTS)
   v_field = r2d_field(model_grid, GO_V_POINTS)
@@ -279,7 +274,7 @@ contains
     integer :: ji, jj
     character(len=5) :: rank_str
     integer :: lhalo
-    real :: xpos, ypos
+    real(go_wp) :: xpos, ypos
     
     ! Each rank creates its own file
     my_rank = get_rank()
