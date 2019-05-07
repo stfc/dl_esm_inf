@@ -33,14 +33,14 @@ module decomposition_mod
   ! global%ny = 11 - 3 + 1 = 9
   !
   ! Position of the 'internal' region (i.e. excluding halos, boundary
-  ! points) within the sub-domain.
+  ! points) within the subdomain.
   ! internal%(xstart, ystart) = (2, 2), internal%(xstop, ystop) = (5, 8)
   ! Width and height of the internal region
   ! internal%nx = 5 - 2 + 1 = 4
   ! internal%ny = 8 - 1 + 1 = 7
 
   !> Type encapsulating the information required to define a single
-  !! sub-domain
+  !! subdomain
   type :: subdomain_type
      !> The definition of this subdomain in terms of the global domain
      type(region_type) :: global
@@ -54,13 +54,13 @@ module decomposition_mod
   type :: decomposition_type
      !> Dimensions of the global domain that is decomposed
      integer :: global_nx, global_ny
-     !> Dimensions of the grid of sub-domains
+     !> Dimensions of the grid of subdomains
      integer :: nx, ny
-     !> Number of sub-domains (=nx*ny)
+     !> Number of subdomains (=nx*ny)
      integer :: ndomains
-     !> Max dimensions of any sub-domain
+     !> Max dimensions of any subdomain
      integer :: max_width, max_height
-     !> Array of the sub-domain definitions
+     !> Array of the subdomain definitions
      type(subdomain_type), allocatable :: subdomains(:)
      !> An MPI process may have more than one subdomain.
      !! proc_subdomains(:,n) holds the subdomain IDs belonging to rank n.

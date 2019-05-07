@@ -1,7 +1,7 @@
 !------------------------------------------------------------------------------
 ! BSD 2-Clause License
 ! 
-! Copyright (c) 2018, Science and Technology Facilities Council
+! Copyright (c) 2018-2019, Science and Technology Facilities Council.
 ! All rights reserved.
 ! 
 ! Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@ program model
   real(go_wp) :: dy = 1.0
   !> The grid on which our fields are defined
   type(grid_type), target :: model_grid
-  !> An example field
+  !> Example fields
   type(r2d_field) :: u_field, v_field, t_field, f_field
   ! Local definition of the T-point mask which defines whether T points are
   ! wet (1), dry (0) or outside (-1) the simulation domain.
