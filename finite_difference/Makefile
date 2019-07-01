@@ -48,17 +48,21 @@ FORTCL_DIR = ../external/FortCL
 API_LIB ?= lib_fd.a
 F90 ?= gfortran
 
-.PHONY: doc clean install fd_lib dm_fd_lib all fortcl fortcl_stub
+.PHONY: doc clean install fd_lib dm_fd_lib cl_fd_lib all
 
 all: fd_lib
 
 # Build the library without MPI or OpenCL
-fd_lib: fortcl_stub
-	${MAKE} -C src API_LIB="${API_LIB}" MPI=no 
+fd_lib:
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=no OCL=no
 
-# Build the library with MPI but not OpenCL
-dm_fd_lib: fortcl_stub
-	${MAKE} -C src API_LIB="${API_LIB}" MPI=yes 
+# Build the library with MPI but no OpenCL
+dm_fd_lib:
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=yes OCL=no
+
+# OpenCL without MPI
+cl_fd_lib:
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=no OCL=yes
 
 # Target requiring OpenCL installation
 fd_lib_cl: fortcl

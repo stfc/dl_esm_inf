@@ -71,6 +71,7 @@ module field_mod
      !> Whether the data for this field lives in a remote memory space
      !! (e.g. on a GPU)
      logical :: data_on_device
+
   end type field_type
 
   !> A real, 2D field.
@@ -296,6 +297,7 @@ contains
        deallocate(fld%data)
     end if
   end subroutine r2d_free_field
+
   !===================================================
 
   function get_data(self) result(dptr)
