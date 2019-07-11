@@ -1,7 +1,7 @@
 !------------------------------------------------------------------------------
 ! BSD 2-Clause License
 ! 
-! Copyright (c) 2018, Science and Technology Facilities Council
+! Copyright (c) 2018-2019, Science and Technology Facilities Council.
 ! All rights reserved.
 ! 
 ! Redistribution and use in source and binary forms, with or without
@@ -27,21 +27,28 @@
 !------------------------------------------------------------------------------
 ! Author: A. R. Porter, STFC Daresbury Laboratory
 
-!> Stub implementation to be used in place of parallel_mod when NOT
+!> Stub implementation to be used in place of parallel_utils_mod when NOT
 !! compiling with MPI
-module parallel_mod
-  use parallel_common_mod, only: get_rank, get_num_ranks,      &
-                                 set_proc_grid, get_proc_grid, &
-                                 nranks, rank, nprocx, nprocy
+module parallel_utils_mod
+  use kind_params_mod, only: go_wp
   implicit none
 
   private
 
+  !> MPI rank + 1 of current process
+  integer :: rank
+  !> Total no. of MPI processes
+  integer :: nranks
+
+  integer, parameter :: MPI_UNDEFINED = -99
+  integer, parameter :: MPI_REQUEST_NULL = 0
+
+  logical, parameter :: DIST_MEM_ENABLED = .False.
+
   public parallel_init, parallel_finalise, parallel_abort
-  ! Make selected routines from parallel_common available to
-  !! USE'rs of this module.
-  public get_num_ranks, get_rank
-  public set_proc_grid, get_proc_grid
+  public get_rank, get_num_ranks, get_max_tag
+  public msg_wait, post_receive, post_send
+  public MPI_UNDEFINED, MPI_REQUEST_NULL, DIST_MEM_ENABLED
 
 contains
 
@@ -54,8 +61,6 @@ contains
     write (*,*) "parallel_init: Not running with MPI"
     rank = 1
     nranks = 1
-    nprocx = 1
-    nprocy = 1
 
   end subroutine parallel_init
 
@@ -64,7 +69,47 @@ contains
   !> Empty routine. For compatibility with parallel_mod.
   subroutine parallel_finalise()
   end subroutine parallel_finalise
+  
+  !================================================
 
+  integer function get_max_tag()
+    !> Stub for function that returns maximum available MPI tag value.
+    get_max_tag = 1
+  end function get_max_tag
+    
+  !================================================
+
+  subroutine msg_wait(nmsg, flags, irecv, all)
+    integer :: nmsg
+    integer, dimension(:) :: flags
+    integer :: irecv
+    logical, optional,  intent(in) :: all
+    call parallel_abort('msg_wait should not be called in a serial build')
+  end subroutine msg_wait
+  
+  !================================================
+
+  subroutine post_receive(nrecv, source, tag, exch_flag, rbuff, ibuff)
+    real(kind=go_wp), dimension(:), optional, intent(inout) :: rbuff
+    integer, dimension(:), optional, intent(inout) :: ibuff
+    integer, intent(in) :: nrecv
+    integer, intent(in) :: tag
+    integer, intent(in) :: source
+    integer :: exch_flag
+    call parallel_abort('post_receive should not be called in a serial build')
+  end subroutine post_receive
+    
+  !================================================
+  
+  subroutine post_send(sendBuff,nsend,destination,tag, &
+                       exch_flag)
+    integer, intent(in) :: nsend, destination
+    real(kind=go_wp), dimension(nsend), intent(in) :: sendBuff
+    integer :: tag ! intent is?
+    integer :: exch_flag ! intent is??
+    call parallel_abort('post_send should not be called in a serial build')
+  end subroutine post_send
+  
   !================================================
 
   !> Stop a serial model run. Prints supplied msg to stderr and calls stop
@@ -77,5 +122,19 @@ contains
     stop
 
   end subroutine parallel_abort
+  
+  !================================================
 
-end module parallel_mod
+  function get_rank()
+    integer :: get_rank
+    get_rank = rank
+  end function get_rank
+
+  !================================================
+
+  function get_num_ranks() result(num)
+    integer :: num
+    num = nranks
+  end function get_num_ranks
+
+end module parallel_utils_mod

@@ -52,11 +52,11 @@ OCL ?= no
 FORTCL_DIR = ../../external/FortCL
 
 ifeq ($(MPI), yes)
-	PARALLEL_MOD=parallel_mod
+	PARALLEL_MOD=parallel_utils_mod
 	F90 ?= mpif90
 	API_LIB ?= lib_dm_fd.a
 else
-	PARALLEL_MOD=parallel_stub_mod
+	PARALLEL_MOD=parallel_utils_stub_mod
 	F90 ?= gfortran
 	API_LIB ?= lib_fd.a
 endif
@@ -69,16 +69,17 @@ endif
 
 BASE_SOURCES = argument_mod.f90 \
           global_parameters_mod.f90 \
+          decomposition_mod.f90 \
           field_mod.f90 \
           gocean_mod.F90 \
           grid_mod.f90 \
           halo_mod.f90 \
           kernel_mod.f90 \
           kind_params_mod.f90 \
-          parallel_common_mod.f90 \
           $(PARALLEL_MOD).f90 \
+          parallel_comms_mod.f90 \
+          parallel_mod.f90 \
           region_mod.f90 \
-          subdomain_mod.f90 \
           tile_mod.f90
 
 # Get the absolute path to the makefile
@@ -127,23 +128,26 @@ distclean: clean
 # Inter-module dependencies, alphabetical order
 argument_mod.o: global_parameters_mod.o
 
+decomposition_mod.o: region_mod.o
+
 field_mod.o: kind_params_mod.o tile_mod.o grid_mod.o \
              halo_mod.o region_mod.o gocean_mod.o
 
-gocean_mod.o: $(PARALLEL_MOD).o
+gocean_mod.o: parallel_mod.o
 
-grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o $(PARALLEL_MOD).o \
-			subdomain_mod.o
+grid_mod.o: kind_params_mod.o region_mod.o gocean_mod.o parallel_mod.o
 
 halo_mod.o: region_mod.o
 
 kernel_mod.o: argument_mod.o
 
-$(PARALLEL_MOD).o: parallel_common_mod.o
+$(PARALLEL_MOD).o: kind_params_mod.o
+
+parallel_mod.o: decomposition_mod.o parallel_comms_mod.o
+
+parallel_comms_mod.o: $(PARALLEL_MOD).o
 
 tile_mod.o: region_mod.o
-
-subdomain_mod.o: $(PARALLEL_MOD).o region_mod.o
 
 %.o: $(ROOT)/%.[Ff]90
 	$(F90) $(F90FLAGS) -I${FORTCL_DIR} -c $<

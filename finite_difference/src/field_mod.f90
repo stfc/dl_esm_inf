@@ -1,7 +1,7 @@
 !------------------------------------------------------------------------------
 ! BSD 2-Clause License
 ! 
-! Copyright (c) 2017-2018, Science and Technology Facilities Council
+! Copyright (c) 2017-2019, Science and Technology Facilities Council
 ! All rights reserved.
 ! 
 ! Redistribution and use in source and binary forms, with or without
@@ -96,6 +96,7 @@ module field_mod
      !> Getter for the data associated with this field. Fetches data
      !! from remote accelerator if necessary.
      procedure, pass :: get_data
+     procedure, public :: halo_exch
   end type r2d_field
 
   !> Interface for the copy_field operation. Overloaded to take
@@ -173,7 +174,7 @@ contains
   function r2d_field_constructor(grid,    &
                                  grid_points, &
                                  do_tile) result(self)
-    use subdomain_mod, only: decompose, decomposition_type
+    use parallel_mod, only: decomposition_type, go_decompose
 !$    use omp_lib, only : omp_get_max_threads
     implicit none
     ! Arguments
@@ -221,9 +222,9 @@ contains
         endif
     endif
 
-    WRITE (*,"(/'Have ',I3,' OpenMP threads available.')") nthreads
-    decomp = decompose(self%internal%nx, self%internal%ny, &
-                       nthreads, ntilex, ntiley)
+!$  write (*,"(/'Have ',I3,' OpenMP threads available.')") nthreads
+    decomp = go_decompose(self%internal%nx, self%internal%ny, &
+                          nthreads, ntilex, ntiley)
     self%ntiles = nthreads
     allocate(self%tile(self%ntiles), Stat=ierr)
     if(ierr /= 0)then
@@ -277,7 +278,7 @@ contains
     do itile = 1, self%ntiles
        do jj = self%tile(itile)%whole%ystart, self%tile(itile)%whole%ystop
           do ji = self%tile(itile)%whole%xstart, self%tile(itile)%whole%xstop
-             self%data(ji,jj) = -999.0
+             self%data(ji,jj) = 0.0
           end do
        end do
     end do
@@ -416,7 +417,7 @@ contains
     fld%num_halos = 0
 
   end subroutine field_init
-
+  
   !===================================================
 
   subroutine cu_field_init(fld)
@@ -529,50 +530,17 @@ contains
     ! Set up a field defined on U points when the grid types have 
     ! a North-East offset relative to the T point.
 
-    ! It is the T points that define the whole domain and we are
-    ! simulating a region within this domain. As a minimum, we will
-    ! require one external T point around the whole perimeter of the
-    ! simulated domain in order to specify boundary conditions. The U
-    ! pts on the boundary will then lie between the last external and
-    ! first internal T points. 
-    ! With a (N)E offset this means:
-
-    ! ji indexing: 
-    ! Lowermost i index of the u points will be the same as the T's.
-    ! i.e. if we start at 1 then T(1,:) are external and u(1,:) are 
-    ! boundary points too.
-    ! However, the U points with ji==nx will lie outside the model
-    ! domain. U points with ji==nx-1 will be the Eastern-most *boundary*
-    ! points.
-    ! jj indexing:
-    ! Lowermost j index of the U points - U pts with jj the same as
-    ! external T points will also be external to domain and therefore
-    ! unused. U points with jj one greater than lowest ext. T pts will
-    ! be *boundary* points. U pts with jj==ny will be boundary points.
-
-    ! When updating a quantity on U points with this offset
-    ! we write to (using 'x' to indicate a location that is written and 
-    ! 'b' a boundary point):
-    !
-    ! i= 1          nx-1  nx
-    !    b   b   b   b    o   ny
-    !    b   x   x   b    o 
-    !    b   x   x   b    o 
-    !    b   x   x   b    o   
-    !    b   b   b   b    o   1
-    !                         j
-
-    ! i.e. fld(2:M,2:N+1) = ...
-
     if(fld%grid%boundary_conditions(1) /= GO_BC_PERIODIC)then
-      ! If we do not have periodic boundary conditions then we do
-      ! not need to allow for boundary points here - they are
-      ! already contained within the region defined by T mask.
-      ! The T mask has been used to determine the grid%subdomain
-      ! which describes the area on the grid that is actually being
-      ! modelled (as opposed to having values supplied from B.C.'s etc.)
-      fld%internal%xstart = fld%grid%subdomain%internal%xstart
-      fld%internal%xstop  = fld%grid%subdomain%internal%xstop - 1
+       ! If we do not have periodic boundary conditions then we do
+       ! not need to allow for boundary points here - they are
+       ! already contained within the region defined by T mask.
+       ! The T mask has been used to determine the grid%subdomain
+       ! which describes the area on the grid that is actually being
+       ! modelled (as opposed to having values supplied from B.C.'s etc.)
+       fld%internal%xstart = fld%grid%subdomain%internal%xstart
+       ! Now that all fields are allocated to be the same size, we always have
+       ! as many U-points as T-points
+       fld%internal%xstop  = fld%grid%subdomain%internal%xstop
     else
       call gocean_stop('ERROR: cu_ne_init: implement periodic boundary conditions!')
     end if
@@ -676,31 +644,6 @@ contains
     implicit none
     class(field_type), intent(inout) :: fld
 
-    ! ji indexing:
-    ! Lowermost ji index of the V points will be the same as the T's.
-    ! If the domain starts at 1 then T(1,:) are external and v(1,:)
-    ! are boundary points.
-    ! Uppermost ji index is nx. T(nx,:) are external and v(nx,:)
-    ! are boundary points.
-
-    ! jj indexing:
-    ! If domain starts at 1 then T(:,1) are external and V(:,1) are
-    ! boundary points.
-    ! Uppermost jj index is ny. T(ny,:) are external and so are V(ny,:)
-    ! (see diagram at start of module). It is V(ny-1,:) that are the 
-    ! boundary points.
-
-    ! When updating a quantity on V points with this offset
-    ! we write to (using 'x' to indicate a location that is written):
-    !
-    ! i=1       Nx
-    !  o  o  o  o   Ny
-    !  b  b  b  b   Ny-1
-    !  b  x  x  b
-    !  b  x  x  b
-    !  b  b  b  b   j=1
-    !
-
     if(fld%grid%boundary_conditions(1) /= GO_BC_PERIODIC)then
       ! If we do not have periodic boundary conditions then we do
       ! not need to allow for boundary points here - they are
@@ -712,8 +655,10 @@ contains
     end if
 
     if(fld%grid%boundary_conditions(2) /= GO_BC_PERIODIC)then
-      fld%internal%ystart = fld%grid%subdomain%internal%ystart
-      fld%internal%ystop  = fld%grid%subdomain%internal%ystop - 1
+       fld%internal%ystart = fld%grid%subdomain%internal%ystart
+       ! Since we allocate all fields with the same extents, we always have
+       ! as many V points as T points
+       fld%internal%ystop  = fld%grid%subdomain%internal%ystop
     else
       call gocean_stop('ERROR: cv_ne_init: implement periodic BCs!')
     end if
@@ -932,7 +877,7 @@ contains
       ! not need to allow for boundary points here - they are
       ! already contained within the region.
       fld%internal%xstart = fld%grid%subdomain%internal%xstart
-      fld%internal%xstop  = fld%grid%subdomain%internal%xstop - 1
+      fld%internal%xstop  = fld%grid%subdomain%internal%xstop
     else
       call gocean_stop('ERROR: cf_ne_init: implement periodic BCs!')
       stop
@@ -940,7 +885,7 @@ contains
 
     if(fld%grid%boundary_conditions(2) /= GO_BC_PERIODIC)then
       fld%internal%ystart = fld%grid%subdomain%internal%ystart
-      fld%internal%ystop  = fld%grid%subdomain%internal%ystop - 1
+      fld%internal%ystop  = fld%grid%subdomain%internal%ystop
     else
       call gocean_stop('ERROR: cf_ne_init: implement periodic BCs!')
     end if
@@ -961,7 +906,7 @@ contains
   !===================================================
 
   !> Copy from one patch in an array to another patch
-  !! Will be superceded by interface using field object
+  !! Will be superseded by interface using field object
   !! instead of array data.
   subroutine copy_2dfield_array_patch(field, src, dest)
     implicit none
@@ -1048,7 +993,23 @@ contains
 !    val = SUM( ABS(field%data(field%internal%xstart:field%internal%xstop, &
 !                              field%internal%ystart:field%internal%ystop)) )
   end function fld_checksum
+  
+  !===================================================
 
+  subroutine halo_exch(self, depth)
+    !> Provides access to exchs_generic for halo swaps for this field
+    use parallel_comms_mod, only: Iplus, Iminus, Jplus, Jminus, NONE, &
+         exchs_generic
+    implicit none
+    class(r2d_field), target, intent(inout) :: self
+    integer, intent(in) :: depth
+    ! Locals
+    integer :: exch  !> Handle for exchange
+
+    call exchs_generic(b2=self%data, handle=exch, &
+                       comm1=JPlus, comm2=Jminus, comm3=IPlus, comm4=IMinus)
+  end subroutine halo_exch
+  
   !===================================================
 
   !> Compute the checksum of ALL of the elements of supplied array
