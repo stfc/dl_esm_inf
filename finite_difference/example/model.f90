@@ -86,10 +86,10 @@ program model
   call init_field_by_rank(t_field)
   call init_field_by_rank(f_field)
 
-  call u_field%halo_exch(1)
-  call v_field%halo_exch(1)
-  call t_field%halo_exch(1)
-  call f_field%halo_exch(1)
+  call u_field%halo_exchange(1)
+  call v_field%halo_exchange(1)
+  call t_field%halo_exchange(1)
+  call f_field%halo_exchange(1)
 
   ! All done!
   if (get_rank() == 1) write(*,'(/"Example model set-up complete."/)')
