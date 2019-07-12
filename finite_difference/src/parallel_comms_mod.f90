@@ -30,7 +30,7 @@
 module parallel_comms_mod
   use kind_params_mod, only: go_wp
   use parallel_utils_mod, only: get_num_ranks, get_rank, parallel_abort,     &
-       MPI_UNDEFINED, MPI_REQUEST_NULL, msg_wait, msg_wait_all, get_max_tag, &
+       MSG_UNDEFINED, MSG_REQUEST_NULL, msg_wait, msg_wait_all, get_max_tag, &
        post_receive, post_send
   use decomposition_mod, only: subdomain_type, decomposition_type
   implicit none
@@ -1616,7 +1616,7 @@ contains
           endif
 
        else
-          exch_flags(handle,irecv,indexr) = MPI_REQUEST_NULL
+          exch_flags(handle,irecv,indexr) = MSG_REQUEST_NULL
        end if
 
     end do
@@ -1742,7 +1742,7 @@ contains
 
        else
 
-          exch_flags(handle,isend,indexs) = MPI_REQUEST_NULL
+          exch_flags(handle,isend,indexs) = MSG_REQUEST_NULL
        end if ! direction is enabled and have something to send
 
     enddo ! Loop over sends
@@ -1766,7 +1766,7 @@ contains
     ! Get the first available message that we've received
     call msg_wait(nrecv, exch_flags1d, irecv)
 
-    do while(irecv /= MPI_UNDEFINED)
+    do while(irecv /= MSG_UNDEFINED)
 
        if ( present(b2) ) then
 
@@ -1832,7 +1832,7 @@ contains
 
        ! Wait for the next message
        call msg_wait(nrecv, exch_flags1d, irecv)
-    end do ! while irecv != MPI_UNDEFINED
+    end do ! while irecv != MSG_UNDEFINED
 
     if(DEBUG_COMMS)then
        write(*,"(I3,': Finished all ',I3,' receives for handle ',I3)") &

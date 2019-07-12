@@ -58,12 +58,15 @@ module parallel_utils_mod
   !! been built with distributed-memory support (MPI).
   logical, parameter :: DIST_MEM_ENABLED = .True.
 
+  !> Copy some MPI parameters into our namespace (because they're used
+  !! when looping over messages in the layer above this one)
+  integer, parameter :: MSG_UNDEFINED = MPI_UNDEFINED
+  integer, parameter :: MSG_REQUEST_NULL = MPI_REQUEST_NULL
+
   public parallel_init, parallel_finalise, parallel_abort, get_max_tag
   public get_rank, get_num_ranks, post_receive, post_send
   public msg_wait, msg_wait_all
-
-  ! Re-export some MPI constants
-  public MPI_UNDEFINED, MPI_REQUEST_NULL, DIST_MEM_ENABLED
+  public MSG_UNDEFINED, MSG_REQUEST_NULL, DIST_MEM_ENABLED
 
 contains
 
