@@ -102,13 +102,13 @@ program test_halos
   call init_field_hill(f_field)
 
   write(*,"(I3,' Halo exchange for u:')") my_rank
-  call u_field%halo_exch(1)
+  call u_field%halo_exchange(1)
   write(*,"(I3,' Halo exchange for v:')") my_rank
-  call v_field%halo_exch(1)
+  call v_field%halo_exchange(1)
   write(*,"(I3,' Halo exchange for t:')") my_rank
-  call t_field%halo_exch(1)
+  call t_field%halo_exchange(1)
   write(*,"(I3,' Halo exchange for f:')") my_rank
-  call f_field%halo_exch(1)
+  call f_field%halo_exchange(1)
 
   !call dump_field(u_field, "u_fld", halo_depth=1)
   !call dump_field(v_field, "v_fld", halo_depth=1)
@@ -297,33 +297,34 @@ contains
     
     do jj = field%internal%ystart-lhalo, field%internal%ystop+lhalo, 1
        do ji = field%internal%xstart-lhalo, field%internal%xstop+lhalo, 1
-    ! Global position of the T point
-    xpos = field%grid%xt(ji,jj)
-    ypos = field%grid%yt(ji,jj)
-    select case(field%grid%offset)
-    case(GO_OFFSET_SW)
-       select case(field%defined_on)
-       case(GO_U_POINTS)
-          xpos = xpos - 0.5*field%grid%dx_u(ji, jj)
-       case(GO_F_POINTS)
-          xpos = xpos - 0.5*field%grid%dx_f(ji, jj)
-          ypos = ypos - 0.5*field%grid%dy_f(ji, jj)
-       case(GO_V_POINTS)
-          ypos = ypos - 0.5*field%grid%dy_v(ji, jj)
-       end select
-    case(GO_OFFSET_NE)
-       select case(field%defined_on)
-       case(GO_U_POINTS)
-          xpos = xpos + 0.5*field%grid%dx_u(ji, jj)
-       case(GO_F_POINTS)
-          xpos = xpos + 0.5*field%grid%dx_f(ji, jj)
-          ypos = ypos + 0.5*field%grid%dy_f(ji, jj)
-       case(GO_V_POINTS)
-          ypos = ypos + 0.5*field%grid%dy_v(ji, jj)
-       end select
-    case default
-       call gocean_stop("dump_field: unsupported grid offset")
-    end select
+
+          ! Global position of the T point
+          xpos = field%grid%xt(ji,jj)
+          ypos = field%grid%yt(ji,jj)
+          select case(field%grid%offset)
+          case(GO_OFFSET_SW)
+             select case(field%defined_on)
+             case(GO_U_POINTS)
+                xpos = xpos - 0.5*field%grid%dx_u(ji, jj)
+             case(GO_F_POINTS)
+                xpos = xpos - 0.5*field%grid%dx_f(ji, jj)
+                ypos = ypos - 0.5*field%grid%dy_f(ji, jj)
+             case(GO_V_POINTS)
+                ypos = ypos - 0.5*field%grid%dy_v(ji, jj)
+             end select
+          case(GO_OFFSET_NE)
+             select case(field%defined_on)
+             case(GO_U_POINTS)
+                xpos = xpos + 0.5*field%grid%dx_u(ji, jj)
+             case(GO_F_POINTS)
+                xpos = xpos + 0.5*field%grid%dx_f(ji, jj)
+                ypos = ypos + 0.5*field%grid%dy_f(ji, jj)
+             case(GO_V_POINTS)
+                ypos = ypos + 0.5*field%grid%dy_v(ji, jj)
+             end select
+          case default
+             call gocean_stop("dump_field: unsupported grid offset")
+          end select
 
           write(unit_no,'(3e16.7e3)') xpos, &
                                       ypos, &
