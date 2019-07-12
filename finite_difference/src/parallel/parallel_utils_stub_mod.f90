@@ -47,7 +47,7 @@ module parallel_utils_mod
 
   public parallel_init, parallel_finalise, parallel_abort
   public get_rank, get_num_ranks, get_max_tag
-  public msg_wait, post_receive, post_send
+  public msg_wait, msg_wait_all, post_receive, post_send
   public MPI_UNDEFINED, MPI_REQUEST_NULL, DIST_MEM_ENABLED
 
 contains
@@ -79,13 +79,20 @@ contains
     
   !================================================
 
-  subroutine msg_wait(nmsg, flags, irecv, all)
-    integer :: nmsg
-    integer, dimension(:) :: flags
-    integer :: irecv
-    logical, optional,  intent(in) :: all
+  subroutine msg_wait(nmsg, flags, irecv)
+    integer, intent(in) :: nmsg
+    integer, dimension(:), intent(inout) :: flags
+    integer, intent(out) :: irecv
     call parallel_abort('msg_wait should not be called in a serial build')
   end subroutine msg_wait
+    
+  !================================================
+
+  subroutine msg_wait_all(nmsg, flags)
+    integer, intent(in) :: nmsg
+    integer, dimension(:), intent(inout) :: flags
+    call parallel_abort('msg_wait should not be called in a serial build')
+  end subroutine msg_wait_all
   
   !================================================
 
