@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 # BSD 2-Clause License
 # 
-# Copyright (c) 2018, Science and Technology Facilities Council.
+# Copyright (c) 2019, Science and Technology Facilities Council.
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -27,8 +27,7 @@
 #------------------------------------------------------------------------------
 # Author: A. R. Porter, STFC Daresbury Laboratory
 
-# Makefile for the example mini-app demonstrating the use of the dl_esm_inf
-# library.
+# Makefile for dist_mem tests for the dl_esm_inf finite difference library.
 #
 # This Makefile picks up the compiler to use plus any associated flags from
 # environment variables. e.g. to use gfortran:
@@ -38,62 +37,39 @@
 # export AR=ar
 # make
 #
-# or, to build the serial version:
-#
-# export F90=gfortran
-# make serial-model
+all: tests
 
-all: model
-
-# Target to build version with MPI support
-.PHONY: model
-model: inf_lib model.exe
-
-# Target to build serial version
-.PHONY: serial-model
-serial-model: inf_lib_serial model.exe
-
-# Run tests (check both serial and parallel versions are valgrind clean)
-# This is a very basic target and assumes that valgrind and 'mpirun'
-# are available.
-# TODO use a proper testing framework!
-test: serial-test
-
-serial-test: serial-model
-	${MAKE} clean
-	${MAKE} serial-model
-	valgrind ./model.exe
-
-parallel-test: model
-	${MAKE} clean
-	${MAKE} model
-	mpirun -np 2 valgrind ./model.exe
-
-INF_DIR=..
+# Location of the dl_esm_inf library
+INF_DIR=../..
 INF_INC = ${INF_DIR}/src
 INF_LIB = ${INF_DIR}/src/lib_fd.a
 
-.PHONY: inf_lib
+.PHONY: test_xsplit test_ysplit test_xysplit inf_lib
+
+# Compile and run tests. This is a very basic target and assumes that
+# OpenMPI's 'mpirun' is available (because of the way we set environment
+# variables).
+tests: test_xsplit test_ysplit test_xysplit
+
+test_xsplit: inf_lib test_halos.exe
+	mpirun -x JPIGLO=10 -x JPJGLO=4 -np 2 ./test_halos.exe
+
+test_ysplit: inf_lib test_halos.exe
+	mpirun -x JPIGLO=4 -x JPJGLO=10 -np 2 ./test_halos.exe
+
+test_xysplit: inf_lib test_halos.exe
+	mpirun -x JPIGLO=10 -x JPJGLO=10 -np 4 ./test_halos.exe
+
 inf_lib:
 	${MAKE} -C ${INF_DIR} F90=${F90} dm_fd_lib
 
-.PHONY: inf_lib_serial
-inf_lib_serial:
-	${MAKE} -C ${INF_DIR} F90=${F90} fd_lib
-
 # Normal targets
-model.exe: model.o
-	${F90} -o $@ ${LDFLAGS} model.o ${INF_LIB}
+test_halos.exe: inf_lib test_halos.o
+	${F90} -o $@ ${LDFLAGS} test_halos.o ${INF_LIB}
 
-%.o: %.f90
-	$(F90) $(F90FLAGS) ${OMPFLAGS} -I${INF_INC} -c $<
-
-%.o: %.F90
+%.o: %.[fF]90
 	$(F90) $(F90FLAGS) ${OMPFLAGS} -I${INF_INC} -c $<
 
 clean: 
 	${MAKE} -C ${INF_DIR} clean
 	rm -f *.o *.mod *.MOD *~ *.exe
-
-allclean: clean
-	${MAKE} -C ${INF_DIR} distclean

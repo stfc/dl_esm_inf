@@ -4,7 +4,7 @@ module grid_mod
   use kind_params_mod
   use region_mod
   use gocean_mod
-  use subdomain_mod, only: subdomain_type
+  use decomposition_mod, only: subdomain_type, decomposition_type
   implicit none
 
   private
@@ -51,11 +51,13 @@ module grid_mod
      !> Specifies the convention by which grid-point
      !! types are indexed relative to a T point.
      integer :: offset
-     !> Extent of T-point grid in x. Note that this is the whole grid,
-     !! not just the region that is simulated.
+     !> Extent of T-point grid of whole, global domain.
+     integer :: global_nx, global_ny
+     !> Extent of T-point grid in x on local subdomain. Note that this
+     !! is the whole grid, not just the region that is simulated.
      integer :: nx
-     !> Extent of T-point grid in y. Note that this is the whole grid,
-     !! not just the region that is simulated.
+     !> Extent of T-point grid in y. Note that this is the whole grid
+     !! (local to this process), not just the region that is simulated.
      integer :: ny
      !> Grid spacing in x (m)
      real(go_wp) :: dx
@@ -82,6 +84,10 @@ module grid_mod
      !> The definition of the subdomain that this process is
      !! responsible for
      type(subdomain_type) :: subdomain
+
+     !> Object holding information on all subdomains into which the
+     !! grid has been decomposed.
+     type(decomposition_type) :: decomp
 
      !> Horizontal scale factors at t point (m)
      real(go_wp), allocatable :: dx_t(:,:), dy_t(:,:)
@@ -110,6 +116,7 @@ module grid_mod
 
    contains
      procedure :: get_tmask
+     procedure :: decompose
 
   end type grid_type
 
@@ -117,11 +124,12 @@ module grid_mod
      module procedure grid_constructor
   end interface grid_type
 
-  public grid_init
+  public grid_init, HALO_WIDTH_X, HALO_WIDTH_Y
 
 contains
 
   !============================================
+
   function get_tmask(self) result(tmask)
     implicit none
     class (grid_type), target, intent(in) :: self
@@ -131,6 +139,41 @@ contains
 
     return
   end function get_tmask
+
+  !================================================
+
+  !> Decompose a domain consisting of domainx x domainy points
+  !! into a 2D grid.
+  subroutine decompose(self, domainx, domainy,       &
+                       ndomains, ndomainx, ndomainy, &
+                       halo_width)
+    use parallel_mod, only: get_num_ranks, get_rank, go_decompose
+    implicit none
+    class (grid_type), target, intent(inout) :: self
+    !> Dimensions of the domain to decompose
+    integer, intent(in) :: domainx, domainy
+    !> No. of domains to decompose into. If not supplied will use the
+    !! number of MPI ranks (or 1 if serial).
+    integer, intent(in), optional :: ndomains
+    !> Optional specification of the dimensions of the tiling grid
+    integer, intent(in), optional :: ndomainx, ndomainy
+    !> Width of halo to allow for when constructing sub-domains.
+    !! Default value is 1. Must be > 0 for a multi-processor run.
+    integer, intent(in), optional :: halo_width
+
+    self%decomp = go_decompose(domainx, domainy, ndomains=ndomains,  &
+                               ndomainx=ndomainx, ndomainy=ndomainy, &
+                               halo_width=halo_width)
+
+    ! Copy the definition of the sub-domain for which we are responsible
+    ! into our grid object.
+    self%subdomain = self%decomp%subdomains(get_rank())
+    self%global_nx = self%decomp%global_nx
+    self%global_ny = self%decomp%global_ny
+
+  end subroutine decompose
+  
+  !============================================
 
   !> Basic constructor for the grid type. Full details, including domain
   !! decomposition, are fleshed-out by the grid_init() routine.
@@ -207,7 +250,9 @@ contains
 
   !> Initialise the supplied grid object for a 2D model. The extent
   !! of the model domain is obtained from the supplied decomposition
-  !! object.
+  !! object. Once the grid is fleshed out, we construct the communication
+  !! tables for the halo exchanges.
+  !!
   !! Ultimately, this routine should be general purpose but it is not
   !! there yet.  For periodic boundary conditions the decomposition
   !! exactly specifies the extent of the simulated region (since we
@@ -224,29 +269,20 @@ contains
   !! @param[in] tmask Array holding the T-point mask which defines
   !!                  the contents of the local domain. Need not be
   !!                  supplied if domain is all wet and has PBCs.
-  subroutine grid_init(grid, decomp, dxarg, dyarg, tmask)
+  subroutine grid_init(grid, dxarg, dyarg, tmask)
     use global_parameters_mod, only: ALIGNMENT
-    use subdomain_mod, only: subdomain_type, decomposition_type
-    use parallel_mod
+    use decomposition_mod, only: subdomain_type, decomposition_type
+    use parallel_mod, only: map_comms, get_rank, get_num_ranks
     implicit none
     type(grid_type), intent(inout) :: grid
-    type(decomposition_type), intent(in) :: decomp
-    real(go_wp),        intent(in)    :: dxarg, dyarg
+    real(go_wp),              intent(in) :: dxarg, dyarg
     integer, allocatable, dimension(:,:), intent(in), optional :: tmask
     ! Locals
-    integer :: myrank
     integer :: mlocal
     integer :: ierr(5)
     integer :: ji, jj
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
-
-    ! Copy the definition of the sub-domain for which we are responsible
-    ! into our grid object.
-    myrank = get_rank()
-    grid%subdomain = decomp%subdomains(myrank)
-
-    ! Store the global dimensions of the grid...
 
     ! Extend the domain by unity in each dimension to allow
     ! for staggering of variables. All fields will be
@@ -281,17 +317,31 @@ contains
 !! inside a field object.
 !$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
 !$OMP shared(grid, tmask)
-       do jj = 1, grid%ny
-          do ji = 1, grid%nx
-             ! Initially flag all points as being outside the domain
-             grid%tmask(ji,jj) = -1
+       do jj = ystart-1, ystop+1
+          do ji = xstart-1, xstop+1
+             ! Copy in values
+             grid%tmask(ji,jj) = tmask(ji,jj)
           end do
        end do
 !$OMP END PARALLEL DO
 
-       ! Copy of actual values
-       grid%tmask(xstart:xstop, ystart:ystop) = tmask(xstart:xstop, &
-                                                      ystart:ystop)
+       ! Fill-in boundary regions
+       ! North
+       do jj = ystop+2, grid%ny
+          grid%tmask(:, jj) = grid%tmask(:, ystop+1)
+       end do
+       ! South
+       do jj = 1, ystart-2, 1
+          grid%tmask(:, jj) = grid%tmask(:, ystart-1)
+       end do
+       ! East
+       do ji = 1, xstart-2, 1
+          grid%tmask(ji,:) = grid%tmask(xstart-1, :)
+       end do
+       ! West
+       do ji = xstop+2, grid%nx
+          grid%tmask(ji, :) = grid%tmask(xstop+1, :)
+       end do
     else
        ! No T-mask supplied. Check that grid has PBCs in both
        ! x and y dimensions otherwise we won't know what to do.
@@ -300,7 +350,7 @@ contains
           call gocean_stop('grid_init: ERROR: No T-mask supplied and '// &
                            'grid does not have periodic boundary conditions!')
        end if
-       !> TODO add support for PBCs in paralel
+       !> TODO add support for PBCs in parallel
        if(get_num_ranks() > 1)then
           call gocean_stop('grid_init: PBCs not yet implemented with MPI')
        end if
@@ -385,21 +435,39 @@ contains
        end do
     end do
 
-    grid%xt(xstart, :) = (grid%subdomain%global%xstart - 0.5_go_wp) * &
-         grid%dx_t(xstart,:)
-    grid%yt(:,ystart)  = (grid%subdomain%global%ystart - 0.5_go_wp) * &
-         grid%dy_t(:,ystart)
+    grid%xt(xstart, :) = grid%subdomain%global%xstart * grid%dx_t(xstart,:)
+    grid%yt(:,ystart)  = grid%subdomain%global%ystart * grid%dy_t(:,ystart)
 
-    DO ji = xstart+1, xstop
-      grid%xt(ji,ystart:ystop) = grid%xt(ji-1, ystart:ystop) + grid%dx
+    DO ji = xstart+1, grid%nx
+      grid%xt(ji,:) = grid%xt(ji-1, :) + grid%dx
     END DO
             
-    DO jj = ystart+1, ystop
-      grid%yt(xstart:xstop,jj) = grid%yt(xstart:xstop, jj-1) + grid%dy
+    DO jj = ystart+1, grid%ny
+      grid%yt(:, jj) = grid%yt(:, jj-1) + grid%dy
     END DO
 
-  end subroutine grid_init
+    ! Add the coordinates for points that are external to the domain.
+    ! This aids the output of full fields including halo regions for the
+    ! purposes of debugging.
+    do ji = xstart-1, 1, -1
+       grid%xt(ji,:) = grid%xt(ji+1, :) - grid%dx
+    end do
 
-  !================================================
+    do jj = ystart-1, 1, -1
+       grid%yt(:,jj) = grid%yt(:, jj+1) - grid%dy
+    end do
+
+    !> Set-up the communication tables for halo exchanges
+    if( grid%boundary_conditions(1) == GO_BC_PERIODIC .or. &
+        grid%boundary_conditions(2) == GO_BC_PERIODIC )then
+       call gocean_stop('map_comms call needs to be implemented for ' &
+                   &  //'periodic boundary conditions.')
+    end if
+    
+    call map_comms(grid%decomp, tmask, .false., (/1,1/), ierr(1))
+
+    if(ierr(1) /= 0)call gocean_stop('Set-up of communication tables (call ' &
+                                 & //'to map_comms()) failed.')
+  end subroutine grid_init
 
 end module grid_mod

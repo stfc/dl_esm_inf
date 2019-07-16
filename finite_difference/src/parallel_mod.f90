@@ -1,7 +1,7 @@
 !------------------------------------------------------------------------------
 ! BSD 2-Clause License
 ! 
-! Copyright (c) 2017-2018, Science and Technology Facilities Council
+! Copyright (c) 2018, Science and Technology Facilities Council.
 ! All rights reserved.
 ! 
 ! Redistribution and use in source and binary forms, with or without
@@ -27,81 +27,49 @@
 !------------------------------------------------------------------------------
 ! Author: A. R. Porter, STFC Daresbury Laboratory
 
-!> Module containing the definition of the sub-domain and
-!! domain-decomposition types.
-module subdomain_mod
-  use region_mod, only: region_type
+!> Top-level module holding elements of the parallel infrastructure that
+!! are independent of whether or not we are building with MPI.
+module parallel_mod
+  use parallel_utils_mod, only: parallel_finalise, parallel_abort, &
+                                get_rank, get_num_ranks
+  use parallel_comms_mod, only: map_comms, exchmod_alloc
+  use decomposition_mod, only: decomposition_type
   implicit none
 
-  ! The subdomain type captures everything we need to know about
-  ! the definition of a subdomain within a larger, global domain.
-  ! e.g. if '.' indicates a grid point in the global domain that
-  ! does not belong to the current subdomain, 'h' is a halo grid
-  ! point in the current subdomain and 'i' is an 'internal' grid
-  ! point in the current subdomain, then:
-  !
-  ! 14 .  .  .  .  .  .  .  .  .  .  .  .
-  ! 13 .  .  .  .  .  .  .  .  .  .  .  .
-  ! 12 .  .  .  .  .  .  .  .  .  .  .  .
-  ! 11 .  .  .  h  h  h  h  h  h  .  .  .
-  ! 10 .  .  .  h  i  i  i  i  h  .  .  .
-  !  9 .  .  .  h  i  i  i  i  h  .  .  .
-  !  8 .  .  .  h  i  i  i  i  h  .  .  .
-  !  7 .  .  .  h  i  i  i  i  h  .  .  .
-  !  6 .  .  .  h  i  i  i  i  h  .  .  .
-  !  5 .  .  .  h  i  i  i  i  h  .  .  .
-  !  4 .  .  .  h  i  i  i  i  h  .  .  .
-  !  3 .  .  .  h  h  h  h  h  h  .  .  .
-  !  2 .  .  .  .  .  .  .  .  .  .  .  .
-  !  1 .  .  .  .  .  .  .  .  .  .  .  .
-  !    1  2  3  4  5  6  7  8  9  10 11 12
-  !             Global x index -->
-  !
-  ! Position of the internal part of the subdomain in the global domain
-  ! global%(xstart, ystart) = (5, 4), global%(xstop, ystop) = (8, 10)
-  ! Width and height of the *whole* subdomain
-  ! global%nx = 9 - 4 + 1 = 6
-  ! global%ny = 11 - 3 + 1 = 9
-  !
-  ! Position of the 'internal' region (i.e. excluding halos, boundary
-  ! points) within the sub-domain.
-  ! internal%(xstart, ystart) = (2, 2), internal%(xstop, ystop) = (5, 8)
-  ! Width and height of the internal region
-  ! internal%nx = 5 - 2 + 1 = 4
-  ! internal%ny = 8 - 1 + 1 = 7
+  private
 
-  !> Type encapsulating the information required to define a single
-  !! sub-domain
-  type :: subdomain_type
-     !> The definition of this subdomain in terms of the global domain
-     type(region_type) :: global
-     !> The internal region of this subdomain (excluding halo and
-     !! boundary points)
-     type(region_type) :: internal
-  end type subdomain_type
+  ! The public routines implemented in this module
+  public parallel_init, parallel_finalise, parallel_abort, go_decompose
 
-  !> Type encapsulating all information regarding a regular, 2D
-  !! domain decomposition
-  type :: decomposition_type
-     !> Dimensions of the grid of sub-domains
-     integer :: nx, ny
-     !> Number of sub-domains (=nx*ny)
-     integer :: ndomains
-     !> Max dimensions of any sub-domain
-     integer :: max_width, max_height
-     !> Array of the sub-domain definitions
-     type(subdomain_type), allocatable :: subdomains(:)
-  end type decomposition_type
+  ! Export routines from other modules
+  public map_comms, get_rank, get_num_ranks
+  public decomposition_type
 
 contains
 
+  subroutine parallel_init()
+    use parallel_utils_mod, only: init => parallel_init
+    implicit none
+    integer :: ierr
+
+    call init()
+
+    ierr = exchmod_alloc()
+    if(ierr /= 0)then
+       call parallel_abort("Failed to allocate message buffers")
+    end if
+
+  end subroutine parallel_init
+
+  !================================================
+
   !> Decompose a domain consisting of domainx x domainy points
   !! into a 2D grid.
-  !! Returns an array of tiles describing each of the subdomains.    
-  function decompose(domainx, domainy,             &
-                     ndomains, ndomainx, ndomainy, &
-                     halo_width) result(decomp)
-    use parallel_mod, only: get_num_ranks, parallel_abort
+  !! Returns a decomposition_type object describing each of the subdomains.    
+  function go_decompose(domainx, domainy,             &
+                        ndomains, ndomainx, ndomainy, &
+                        halo_width) result(decomp)
+    use decomposition_mod, only: subdomain_type
     implicit none
     !> The decomposition that this function will return
     type(decomposition_type), target :: decomp
@@ -129,12 +97,15 @@ contains
     logical :: auto_tile = .TRUE.
     integer :: xlen, ylen
     integer :: ntilex, ntiley
+    integer :: nranks
     ! Local var to hold number of sub-domains
     integer :: ndom = 1
     ! Local var to hold halo width
     integer :: hwidth = 1
     ! Pointer to the current subdomain being defined
     type(subdomain_type), pointer :: subdomain
+    ! Used to calculate max no. of sub-domains per rank
+    integer :: domperrank
 
     ! Deal with optional arguments to this routine
     if(.not. present(ndomains))then
@@ -146,25 +117,43 @@ contains
           ndom = ndomainx * ndomainy
           auto_tile = .FALSE.
        else
-          call parallel_abort('decompose: invalid arguments supplied')
+          call parallel_abort('go_decompose: invalid arguments supplied')
        end if
     else
        ndom = ndomains
        auto_tile = .TRUE.
     end if
 
+    nranks = get_num_ranks()
     if(present(halo_width))then
-       if(halo_width < 1 .and. get_num_ranks() > 1)then
-          call parallel_abort('decompose: halo width must be > 0 if '// &
+       if(halo_width < 1 .and. nranks > 1)then
+          call parallel_abort('go_decompose: halo width must be > 0 if '// &
                               'running on more than one process')
        end if
        hwidth = halo_width
     end if
 
+    ! Initialise array mapping from MPI ranks to sub-domain(s)
+    domperrank = ceiling(real(ndom)/real(nranks))
+    allocate(decomp%proc_subdomains(domperrank, nranks))
+    decomp%proc_subdomains(:,:) = -1
+    ji = 0
+    do ith = 1, nranks
+       do jj = 1, domperrank
+          ji = ji + 1
+          if (ji > ndom) exit
+          decomp%proc_subdomains(jj, ith) = ji
+       end do
+    end do
+
+    ! Store dimensions of global domain
+    decomp%global_nx = domainx
+    decomp%global_ny = domainy
+    
     decomp%ndomains = ndom
     allocate(decomp%subdomains(ndom), Stat=ierr)
     if(ierr /= 0)then
-       call parallel_abort('decompose: failed to allocate tiles array')
+       call parallel_abort('go_decompose: failed to allocate tiles array')
     end if
 
     xlen = domainx
@@ -199,7 +188,7 @@ contains
        ntiley = ndomainy
     end if ! automatic determination of tiling grid
 
-    WRITE (*,"('decompose: using grid of ',I3,'x',I3)") ntilex, ntiley
+    WRITE (*,"('go_decompose: using grid of ',I3,'x',I3)") ntilex, ntiley
     decomp%nx = ntilex
     decomp%ny = ntiley
 
@@ -332,6 +321,6 @@ contains
                                                           decomp%max_height
     end if
 
-  end function decompose
+  end function go_decompose
 
-end module subdomain_mod
+end module parallel_mod

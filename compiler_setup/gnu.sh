@@ -5,7 +5,7 @@ CC=gcc
 
 CFLAGS="-O3"
 F90FLAGS="-O1 -Wall -Wsurprising -Wuninitialized"
-F90FLAGS += -fcheck=all -fbacktrace -ffpe-trap=invalid -g
+F90FLAGS+=" -fcheck=all -fbacktrace -ffpe-trap=invalid -g"
 #F90FLAGS+=" -faggressive-function-elimination"
 #F90FLAGS+=" -Ofast -mtune=native -finline-limit=50000 -fopt-info-all=gnu_opt_report.txt"
 #F90FLAGS+=" -march=core2 -mtune=core2"
