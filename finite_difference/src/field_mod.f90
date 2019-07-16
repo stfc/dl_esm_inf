@@ -96,7 +96,7 @@ module field_mod
      !> Getter for the data associated with this field. Fetches data
      !! from remote accelerator if necessary.
      procedure, pass :: get_data
-     procedure, public :: halo_exch
+     procedure, public :: halo_exchange
   end type r2d_field
 
   !> Interface for the copy_field operation. Overloaded to take
@@ -996,19 +996,19 @@ contains
   
   !===================================================
 
-  subroutine halo_exch(self, depth)
-    !> Provides access to exchs_generic for halo swaps for this field
+  subroutine halo_exchange(self, depth)
+    !> Provides access to exchange_generic for halo swaps for this field
     use parallel_comms_mod, only: Iplus, Iminus, Jplus, Jminus, NONE, &
-         exchs_generic
+         exchange_generic
     implicit none
     class(r2d_field), target, intent(inout) :: self
     integer, intent(in) :: depth
     ! Locals
     integer :: exch  !> Handle for exchange
 
-    call exchs_generic(b2=self%data, handle=exch, &
-                       comm1=JPlus, comm2=Jminus, comm3=IPlus, comm4=IMinus)
-  end subroutine halo_exch
+    call exchange_generic(b2=self%data, handle=exch, &
+                          comm1=JPlus, comm2=Jminus, comm3=IPlus, comm4=IMinus)
+  end subroutine halo_exchange
   
   !===================================================
 

@@ -44,6 +44,8 @@ INF_DIR=../..
 INF_INC = ${INF_DIR}/src
 INF_LIB = ${INF_DIR}/src/lib_fd.a
 
+.PHONY: test_xsplit test_ysplit test_xysplit inf_lib
+
 # Compile and run tests. This is a very basic target and assumes that
 # OpenMPI's 'mpirun' is available (because of the way we set environment
 # variables).
@@ -58,7 +60,6 @@ test_ysplit: inf_lib test_halos.exe
 test_xysplit: inf_lib test_halos.exe
 	mpirun -x JPIGLO=10 -x JPJGLO=10 -np 4 ./test_halos.exe
 
-.PHONY: inf_lib
 inf_lib:
 	${MAKE} -C ${INF_DIR} F90=${F90} dm_fd_lib
 

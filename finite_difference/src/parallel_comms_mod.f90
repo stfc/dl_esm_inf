@@ -30,8 +30,8 @@
 module parallel_comms_mod
   use kind_params_mod, only: go_wp
   use parallel_utils_mod, only: get_num_ranks, get_rank, parallel_abort,     &
-       MPI_UNDEFINED, MPI_REQUEST_NULL, msg_wait, get_max_tag, post_receive, &
-       post_send
+       MSG_UNDEFINED, MSG_REQUEST_NULL, msg_wait, msg_wait_all, get_max_tag, &
+       post_receive, post_send
   use decomposition_mod, only: subdomain_type, decomposition_type
   implicit none
 
@@ -150,7 +150,7 @@ module parallel_comms_mod
   integer , dimension(:,:), allocatable, save :: sendIBuff, recvIBuff
 
   ! Public routines
-  public :: map_comms, iprocmap, exchmod_alloc, exchs_generic
+  public :: map_comms, iprocmap, exchmod_alloc, exchange_generic
 
   ! Public variables
   public :: MaxComm,nsend,nrecv,nxsend,nysend,destination,dirrecv, &
@@ -1496,8 +1496,8 @@ contains
 
   !================================================================
 
-  subroutine exchs_generic ( b2, ib2, b3, ib3, &
-                             handle, comm1, comm2, comm3, comm4)
+  subroutine exchange_generic ( b2, ib2, b3, ib3, &
+                                handle, comm1, comm2, comm3, comm4)
 
     ! ******************************************************************
     ! Send boundary data elements to adjacent sub-domains.
@@ -1590,7 +1590,7 @@ contains
     end if
 
     if (ierr /= 0) then
-       call parallel_abort('exchs_generic: unable to allocate send/recvBuffs')
+       call parallel_abort('exchange_generic: unable to allocate send/recvBuffs')
     end if
 
     ! Initiate receives in case posting them first improves 
@@ -1616,7 +1616,7 @@ contains
           endif
 
        else
-          exch_flags(handle,irecv,indexr) = MPI_REQUEST_NULL
+          exch_flags(handle,irecv,indexr) = MSG_REQUEST_NULL
        end if
 
     end do
@@ -1625,7 +1625,7 @@ contains
 
        ! Check that all sends from previous call have completed before 
        ! we continue to modify the send buffers
-       call msg_wait(nsend, exch_flags1d, irecv, all=.True.)
+       call msg_wait_all(nsend, exch_flags1d)
     else
         first_time = .FALSE.
     end if ! .not. first_time
@@ -1690,7 +1690,7 @@ contains
 
           else if ( present(ib2) ) then
 
-             call parallel_abort('exchs_generic: halo-swaps for 2D integer ' &
+             call parallel_abort('exchange_generic: halo-swaps for 2D integer ' &
                              & //'fields not implemented.')
 !!$             ic = 0
 !!$             pack_patches2i: do ipatch=1, npatchsend(isend,1), 1
@@ -1713,7 +1713,7 @@ contains
 
           else if ( present(b3) )then
 
-             call parallel_abort('exchs_generic: halo-swaps for 3D real ' &
+             call parallel_abort('exchange_generic: halo-swaps for 3D real ' &
                              & //'fields not implemented.')
 !!$             ic = 0
 !!$             pack_patches3r: do ipatch=1,npatchsend(isend,1)
@@ -1742,7 +1742,7 @@ contains
 
        else
 
-          exch_flags(handle,isend,indexs) = MPI_REQUEST_NULL
+          exch_flags(handle,isend,indexs) = MSG_REQUEST_NULL
        end if ! direction is enabled and have something to send
 
     enddo ! Loop over sends
@@ -1766,7 +1766,7 @@ contains
     ! Get the first available message that we've received
     call msg_wait(nrecv, exch_flags1d, irecv)
 
-    do while(irecv /= MPI_UNDEFINED)
+    do while(irecv /= MSG_UNDEFINED)
 
        if ( present(b2) ) then
 
@@ -1832,7 +1832,7 @@ contains
 
        ! Wait for the next message
        call msg_wait(nrecv, exch_flags1d, irecv)
-    end do ! while irecv != MPI_UNDEFINED
+    end do ! while irecv != MSG_UNDEFINED
 
     if(DEBUG_COMMS)then
        write(*,"(I3,': Finished all ',I3,' receives for handle ',I3)") &
@@ -1850,6 +1850,6 @@ contains
     if( allocated(recvBuff) ) deallocate(recvBuff)
     if( allocated(recvIBuff) )deallocate(recvIBuff)
 
-  end subroutine exchs_generic
+  end subroutine exchange_generic
 
 end module parallel_comms_mod
