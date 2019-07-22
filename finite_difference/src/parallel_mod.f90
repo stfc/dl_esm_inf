@@ -125,6 +125,10 @@ contains
     end if
 
     nranks = get_num_ranks()
+    if (nranks < 1) then
+          call parallel_abort('go_decompose: nranks must be > 1 ')
+    end if
+
     if(present(halo_width))then
        if(halo_width < 1 .and. nranks > 1)then
           call parallel_abort('go_decompose: halo width must be > 0 if '// &
