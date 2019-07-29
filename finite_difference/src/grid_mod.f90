@@ -273,6 +273,7 @@ contains
     use global_parameters_mod, only: ALIGNMENT
     use decomposition_mod, only: subdomain_type, decomposition_type
     use parallel_mod, only: map_comms, get_rank, get_num_ranks
+    use parallel_utils_mod, only: DIST_MEM_ENABLED
     implicit none
     type(grid_type), intent(inout) :: grid
     real(go_wp),              intent(in) :: dxarg, dyarg
@@ -458,8 +459,9 @@ contains
     end do
 
     !> Set-up the communication tables for halo exchanges
-    if( grid%boundary_conditions(1) == GO_BC_PERIODIC .or. &
-        grid%boundary_conditions(2) == GO_BC_PERIODIC )then
+    if( DIST_MEM_ENABLED .and. ( &
+        grid%boundary_conditions(1) == GO_BC_PERIODIC .or. &
+        grid%boundary_conditions(2) == GO_BC_PERIODIC) )then
        call gocean_stop('map_comms call needs to be implemented for ' &
                    &  //'periodic boundary conditions.')
     end if
