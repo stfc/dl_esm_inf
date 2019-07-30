@@ -42,14 +42,8 @@
 #
 # export F90=gfortran
 
-# Location of the FortCL source code (is a git submodule)
-FORTCL_DIR = ../../external/FortCL/src
-
 MPI ?= no
 OCL ?= no
-
-# Location of the FortCL git submodule
-FORTCL_DIR = ../../external/FortCL
 
 ifeq ($(MPI), yes)
 	PARALLEL_MOD=parallel_utils_mod
@@ -109,7 +103,6 @@ all: ${API_LIB}
 # for this but that is specific to Gnu Make.
 ${API_LIB}: fortcl ${MODULES}
 	${AR} ${ARFLAGS} ${API_LIB} ${FORTCL_DIR}/*.o ${MODULES}
-	#${AR} ${ARFLAGS} ${API_LIB} *.o
 	${AR} d ${API_LIB} clfortran.o
 
 fortcl:

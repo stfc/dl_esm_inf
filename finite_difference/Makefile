@@ -29,7 +29,7 @@
 
 # Top-level Makefile for the dl_esm_inf library.
 # Default target is to build the library without MPI. Use the 'dm_fd_lib'
-# target to compile with MPI support.
+# target to compile with MPI support or 'cl_fd_lib' for OpenCL support.
 #
 # This Makefile picks up the compiler to use along with any flags from
 # environment variables. e.g. to use gfortran:
@@ -64,19 +64,9 @@ dm_fd_lib:
 cl_fd_lib:
 	${MAKE} -C src API_LIB="${API_LIB}" MPI=no OCL=yes
 
-# Target requiring OpenCL installation
-fd_lib_cl: fortcl
-	${MAKE} -C src API_LIB="${API_LIB}"
-
 install: fd_lib lib include
 	cp src/${API_LIB} ./lib/.
 	cp src/*.[Mm][Oo][Dd] ./include/.
-
-fortcl_stub:
-	${MAKE} -C ${FORTCL_DIR} stub
-
-fortcl:
-	${MAKE} -C ${FORTCL_DIR}
 
 lib:
 	mkdir lib
