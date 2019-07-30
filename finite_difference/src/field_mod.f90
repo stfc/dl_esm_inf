@@ -321,11 +321,18 @@ contains
   !===================================================
 
   function set_data(self, array) result(flag)
-    !> Setter for the data associated with a field.
+    !> Setter for the data associated with a field. If data is on a
+    !! remote OpenACC device then the device copy is updated too.
+    implicit none
     class(r2d_field) :: self
     integer :: flag
     real(go_wp), dimension(:,:) :: array
     self%data = array
+    if(self%data_on_device)then
+       !$acc update device(self%data)
+       !> \TODO #29 update data on OpenCL device. Requires that FortCL
+       !! be extended.
+    end if
     flag = 0
   end function set_data
 
