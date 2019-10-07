@@ -183,6 +183,7 @@ contains
     !     Mike Ashworth, CLRC Daresbury Laboratory, July 1999
     !     Andy Porter, STFC Daresbury Laboratory, March 2019
     !!------------------------------------------------------------------
+    use parallel_utils_mod, only: DIST_MEM_ENABLED
     implicit none
 
     ! Subroutine arguments.
@@ -210,6 +211,9 @@ contains
     logical :: addcorner
     integer :: nprocp, irank
     type(subdomain_type), pointer :: subdomain
+
+    ! Do nothing if distributed-memory support is not enabled
+    if(.not. DIST_MEM_ENABLED) return
 
     halo_depthx = halo_depths(1)
     halo_depthy = halo_depths(2)
@@ -1541,7 +1545,7 @@ contains
     !!--------------------------------------------------------------------
 
     ! Do nothing if distributed-memory support is not enabled
-    if(.not. DIST_MEM_ENABLED)return
+    if(.not. DIST_MEM_ENABLED) return
     
     ierr = 0
 
