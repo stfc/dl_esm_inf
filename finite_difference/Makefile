@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 # BSD 2-Clause License
 # 
-# Copyright (c) 2018, Science and Technology Facilities Council.
+# Copyright (c) 2018-2019, Science and Technology Facilities Council.
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -29,7 +29,7 @@
 
 # Top-level Makefile for the dl_esm_inf library.
 # Default target is to build the library without MPI. Use the 'dm_fd_lib'
-# target to compile with MPI support.
+# target to compile with MPI support or 'cl_fd_lib' for OpenCL support.
 #
 # This Makefile picks up the compiler to use along with any flags from
 # environment variables. e.g. to use gfortran:
@@ -41,6 +41,9 @@
 # or, to build the serial version:
 #
 # export F90=gfortran
+
+# FortCL is a git submodule of the dl_esm_inf repository.
+FORTCL_DIR = ../external/FortCL
 
 API_LIB ?= lib_fd.a
 F90 ?= gfortran
@@ -74,10 +77,12 @@ include:
 clean:
 	${MAKE} -C src clean
 
-distclean: clean
-	${MAKE} -C src distclean
+allclean: clean
+	${MAKE} -C ${FORTCL_DIR} allclean
 	rm -f lib/${API_LIB}
 	rm -f include/*.[Mm][Oo][Dd]
+
+distclean: allclean
 
 doc:
 	doxygen src/doxyfile

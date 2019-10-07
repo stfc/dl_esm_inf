@@ -45,9 +45,6 @@
 MPI ?= no
 OCL ?= no
 
-# Location of the FortCL git submodule
-FORTCL_DIR = ../../external/FortCL
-
 ifeq ($(MPI), yes)
 	PARALLEL_MOD=parallel_utils_mod
 	F90 ?= mpif90
@@ -102,13 +99,14 @@ all: ${API_LIB}
 
 # Create the archive. Note that we include the FortCL objects in this
 # archive but take care to exclude clfortran.o (as that only has
-# interface definitions, not implementation).
+# interface definitions, not implementation). We could use filter-out
+# for this but that is specific to Gnu Make.
 ${API_LIB}: fortcl ${MODULES}
-	${AR} ${ARFLAGS} ${API_LIB} *.o
+	${AR} ${ARFLAGS} ${API_LIB} ${FORTCL_DIR}/*.o ${MODULES}
 	${AR} d ${API_LIB} clfortran.o
 
 fortcl:
-	${MAKE} -f ${FORTCL_DIR}/Makefile F90=${F90} ${FORTCL_TARGET}
+	${MAKE} -C ${FORTCL_DIR} F90=${F90} ${FORTCL_TARGET}
 
 install:
 	${MAKE} -C .. install

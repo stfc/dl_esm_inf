@@ -30,6 +30,7 @@
 !> Module for describing all aspects of a field (which exists on some
 !! grid).
 module field_mod
+  use iso_c_binding, only: c_intptr_t
   use kind_params_mod
   use region_mod
   use halo_mod
@@ -71,10 +72,6 @@ module field_mod
      !! (e.g. on a GPU)
      logical :: data_on_device
 
-     ! TODO: For OpenCL compilation tests in PSyclone we need a device_ptr
-     ! here (see #10). Till full support for OpenCL is woring, provide a
-     ! dummy variable:
-     integer*8 :: device_ptr
   end type field_type
 
   !> A real, 2D field.
@@ -83,9 +80,22 @@ module field_mod
      !> The dimensions of the tiles into which the field
      !! is sub-divided.
      type(tile_type), dimension(:), allocatable :: tile
-     !> Array holding the actual field values
+     !> Array holding the actual field values. Eventually this should
+     !! be private so that users are forced to access it via get_data().
+     !! This will allow us to guarantee that the data is valid (e.g. in
+     !! the case where values are computed on a separate accelerator
+     !! device).
      real(go_wp), dimension(:,:), allocatable :: data
+     !> Pointer to corresponding buffer on remote device (if any).
+     !! This requires variables that are declared to be of this type
+     !! have the 'target' attribute.
+     integer(c_intptr_t) :: device_ptr
    contains
+     !> Setter for the data associated with this field
+     procedure, pass :: set_data
+     !> Getter for the data associated with this field. Fetches data
+     !! from remote accelerator if necessary.
+     procedure, pass :: get_data
      procedure, public :: halo_exchange
   end type r2d_field
 
@@ -177,7 +187,7 @@ contains
     !> supported by PSyclone)
     logical, intent(in), optional :: do_tile
     ! Local declarations
-    type(r2d_field) :: self
+    type(r2d_field), target :: self
     integer :: ierr
     character(len=8) :: fld_type
     integer :: ji, jj
@@ -288,6 +298,43 @@ contains
        deallocate(fld%data)
     end if
   end subroutine r2d_free_field
+
+  !===================================================
+
+  function get_data(self) result(dptr)
+    use FortCL, only: read_buffer
+    !> Getter for the data associated with a field. Ensures that
+    !! the local copy is up-to-date with that on any remove
+    !! accelerator device (if using OpenACC or OpenCL).
+    class(r2d_field), target :: self
+    real(go_wp), dimension(:,:), pointer :: dptr
+    if(self%data_on_device)then
+       !$acc update host(self%data)
+       ! If FortCL is compiled without OpenCL enabled then this
+       ! call does nothing.
+       call read_buffer(self%device_ptr, self%data, &
+                        int(self%grid%nx*self%grid%ny, kind=8))
+    end if
+    dptr => self%data
+  end function get_data
+
+  !===================================================
+
+  function set_data(self, array) result(flag)
+    !> Setter for the data associated with a field. If data is on a
+    !! remote OpenACC device then the device copy is updated too.
+    implicit none
+    class(r2d_field) :: self
+    integer :: flag
+    real(go_wp), dimension(:,:) :: array
+    self%data = array
+    if(self%data_on_device)then
+       !$acc update device(self%data)
+       !> \TODO #29 update data on OpenCL device. Requires that FortCL
+       !! be extended.
+    end if
+    flag = 0
+  end function set_data
 
   !===================================================
 

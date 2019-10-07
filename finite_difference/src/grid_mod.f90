@@ -1,6 +1,7 @@
 !> Module for describing and storing all information related to
 !! a finite-difference grid.
 module grid_mod
+  use iso_c_binding, only: c_intptr_t
   use kind_params_mod
   use region_mod
   use gocean_mod
@@ -74,6 +75,8 @@ module grid_mod
      !! require a T-mask, we do not allocate this array for that
      !! case.
      integer, allocatable :: tmask(:,:)
+     !> Pointer to tmask on remote device (if any)
+     integer(c_intptr_t) :: tmask_device
 
      !> The type of boundary conditions applied to the model domain
      !! in the x, y and z dimensions. Note that at this stage
@@ -91,30 +94,38 @@ module grid_mod
 
      !> Horizontal scale factors at t point (m)
      real(go_wp), allocatable :: dx_t(:,:), dy_t(:,:)
+     integer(c_intptr_t) :: dx_t_device, dy_t_device
+
      !> Horizontal scale factors at u point (m)
      real(go_wp), allocatable :: dx_u(:,:), dy_u(:,:)
+     integer(c_intptr_t) :: dx_u_device, dy_u_device
+
      !> Horizontal scale factors at v point (m)
-     real(go_wp), allocatable :: dx_v(:,:), dy_v(:,:)  
+     real(go_wp), allocatable :: dx_v(:,:), dy_v(:,:) 
+     integer(c_intptr_t) :: dx_v_device, dy_v_device
+
      !> Horizontal scale factors at f point (m)
      real(go_wp), allocatable :: dx_f(:,:), dy_f(:,:)
-     !> Unknown \todo Name these fields!
+     integer(c_intptr_t) :: dx_f_device, dy_f_device
+
+     !> Area of cell centred on t, u or v points
      real(go_wp), allocatable :: area_t(:,:), area_u(:,:), area_v(:,:)
+     integer(c_intptr_t) :: area_t_device, area_u_device, area_v_device
+
      !> Latitude of u points
      real(go_wp), allocatable :: gphiu(:,:)
      !> Latitude of v points
      real(go_wp), allocatable :: gphiv(:,:)
      !> Latitude of f points
      real(go_wp), allocatable :: gphif(:,:)
+     integer(c_intptr_t) :: gphiu_device, gphiv_device, gphif_device
 
      !> Coordinates of grid (T) points in horizontal plane
      real(go_wp), allocatable :: xt(:,:), yt(:,:)
-
-     ! TODO: For OpenCL compilation tests in PSyclone we need a device_ptr
-     ! here (see #10). Till full support for OpenCL is woring, provide a
-     ! dummy variable:
-     integer*8 :: tmask_device
+     integer(c_intptr_t) :: xt_device, yt_device
 
    contains
+
      procedure :: get_tmask
      procedure :: decompose
 
@@ -243,6 +254,26 @@ contains
     ! Store the boundary conditions that the model domain is
     ! subject to.
     self%boundary_conditions(1:3) = boundary_conditions(1:3)
+
+    ! Ensure pointers to device memory are zeroed so we know whether or
+    ! not the buffers have been created
+    self%dx_t_device = 0
+    self%dy_t_device = 0
+    self%dx_u_device = 0
+    self%dy_u_device = 0
+    self%dx_v_device = 0
+    self%dy_v_device = 0
+    self%dx_f_device = 0
+    self%dy_f_device = 0
+    self%area_t_device = 0
+    self%area_u_device = 0
+    self%area_v_device = 0
+    self%gphiu_device = 0
+    self%gphiv_device = 0
+    self%gphif_device = 0
+    self%xt_device = 0
+    self%yt_device = 0
+    self%tmask_device = 0
 
   end function grid_constructor
 

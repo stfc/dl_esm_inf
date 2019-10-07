@@ -3,11 +3,16 @@ module gocean_mod
   use kind_params_mod
   implicit none
 
+  private
+
   !> Interface to logging routines
   interface model_write_log
      module procedure write_log_a, write_log_ir, &
                       write_log_i, write_log_r
   end interface
+
+  public gocean_initialise, gocean_finalise, gocean_stop
+  public model_write_log
 
 contains
 
