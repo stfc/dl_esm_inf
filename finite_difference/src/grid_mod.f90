@@ -274,6 +274,7 @@ contains
     ! then apply first-touch policy for data locality.
     if( present(tmask) )then
        allocate(grid%tmask(grid%nx, grid%ny), stat=ierr(1))
+       print *,"XXXX", grid%nx, grid%ny
        if( ierr(1) /= 0 )then
           call gocean_stop('grid_init: failed to allocate array for T mask')
        end if

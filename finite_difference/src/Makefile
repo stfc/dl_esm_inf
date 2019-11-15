@@ -70,6 +70,7 @@ BASE_SOURCES = argument_mod.f90 \
           gocean_mod.F90 \
           grid_mod.f90 \
           halo_mod.f90 \
+          io.f90 \
           kernel_mod.f90 \
           kind_params_mod.f90 \
           parallel_common_mod.f90 \
@@ -97,7 +98,12 @@ FORTCL_DIR = $(ROOT)../../external/FortCL/src
 
 .PHONY: install clean all distclean
 
+default: ${API_LIB} test2.f90
+		gfortran -g ./test2.f90 ./lib_fd.a  -L /opt/local/lib64/ -lnetcdff -lnetcdf
+
 all: ${API_LIB}
+
+F90FLAGS=-g -I/opt/local/include
 
 # Create the archive. Note that we include the FortCL objects in this
 # archive but take care to exclude clfortran.o (as that only has
