@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 # BSD 2-Clause License
 # 
-# Copyright (c) 2018-2019, Science and Technology Facilities Council.
+# Copyright (c) 2018-2020, Science and Technology Facilities Council.
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -90,7 +90,7 @@ SOURCES = $(BASE_SOURCES:%=$(ROOT)/%)
 MODULES := $(BASE_SOURCES:%.f90=%.o)
 MODULES := $(MODULES:%.F90=%.o)
 
-# Location of the FortCL library (git sub-module)
+# Location of the FortCL library source (git sub-module)
 FORTCL_DIR = $(ROOT)../../external/FortCL/src
 
 .PHONY: install clean all distclean
@@ -102,17 +102,17 @@ all: ${API_LIB}
 # interface definitions, not implementation). We could use filter-out
 # for this but that is specific to Gnu Make.
 ${API_LIB}: fortcl ${MODULES}
-	${AR} ${ARFLAGS} ${API_LIB} ${FORTCL_DIR}/*.o ${MODULES}
+	${AR} ${ARFLAGS} ${API_LIB} *.o
 	${AR} d ${API_LIB} clfortran.o
 
+# FortCL is compiled in the CWD
 fortcl:
-	${MAKE} -C ${FORTCL_DIR} F90=${F90} ${FORTCL_TARGET}
+	${MAKE} -f ${FORTCL_DIR}/Makefile F90=${F90} ${FORTCL_TARGET}
 
 install:
 	${MAKE} -C .. install
 
 clean:
-	${MAKE} -C ${FORTCL_DIR} clean
 	rm -f *.o *.mod *.a
 
 distclean: clean
@@ -143,7 +143,7 @@ parallel_comms_mod.o: $(PARALLEL_MOD).o
 tile_mod.o: region_mod.o
 
 %.o: $(ROOT)/%.[Ff]90
-	$(F90) $(F90FLAGS) -I${FORTCL_DIR} -c $<
+	$(F90) $(F90FLAGS) -c $<
 
 $(PARALLEL_MOD).o:	$(ROOT)/parallel/$(PARALLEL_MOD).f90
 	$(F90) $(F90FLAGS) -c $< -o $@
