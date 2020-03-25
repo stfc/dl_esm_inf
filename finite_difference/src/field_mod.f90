@@ -228,6 +228,8 @@ contains
 
     if (local_do_tiling) then
        nthreads = 1
+       !> \TODO #38 We don't actually support building dl_esm_inf
+       !! with OpenMP enabled!
 !$     nthreads = omp_get_max_threads()
 
        if (.not. tiling_initialised) then
@@ -955,7 +957,10 @@ contains
     if (field_out%ntiles == 0) then
        field_out%data(:,:) = field_in%data(:,:)
     else
-!$OMP DO SCHEDULE(RUNTIME)
+       !> \TODO #38 We don't actually support building dl_esm_inf
+       !! with OpenMP enabled!
+       !$OMP PARALLEL DO SCHEDULE(RUNTIME), DEFAULT(none), &
+       !$OMP SHARED(field_out, field_in), PRIVATE(ji,jj)
        do it = 1, field_out%ntiles, 1
           do jj= field_out%tile(it)%whole%ystart, field_out%tile(it)%whole%ystop
              do ji = field_out%tile(it)%whole%xstart, field_out%tile(it)%whole%xstop
@@ -963,7 +968,7 @@ contains
              end do
           end do
        end do
-!$OMP END DO
+       !$OMP END PARALLEL DO
     end if
   end subroutine copy_2dfield
 
