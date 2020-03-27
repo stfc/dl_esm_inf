@@ -1046,7 +1046,8 @@ contains
   
   !===================================================
 
-  !> Compute the checksum of ALL of the elements of supplied array
+  !> Compute the checksum of ALL of the elements of supplied array. Performs a
+  !! global sum if built with distributed-memory support.
   function array_checksum(field, update, &
                           xstart, xstop, &
                           ystart, ystop) result(val)
