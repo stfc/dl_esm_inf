@@ -1,7 +1,7 @@
 !------------------------------------------------------------------------------
 ! BSD 2-Clause License
 ! 
-! Copyright (c) 2018-2019, Science and Technology Facilities Council.
+! Copyright (c) 2018-2020, Science and Technology Facilities Council.
 ! All rights reserved.
 ! 
 ! Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@ module parallel_utils_mod
 
   public parallel_init, parallel_finalise, parallel_abort
   public get_rank, get_num_ranks, get_max_tag
-  public msg_wait, msg_wait_all, post_receive, post_send
+  public msg_wait, msg_wait_all, post_receive, post_send, global_sum
   public MSG_UNDEFINED, MSG_REQUEST_NULL, DIST_MEM_ENABLED
 
 contains
@@ -142,5 +142,11 @@ contains
     integer :: num
     num = nranks
   end function get_num_ranks
+
+  !================================================
+
+  subroutine global_sum(var)
+    real(go_wp), intent(inout) :: var
+  end subroutine global_sum
 
 end module parallel_utils_mod

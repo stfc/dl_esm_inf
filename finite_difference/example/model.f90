@@ -45,6 +45,7 @@ program model
   type(grid_type), target :: model_grid
   !> Example fields
   type(r2d_field) :: u_field, v_field, t_field, f_field
+  real(go_wp) :: u_sum, v_sum, t_sum, f_sum
   ! Local definition of the T-point mask which defines whether T points are
   ! wet (1), dry (0) or outside (-1) the simulation domain.
   integer, allocatable :: tmask(:,:)
@@ -91,8 +92,19 @@ program model
   call t_field%halo_exchange(1)
   call f_field%halo_exchange(1)
 
+  u_sum = field_checksum(u_field)
+  v_sum = field_checksum(v_field)
+  t_sum = field_checksum(t_field)
+  f_sum = field_checksum(f_field)
+
   ! All done!
-  if (get_rank() == 1) write(*,'(/"Example model set-up complete."/)')
+  if (get_rank() == 1) then
+    write(*, '(/"U checksum = ", E15.8)') u_sum
+    write(*, '("V checksum = ", E15.8)') v_sum
+    write(*, '("T checksum = ", E15.8)') t_sum
+    write(*, '("F checksum = ", E15.8)') f_sum
+    write(*, '(/"Example model set-up complete."/)')
+  end if
 
   call gocean_finalise()
 

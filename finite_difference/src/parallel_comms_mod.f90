@@ -31,7 +31,7 @@ module parallel_comms_mod
   use kind_params_mod, only: go_wp
   use parallel_utils_mod, only: get_num_ranks, get_rank, parallel_abort,     &
        MSG_UNDEFINED, MSG_REQUEST_NULL, msg_wait, msg_wait_all, get_max_tag, &
-       post_receive, post_send
+       post_receive, post_send, global_sum
   use decomposition_mod, only: subdomain_type, decomposition_type
   implicit none
 
@@ -150,7 +150,7 @@ module parallel_comms_mod
   integer , dimension(:,:), allocatable, save :: sendIBuff, recvIBuff
 
   ! Public routines
-  public :: map_comms, iprocmap, exchmod_alloc, exchange_generic
+  public :: map_comms, iprocmap, exchmod_alloc, exchange_generic, global_sum
 
   ! Public variables
   public :: MaxComm,nsend,nrecv,nxsend,nysend,destination,dirrecv, &

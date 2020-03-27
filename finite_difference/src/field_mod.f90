@@ -1050,6 +1050,7 @@ contains
   function array_checksum(field, update, &
                           xstart, xstop, &
                           ystart, ystop) result(val)
+    use parallel_comms_mod, only: global_sum
     implicit none
     real(go_wp), dimension(:,:), intent(in) :: field
     logical, optional, intent(in) :: update
@@ -1067,6 +1068,9 @@ contains
     else
        val = SUM( ABS(field(:,:)) )
     end if
+
+    ! Sum over all processors if running with distributed memory
+    call global_sum(val)
 
   end function array_checksum
 

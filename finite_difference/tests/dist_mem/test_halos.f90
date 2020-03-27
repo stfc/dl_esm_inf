@@ -120,6 +120,11 @@ program test_halos
   call check_hill_halos(v_field, "v_fld")
   call check_hill_halos(f_field, "f_fld")
   
+  write(*,"(I3,' Global sum for u: ', E15.8)") my_rank, field_checksum(u_field)
+  write(*,"(I3,' Global sum for v: ', E15.8)") my_rank, field_checksum(v_field)
+  write(*,"(I3,' Global sum for t: ', E15.8)") my_rank, field_checksum(t_field)
+  write(*,"(I3,' Global sum for f: ', E15.8)") my_rank, field_checksum(f_field)
+
   call gocean_finalise()
 
 contains

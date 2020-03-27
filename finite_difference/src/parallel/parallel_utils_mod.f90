@@ -63,7 +63,7 @@ module parallel_utils_mod
   integer, parameter :: MSG_REQUEST_NULL = MPI_REQUEST_NULL
 
   public parallel_init, parallel_finalise, parallel_abort, get_max_tag
-  public get_rank, get_num_ranks, post_receive, post_send
+  public get_rank, get_num_ranks, post_receive, post_send, global_sum
   public msg_wait, msg_wait_all
   public MSG_UNDEFINED, MSG_REQUEST_NULL, DIST_MEM_ENABLED
 
@@ -225,5 +225,17 @@ contains
     if ( ierr /= MPI_SUCCESS ) call MPI_abort(MPI_COMM_WORLD, 1, ierr)
 
   end subroutine msg_wait_all
+
+  !================================================
+
+  subroutine global_sum(var)
+    !> Performs a global sum on a single, double-precision scalar.
+    real(go_wp), intent(inout) :: var
+    ! Locals
+    integer :: ierr
+
+    call MPI_allreduce(MPI_IN_PLACE, var, 1, MPI_DOUBLE, MPI_SUM, comm, ierr)
+
+  end subroutine global_sum
 
 end module parallel_utils_mod
