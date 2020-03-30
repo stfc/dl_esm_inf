@@ -1,7 +1,7 @@
 !------------------------------------------------------------------------------
 ! BSD 2-Clause License
 ! 
-! Copyright (c) 2018, Science and Technology Facilities Council.
+! Copyright (c) 2018-2020, Science and Technology Facilities Council.
 ! All rights reserved.
 ! 
 ! Redistribution and use in source and binary forms, with or without
@@ -89,7 +89,7 @@ contains
     integer :: ierr, nwidth
     integer :: ji,jj, ith
     integer :: junder, height
-    integer :: iunder, width
+    integer :: iunder, iunder_row, width
     ! For doing stats on tile sizes
     integer :: nvects, nvects_sum, nvects_min, nvects_max 
     logical, parameter :: print_tiles = .TRUE.
@@ -254,13 +254,14 @@ contains
 
        ! The starting point of the tiles in x
        ival = 1
+       iunder_row = iunder
 
        do ji = 1, ntilex, 1
 
           ! If necessary, correct the width of this tile column
-          if(iunder > 0)then
+          if(iunder_row > 0)then
              width = internal_width + 1
-             iunder = iunder - 1
+             iunder_row = iunder_row - 1
           else
              width = internal_width
           end if
