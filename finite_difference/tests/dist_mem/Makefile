@@ -49,7 +49,7 @@ INF_LIB = ${INF_DIR}/src/lib_fd.a
 # Compile and run tests. This is a very basic target and assumes that
 # OpenMPI's 'mpirun' is available (because of the way we set environment
 # variables).
-tests: test_xsplit test_ysplit test_xysplit
+tests: test_xsplit test_ysplit test_xysplit test_gsum
 
 test_xsplit: inf_lib test_halos.exe
 	mpirun -x JPIGLO=10 -x JPJGLO=4 -np 2 ./test_halos.exe
@@ -59,6 +59,11 @@ test_ysplit: inf_lib test_halos.exe
 
 test_xysplit: inf_lib test_halos.exe
 	mpirun -x JPIGLO=10 -x JPJGLO=10 -np 4 ./test_halos.exe
+	mpirun -x JPIGLO=10 -x JPJGLO=10 -np 6 ./test_halos.exe
+
+test_gsum: inf_lib test_gsum.exe
+	mpirun -x JPIGLO=4 -x JPJGLO=10 -np 4 ./test_gsum.exe
+	mpirun -x JPIGLO=4 -x JPJGLO=10 -np 6 ./test_gsum.exe
 
 inf_lib:
 	${MAKE} -C ${INF_DIR} F90=${F90} dm_fd_lib
@@ -66,6 +71,9 @@ inf_lib:
 # Normal targets
 test_halos.exe: inf_lib test_halos.o
 	${F90} -o $@ ${LDFLAGS} test_halos.o ${INF_LIB}
+
+test_gsum.exe: inf_lib test_gsum.o
+	${F90} -o $@ ${LDFLAGS} test_gsum.o ${INF_LIB}
 
 %.o: %.[fF]90
 	$(F90) $(F90FLAGS) ${OMPFLAGS} -I${INF_INC} -c $<
