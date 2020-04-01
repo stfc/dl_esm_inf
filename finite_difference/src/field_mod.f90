@@ -37,6 +37,7 @@ module field_mod
   use grid_mod
   use gocean_mod, only: gocean_stop
   use tile_mod
+  use parallel_mod, only: decomposition_type
   implicit none
 
   private
@@ -165,7 +166,13 @@ module field_mod
   integer, public, parameter :: NBOUNDARY = 1
 
   !> Whether or not to 'tile' (sub-divide) field arrays
-  logical, public, parameter :: TILED_FIELDS = .TRUE.
+  logical, public, parameter :: TILED_FIELDS = .FALSE.
+
+  !> The tiling decomposition to use for each field
+  type(decomposition_type), save :: decomp
+
+  !> Whether or not the tiling decomposition has been created yet
+  logical, save :: tiling_initialised = .false.
 
 contains
 
@@ -174,7 +181,7 @@ contains
   function r2d_field_constructor(grid,    &
                                  grid_points, &
                                  do_tile) result(self)
-    use parallel_mod, only: decomposition_type, go_decompose
+    use parallel_mod, only: go_decompose
 !$    use omp_lib, only : omp_get_max_threads
     implicit none
     ! Arguments
@@ -188,6 +195,7 @@ contains
     logical, intent(in), optional :: do_tile
     ! Local declarations
     type(r2d_field), target :: self
+    logical :: local_do_tiling = .false.
     integer :: ierr
     character(len=8) :: fld_type
     integer :: ji, jj
@@ -195,7 +203,10 @@ contains
     !! to the limits carried around with the field)
     integer :: upper_x_bound, upper_y_bound
     integer :: itile, nthreads, ntilex, ntiley
-    type(decomposition_type) :: decomp
+
+    if (present(do_tile)) then
+       local_do_tiling = do_tile
+    endif
 
     ! Set this field's grid pointer to point to the grid pointed to
     ! by the supplied grid_ptr argument
@@ -215,25 +226,32 @@ contains
        ntiley = 1
     end if
 
-    nthreads = 1
-    if (present(do_tile)) then
-        if (do_tile) then
-  !$       nthreads = omp_get_max_threads()
-        endif
-    endif
+    if (local_do_tiling) then
+       nthreads = 1
+       !> \TODO #38 We don't actually support building dl_esm_inf
+       !! with OpenMP enabled!
+!$     nthreads = omp_get_max_threads()
 
-!$  write (*,"(/'Have ',I3,' OpenMP threads available.')") nthreads
-    decomp = go_decompose(self%internal%nx, self%internal%ny, &
-                          nthreads, ntilex, ntiley)
-    self%ntiles = nthreads
-    allocate(self%tile(self%ntiles), Stat=ierr)
-    if(ierr /= 0)then
-       call gocean_stop('r2d constructor failed to allocate tiling structures')
+       if (.not. tiling_initialised) then
+!$        write (*,"(/'Have ',I3,' OpenMP threads available.')") nthreads
+          decomp = go_decompose(self%internal%nx, self%internal%ny, &
+               nthreads, ntilex, ntiley)
+          tiling_initialised = .true.
+       end if
+
+       self%ntiles = nthreads
+       allocate(self%tile(self%ntiles), Stat=ierr)
+       if(ierr /= 0)then
+          call gocean_stop('r2d constructor failed to allocate tiling structures')
+       end if
+       do itile = 1, self%ntiles
+          self%tile(itile)%whole = decomp%subdomains(itile)%global
+          self%tile(itile)%internal = decomp%subdomains(itile)%internal
+       end do
+    else
+       ! We're not tiling this field so set ntiles to zero
+       self%ntiles = 0
     end if
-    do itile = 1, nthreads
-       self%tile(itile)%whole = decomp%subdomains(itile)%global
-       self%tile(itile)%internal = decomp%subdomains(itile)%internal
-    end do
 
     ! We allocate *all* fields to have the same extent as that
     ! of the grid. This enables the (Cray) compiler
@@ -255,9 +273,9 @@ contains
 
     ! Allocating with a lower bound != 1 causes problems whenever
     ! array passed as assumed-shape dummy argument because lower
-    ! bounds default to 1 in called unit.
-    ! However, all loops will be in the generated, middle layer and
-    ! the generator knows the array bounds. This may give us the
+    ! bounds default to 1 in called unit (unless array declared as
+    ! allocatable). However, all loops will be in the generated, middle
+    ! layer and the generator knows the array bounds. This may give us the
     ! ability to solve this problem (by passing array bounds to the
     ! kernels).
     allocate(self%data(1:upper_x_bound, 1:upper_y_bound), &
@@ -273,17 +291,20 @@ contains
     ! execution. If we're running with OpenMP this also gives
     ! us the opportunity to do a 'first touch' policy to aid with
     ! memory<->thread locality...
+    if (self%ntiles > 0) then
 !$OMP PARALLEL DO schedule(runtime), default(none), &
 !$OMP private(itile,ji,jj), shared(self)
-    do itile = 1, self%ntiles
-       do jj = self%tile(itile)%whole%ystart, self%tile(itile)%whole%ystop
-          do ji = self%tile(itile)%whole%xstart, self%tile(itile)%whole%xstop
-             self%data(ji,jj) = 0.0
+       do itile = 1, self%ntiles
+          do jj = self%tile(itile)%whole%ystart, self%tile(itile)%whole%ystop
+             do ji = self%tile(itile)%whole%xstart, self%tile(itile)%whole%xstop
+                self%data(ji,jj) = 0.0_go_wp
+             end do
           end do
        end do
-    end do
 !$OMP END PARALLEL DO
-
+    else
+       self%data(:,:) = 0.0_go_wp
+    end if
   end function r2d_field_constructor
    
   !===================================================
@@ -933,16 +954,22 @@ contains
     type(r2d_field), intent(inout) :: field_out
     integer :: it, ji, jj
 
-!$OMP DO SCHEDULE(RUNTIME)
-    do it = 1, field_out%ntiles, 1
-       do jj= field_out%tile(it)%whole%ystart, field_out%tile(it)%whole%ystop
-          do ji = field_out%tile(it)%whole%xstart, field_out%tile(it)%whole%xstop
-             field_out%data(ji,jj) = field_in%data(ji,jj)
+    if (field_out%ntiles == 0) then
+       field_out%data(:,:) = field_in%data(:,:)
+    else
+       !> \TODO #38 We don't actually support building dl_esm_inf
+       !! with OpenMP enabled!
+       !$OMP PARALLEL DO SCHEDULE(RUNTIME), DEFAULT(none), &
+       !$OMP SHARED(field_out, field_in), PRIVATE(ji,jj)
+       do it = 1, field_out%ntiles, 1
+          do jj= field_out%tile(it)%whole%ystart, field_out%tile(it)%whole%ystop
+             do ji = field_out%tile(it)%whole%xstart, field_out%tile(it)%whole%xstop
+                field_out%data(ji,jj) = field_in%data(ji,jj)
+             end do
           end do
        end do
-    end do
-!$OMP END DO
-        
+       !$OMP END PARALLEL DO
+    end if
   end subroutine copy_2dfield
 
   !===================================================
@@ -1019,10 +1046,12 @@ contains
   
   !===================================================
 
-  !> Compute the checksum of ALL of the elements of supplied array
+  !> Compute the checksum of ALL of the elements of supplied array. Performs a
+  !! global sum if built with distributed-memory support.
   function array_checksum(field, update, &
                           xstart, xstop, &
                           ystart, ystop) result(val)
+    use parallel_comms_mod, only: global_sum
     implicit none
     real(go_wp), dimension(:,:), intent(in) :: field
     logical, optional, intent(in) :: update
@@ -1040,6 +1069,9 @@ contains
     else
        val = SUM( ABS(field(:,:)) )
     end if
+
+    ! Sum over all processors if running with distributed memory
+    call global_sum(val)
 
   end function array_checksum
 

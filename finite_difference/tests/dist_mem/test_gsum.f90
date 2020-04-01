@@ -1,7 +1,7 @@
 !------------------------------------------------------------------------------
 ! BSD 2-Clause License
 ! 
-! Copyright (c) 2018-2019, Science and Technology Facilities Council.
+! Copyright (c) 2020, Science and Technology Facilities Council.
 ! All rights reserved.
 ! 
 ! Redistribution and use in source and binary forms, with or without
@@ -27,30 +27,42 @@
 !------------------------------------------------------------------------------
 ! Author: A. R. Porter, STFC Daresbury Laboratory
 
-!> A simple example of the expected usage of the dl_esm_inf library in
-!! constructing a finite-difference model.
-program model
+!> Tests for the global-sum functionality of the dl_esm_inf library.
+!! Domain size must be supplied via the JPIGLO and JPJGLO environment
+!! variables.
+program test_gsum
   use kind_params_mod
+  use parallel_mod
   use grid_mod
   use field_mod
   use gocean_mod
-  use parallel_mod, only: get_rank
   implicit none
   ! Total size of the model domain
-  integer :: jpiglo = 4, jpjglo = 10
+  integer :: jpiglo = 0, jpjglo = 0
   ! (Uniform) grid resolution
   real(go_wp) :: dx = 1.0
   real(go_wp) :: dy = 1.0
   !> The grid on which our fields are defined
   type(grid_type), target :: model_grid
-  !> Example fields
+  !> An example field
   type(r2d_field) :: u_field, v_field, t_field, f_field
-  real(go_wp) :: u_sum, v_sum, t_sum, f_sum
   ! Local definition of the T-point mask which defines whether T points are
   ! wet (1), dry (0) or outside (-1) the simulation domain.
   integer, allocatable :: tmask(:,:)
+  integer :: my_rank
   integer :: ierr
+  character(len=10) :: env
+  real(go_wp) :: expected_sum, actual_sum
+  real(go_wp) :: TOL_ZERO = 1.0D-8
 
+  call get_environment_variable("JPIGLO", env)
+  read(env, '(i10)') jpiglo
+  call get_environment_variable("JPJGLO", env)
+  read(env, '(i10)') jpjglo
+  if(jpiglo < 1 .or. jpjglo < 1)then
+     stop 'Domain size must be set via $JPIGLO and $JPJGLO'
+  end if
+  
   call gocean_initialise()
 
   !> Create our grid object
@@ -58,9 +70,14 @@ program model
                          (/GO_BC_EXTERNAL,GO_BC_EXTERNAL,GO_BC_NONE/), &
                          GO_OFFSET_NE)
 
-  !> Generate a domain decomposition. Automatically uses the number of
-  !! available MPI ranks.
+  !> Generate a domain decomposition. This automatically uses the number
+  !! of MPI ranks available.
   call model_grid%decompose(jpiglo, jpjglo)
+  my_rank = get_rank()
+
+  if(my_rank == 1) then
+     write(*,"('Using global domain size of ',I4,'x',I4)") jpiglo, jpjglo
+  end if
 
   !> Create a T-point mask describing the (local) domain
   allocate(tmask(model_grid%subdomain%global%nx,  &
@@ -68,56 +85,72 @@ program model
   if(ierr /= 0)then
      call gocean_stop('Failed to allocate T-mask')
   end if
-  ! To keep things simple for this example we set all points to be wet
-  ! and within the domain
-  tmask(:,:) = 1
+  ! To keep things simple we set all points to be wet and within the domain
+  tmask = 1
 
   !> Complete the initialisation of the grid using the T-mask and
   !! grid resolution
   call grid_init(model_grid, dx, dy, tmask)
-  
-  !> Create a field on U-points of the grid
+
+  !> Create fields on U,V,T,F-points of the grid
   u_field = r2d_field(model_grid, GO_U_POINTS)
   v_field = r2d_field(model_grid, GO_V_POINTS)
   t_field = r2d_field(model_grid, GO_T_POINTS)
   f_field = r2d_field(model_grid, GO_F_POINTS)
 
-  call init_field_by_rank(u_field)
-  call init_field_by_rank(v_field)
-  call init_field_by_rank(t_field)
-  call init_field_by_rank(f_field)
+  !> Set internal field points to 1.0, external to -100.0
+  call init_field(u_field)
+  call init_field(v_field)
+  call init_field(t_field)
+  call init_field(f_field)
 
-  call u_field%halo_exchange(1)
-  call v_field%halo_exchange(1)
-  call t_field%halo_exchange(1)
-  call f_field%halo_exchange(1)
-
-  u_sum = field_checksum(u_field)
-  v_sum = field_checksum(v_field)
-  t_sum = field_checksum(t_field)
-  f_sum = field_checksum(f_field)
-
-  ! All done!
-  if (get_rank() == 1) then
-    write(*, '(/"U checksum = ", E15.8)') u_sum
-    write(*, '("V checksum = ", E15.8)') v_sum
-    write(*, '("T checksum = ", E15.8)') t_sum
-    write(*, '("F checksum = ", E15.8)') f_sum
-    write(*, '(/"Example model set-up complete."/)')
+  ! Global sum should be equal to the number of points in the domain
+  expected_sum = jpiglo*jpjglo
+  actual_sum = field_checksum(u_field)
+  if(ABS(expected_sum - actual_sum) > TOL_ZERO)then
+     call gocean_stop('Checksum of U field incorrect!')
+  else
+     write(*,"(I3,' Global sum for u: ', E15.8)") my_rank, actual_sum
+  end if
+  actual_sum = field_checksum(v_field)
+  if(ABS(expected_sum - actual_sum) > TOL_ZERO)then
+     call gocean_stop('Checksum of V field incorrect!')
+  else
+     write(*,"(I3,' Global sum for v: ', E15.8)") my_rank, actual_sum
+  end if
+  actual_sum = field_checksum(t_field)
+  if(ABS(expected_sum - actual_sum) > TOL_ZERO)then
+     call gocean_stop('Checksum of T field incorrect!')
+  else
+     write(*,"(I3,' Global sum for t: ', E15.8)") my_rank, actual_sum
+  end if
+  actual_sum = field_checksum(f_field)
+  if(ABS(expected_sum - actual_sum) > TOL_ZERO)then
+     call gocean_stop('Checksum of F field incorrect!')
+  else
+     write(*,"(I3,' Global sum for t: ', E15.8)") my_rank, actual_sum
   end if
 
   call gocean_finalise()
 
 contains
 
-  subroutine init_field_by_rank(field)
-    !> Initialise a field with the MPI rank of this process
+  subroutine init_field(field)
     type(r2d_field), intent(inout) :: field
-    ! Locals
-    integer :: my_rank
-    my_rank = get_rank()
-    field%data(:,:) = real(my_rank)
+    integer :: ji, jj
+    integer :: istart, istop, jstart, jstop
+    istart = field%internal%xstart
+    istop =  field%internal%xstop
+    jstart = field%internal%ystart
+    jstop =  field%internal%ystop
     
-  end subroutine init_field_by_rank
+    field%data(:,:) = -100.0
+    do jj = jstart, jstop
+       do ji = istart, istop
+          field%data(ji,jj) = 1.0
+       end do
+    end do
 
-end program model
+  end subroutine init_field
+
+end program test_gsum

@@ -1,7 +1,7 @@
 !------------------------------------------------------------------------------
 ! BSD 2-Clause License
 ! 
-! Copyright (c) 2018-2019, Science and Technology Facilities Council.
+! Copyright (c) 2018-2020, Science and Technology Facilities Council.
 ! All rights reserved.
 ! 
 ! Redistribution and use in source and binary forms, with or without
@@ -30,10 +30,9 @@
 !> Implementation of parallel (distributed-memory) support using MPI.
 !! Requires that the compiler be able to find the 'mpi' module.
 module parallel_utils_mod
-  use mpi, only: mpi_waitall, mpi_waitany, MPI_UNDEFINED, MPI_REQUEST_NULL, &
-       MPI_STATUS_SIZE, MPI_COMM_WORLD, MPI_TAG_UB, &
-       MPI_INTEGER, MPI_DOUBLE_PRECISION, &
-       MPI_SUCCESS, MPI_ERR_REQUEST, MPI_ERR_ARG
+  !> \todo #39. Ideally we would name the various symbols with an 'only' clause
+  !! but this causes compilation errors with MPICH.
+  use mpi
   use kind_params_mod, only: go_wp
   implicit none
 
@@ -64,7 +63,7 @@ module parallel_utils_mod
   integer, parameter :: MSG_REQUEST_NULL = MPI_REQUEST_NULL
 
   public parallel_init, parallel_finalise, parallel_abort, get_max_tag
-  public get_rank, get_num_ranks, post_receive, post_send
+  public get_rank, get_num_ranks, post_receive, post_send, global_sum
   public msg_wait, msg_wait_all
   public MSG_UNDEFINED, MSG_REQUEST_NULL, DIST_MEM_ENABLED
 
@@ -226,5 +225,17 @@ contains
     if ( ierr /= MPI_SUCCESS ) call MPI_abort(MPI_COMM_WORLD, 1, ierr)
 
   end subroutine msg_wait_all
+
+  !================================================
+
+  subroutine global_sum(var)
+    !> Performs a global sum on a single, double-precision scalar.
+    real(go_wp), intent(inout) :: var
+    ! Locals
+    integer :: ierr
+
+    call MPI_allreduce(MPI_IN_PLACE, var, 1, MPI_DOUBLE, MPI_SUM, comm, ierr)
+
+  end subroutine global_sum
 
 end module parallel_utils_mod

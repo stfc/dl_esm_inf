@@ -348,7 +348,7 @@ contains
 !> TODO should use thread tiling here but that is currently only set-up
 !! inside a field object.
 !$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
-!$OMP shared(grid, tmask)
+!$OMP shared(grid, tmask, ystart, ystop, xstart, xstop)
        do jj = ystart-1, ystop+1
           do ji = xstart-1, xstop+1
              ! Copy in values
