@@ -33,11 +33,15 @@
 # environment variables. e.g. to use gfortran:
 # 
 # export F90=mpif90
+# export MPIRUN=mpirun
 # export F90FLAGS="-O3"
 # export AR=ar
 # make
 #
 all: tests
+
+# How we launch MPI jobs
+MPIRUN ?= mpirun
 
 # Location of the dl_esm_inf library
 INF_DIR=../..
@@ -46,24 +50,22 @@ INF_LIB = ${INF_DIR}/src/lib_fd.a
 
 .PHONY: test_xsplit test_ysplit test_xysplit inf_lib
 
-# Compile and run tests. This is a very basic target and assumes that
-# OpenMPI's 'mpirun' is available (because of the way we set environment
-# variables).
+# Compile and run tests. This is a very basic target.
 tests: test_xsplit test_ysplit test_xysplit test_gsum
 
 test_xsplit: inf_lib test_halos.exe
-	mpirun -x JPIGLO=10 -x JPJGLO=4 -np 2 ./test_halos.exe
+	JPIGLO=10 JPJGLO=4 ${MPIRUN} -np 2 ./test_halos.exe
 
 test_ysplit: inf_lib test_halos.exe
-	mpirun -x JPIGLO=4 -x JPJGLO=10 -np 2 ./test_halos.exe
+	JPIGLO=4 JPJGLO=10 ${MPIRUN} -np 2 ./test_halos.exe
 
 test_xysplit: inf_lib test_halos.exe
-	mpirun -x JPIGLO=10 -x JPJGLO=10 -np 4 ./test_halos.exe
-	mpirun -x JPIGLO=10 -x JPJGLO=10 -np 6 ./test_halos.exe
+	JPIGLO=10 JPJGLO=10 ${MPIRUN} -np 4 ./test_halos.exe
+	JPIGLO=10 JPJGLO=10 ${MPIRUN} -np 6 ./test_halos.exe
 
 test_gsum: inf_lib test_gsum.exe
-	mpirun -x JPIGLO=4 -x JPJGLO=10 -np 4 ./test_gsum.exe
-	mpirun -x JPIGLO=4 -x JPJGLO=10 -np 6 ./test_gsum.exe
+	JPIGLO=4 JPJGLO=10 ${MPIRUN} -np 4 ./test_gsum.exe
+	JPIGLO=4 JPJGLO=10 ${MPIRUN} -np 6 ./test_gsum.exe
 
 inf_lib:
 	${MAKE} -C ${INF_DIR} F90=${F90} dm_fd_lib
