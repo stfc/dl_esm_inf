@@ -107,7 +107,7 @@ ${API_LIB}: fortcl ${MODULES}
 
 # FortCL is compiled in the CWD
 fortcl:
-	${MAKE} -f ${FORTCL_DIR}/Makefile F90=${F90} ${FORTCL_TARGET}
+	${MAKE} -f ${FORTCL_DIR}/Makefile F90="${F90}" ${FORTCL_TARGET}
 
 install:
 	${MAKE} -C .. install

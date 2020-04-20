@@ -68,7 +68,7 @@ test_gsum: inf_lib test_gsum.exe
 	JPIGLO=4 JPJGLO=10 ${MPIRUN} -np 6 ./test_gsum.exe
 
 inf_lib:
-	${MAKE} -C ${INF_DIR} F90=${F90} dm_fd_lib
+	${MAKE} -C ${INF_DIR} F90="${F90}" dm_fd_lib
 
 # Normal targets
 test_halos.exe: inf_lib test_halos.o

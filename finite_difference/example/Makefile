@@ -75,11 +75,11 @@ INF_LIB = ${INF_DIR}/src/lib_fd.a
 
 .PHONY: inf_lib
 inf_lib:
-	${MAKE} -C ${INF_DIR} F90=${F90} dm_fd_lib
+	${MAKE} -C ${INF_DIR} F90="${F90}" dm_fd_lib
 
 .PHONY: inf_lib_serial
 inf_lib_serial:
-	${MAKE} -C ${INF_DIR} F90=${F90} fd_lib
+	${MAKE} -C ${INF_DIR} F90="${F90}" fd_lib
 
 # Normal targets
 model.exe: model.o
