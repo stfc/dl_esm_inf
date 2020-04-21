@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 # BSD 2-Clause License
 # 
-# Copyright (c) 2018, Science and Technology Facilities Council.
+# Copyright (c) 2018-2020, Science and Technology Facilities Council.
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -26,6 +26,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #------------------------------------------------------------------------------
 # Author: A. R. Porter, STFC Daresbury Laboratory
+# Modified: S. Siso, STFC Daresbury Laboratory
 
 # Makefile for the example mini-app demonstrating the use of the dl_esm_inf
 # library.
@@ -75,11 +76,11 @@ INF_LIB = ${INF_DIR}/src/lib_fd.a
 
 .PHONY: inf_lib
 inf_lib:
-	${MAKE} -C ${INF_DIR} F90=${F90} dm_fd_lib
+	${MAKE} -C ${INF_DIR} F90="${F90}" dm_fd_lib
 
 .PHONY: inf_lib_serial
 inf_lib_serial:
-	${MAKE} -C ${INF_DIR} F90=${F90} fd_lib
+	${MAKE} -C ${INF_DIR} F90="${F90}" fd_lib
 
 # Normal targets
 model.exe: model.o
