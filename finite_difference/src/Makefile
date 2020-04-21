@@ -25,7 +25,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #------------------------------------------------------------------------------
-# Authors: A. R. Porter, STFC Daresbury Laboratory
+# Authors: A. R. Porter and S. Siso, STFC Daresbury Laboratory
 #          J. Henrichs, Australian Bureau of Meteorology
 
 # Makefile for the dl_esm_inf library, intended to be driven by the top-level
