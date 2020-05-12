@@ -1009,7 +1009,7 @@ contains
     type(r2d_field), intent(in) :: field
     real(go_wp) :: val
 
-    val = array_checksum(field%data, field%data_on_device,           &
+    val = array_checksum(field%get_data(), field%data_on_device,           &
                          field%internal%xstart, field%internal%xstop, &
                          field%internal%ystart, field%internal%ystop)
     return
@@ -1040,7 +1040,7 @@ contains
     ! Locals
     integer :: exch  !> Handle for exchange
 
-    call exchange_generic(b2=self%data, handle=exch, &
+    call exchange_generic(b2=self%get_data(), handle=exch, &
                           comm1=JPlus, comm2=Jminus, comm3=IPlus, comm4=IMinus)
   end subroutine halo_exchange
   
