@@ -1003,35 +1003,26 @@ contains
   !===================================================
 
   !> Compute the checksum of the internal values of the supplied field
-  !> object
+  !> object. If the data is in a remote device, the field%get_data()
+  !> call will first bring it to the host.
   function fld_checksum(field) result(val)
     implicit none
     type(r2d_field), intent(in) :: field
     real(go_wp) :: val
 
-    val = array_checksum(field%data, field%data_on_device,           &
+    val = array_checksum(field%get_data(), field%data_on_device,           &
                          field%internal%xstart, field%internal%xstop, &
                          field%internal%ystart, field%internal%ystop)
     return
 
-! The code below fails with the Cray compiler - the update host(field%data)
-! seems to get the wrong pointer.
-
-    ! If we're using OpenACC then make sure we get the data back from
-    ! the GPU
-!    if(field%data_on_device)then
-!!acc update host(field%data)
-!    end if
-!
-!    !> \todo Could add an OpenMP implementation
-!    val = SUM( ABS(field%data(field%internal%xstart:field%internal%xstop, &
-!                              field%internal%ystart:field%internal%ystop)) )
   end function fld_checksum
   
   !===================================================
 
+  !> Provide access to exchange_generic for halo swaps for this field.
+  !> If the data is in a remote device, the field%get_data()
+  !> call will first bring it to the host.
   subroutine halo_exchange(self, depth)
-    !> Provides access to exchange_generic for halo swaps for this field
     use parallel_comms_mod, only: Iplus, Iminus, Jplus, Jminus, NONE, &
          exchange_generic
     implicit none
@@ -1040,7 +1031,7 @@ contains
     ! Locals
     integer :: exch  !> Handle for exchange
 
-    call exchange_generic(b2=self%data, handle=exch, &
+    call exchange_generic(b2=self%get_data(), handle=exch, &
                           comm1=JPlus, comm2=Jminus, comm3=IPlus, comm4=IMinus)
   end subroutine halo_exchange
   
