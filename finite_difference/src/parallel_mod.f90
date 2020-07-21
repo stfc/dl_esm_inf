@@ -273,7 +273,7 @@ contains
           ! Which part of the global domain the internal part of this
           ! subdomain covers
           subdomain%global%xstart = ival
-          subdomain%global%xstop = subdomain%global%xstart + width - 1
+          subdomain%global%xstop = subdomain%global%xstart + 2*hwidth + width - 1
           ! Full width of this subdomain (including halo and boundary points)
           subdomain%global%nx  = 2*hwidth + width
 
@@ -282,7 +282,7 @@ contains
           subdomain%internal%ny = height
           ! Which part of the global domain this subdomain covers
           subdomain%global%ystart = jval
-          subdomain%global%ystop = subdomain%global%ystart + height - 1
+          subdomain%global%ystop = subdomain%global%ystart + 2*hwidth + height - 1
           ! Full height of this subdomain (incl. halo and boundary points)
           subdomain%global%ny = 2*hwidth + subdomain%internal%ny
 
