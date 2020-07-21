@@ -316,20 +316,16 @@ contains
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
 
-    ! Extend the domain by unity in each dimension to allow
-    ! for staggering of variables. All fields will be
-    ! allocated with extent (nx,ny).
+    ! Extend the domain at least by unity and up to being exactly divisible
+    ! by the ALIGNMENT in the contiguous dimension to allow for staggering
+    ! of variables and an aligned access to the start of each row (by adding
+    ! extra padding in the arrays).
     mlocal = grid%subdomain%global%nx + 1
-    if( mod(mlocal, ALIGNMENT) > 0 )then
-       ! Since this is the dimension of the array and not that of
-       ! the internal region, we add two lots of 'ALIGNMENT'. This
-       ! allows us to subsequently extend the loop over the internal
-       ! region so that it too is aligned without array accesses of
-       ! the form a(i+1,j) going out of bounds.
-       grid%nx = (mlocal/ALIGNMENT + 2)*ALIGNMENT
-    else
-       grid%nx = mlocal
-    end if
+    grid%nx = mlocal + mod(mlocal, ALIGNMENT)
+    write(*,*) "nx (with padding) is", grid%nx
+
+    ! Extend the domain exactly by unity in the non-contiguous dimension to
+    ! allow for staggering of variables.
     grid%ny = grid%subdomain%global%ny + 1
 
     ! Shorthand for the definition of the internal region
