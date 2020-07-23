@@ -83,7 +83,8 @@ contains
 
     rank = rank + 1
     if(rank == 1)then
-       write (*,*) "Number of MPI ranks: ", nranks
+       write (*,"('Number of MPI ranks:', I4)") nranks
+       write (*,*)
     end if
 
   end subroutine parallel_init

@@ -181,7 +181,7 @@ contains
   function r2d_field_constructor(grid,    &
                                  grid_points, &
                                  do_tile) result(self)
-    use parallel_mod, only: go_decompose
+    use parallel_mod, only: go_decompose, get_rank
 !$    use omp_lib, only : omp_get_max_threads
     implicit none
     ! Arguments
@@ -261,15 +261,13 @@ contains
     upper_x_bound = self%grid%nx
     upper_y_bound = self%grid%ny
 
-    write(*, "('Allocating ',(A),' field with bounds: (',I1,':',I3, "// &
-             "',',I1,':',I3,')')") &
-               TRIM(ADJUSTL(fld_type)), &
-               1, upper_x_bound, 1, upper_y_bound
-    write(*,"('Internal region is:(',I1,':',I3, ',',I1,':',I3,')' )") &
-         self%internal%xstart, self%internal%xstop, &
-         self%internal%ystart, self%internal%ystop
-    write(*,"('Grid has bounds:  (',I1,':',I3, ',',I1,':',I3,')')") &
-         1, self%grid%nx, 1, self%grid%ny
+    if (get_rank() == 1) then
+        write(*, "('Allocating ',(A),' field with bounds: (',I1,':',I4, "// &
+            "',',I1,':',I4,'), internal region is (',I1,':',I4, ',',I1,':',I4,')' )") &
+            TRIM(ADJUSTL(fld_type)), 1, upper_x_bound, 1, upper_y_bound, &
+             self%internal%xstart, self%internal%xstop, &
+             self%internal%ystart, self%internal%ystop
+    endif
 
     ! Allocating with a lower bound != 1 causes problems whenever
     ! array passed as assumed-shape dummy argument because lower

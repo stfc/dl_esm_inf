@@ -192,7 +192,9 @@ contains
        ntiley = ndomainy
     end if ! automatic determination of tiling grid
 
-    WRITE (*,"('go_decompose: using grid of ',I3,'x',I3)") ntilex, ntiley
+    if(get_rank() == 1) then
+        WRITE (*,"('go_decompose: using grid of ',I3,'x',I3)") ntilex, ntiley
+    endif
     decomp%nx = ntilex
     decomp%ny = ntiley
 
@@ -219,7 +221,7 @@ contains
        iunder = 0
     end if
 
-    if(print_tiles)then
+    if(print_tiles .and. get_rank() == 1)then
        write(*, "('Tile width = ',I4,', tile height = ',I4)") &
                                   internal_width, internal_height
        write(*, "('iunder, junder = ', I3, 1x, I3)") iunder, junder
@@ -236,7 +238,7 @@ contains
     decomp%max_width  = 0
     decomp%max_height = 0
 
-    if(print_tiles) write(*, "(/'Sub-domains:')")
+    if(print_tiles .and. get_rank() == 1) write(*, "(/'Sub-domains:')")
 
     do jj = 1, ntiley, 1
 
@@ -273,7 +275,7 @@ contains
           ! Which part of the global domain the internal part of this
           ! subdomain covers
           subdomain%global%xstart = ival
-          subdomain%global%xstop = subdomain%global%xstart + 2*hwidth + width - 1
+          subdomain%global%xstop = subdomain%global%xstart + width - 1
           ! Full width of this subdomain (including halo and boundary points)
           subdomain%global%nx  = 2*hwidth + width
 
@@ -282,11 +284,11 @@ contains
           subdomain%internal%ny = height
           ! Which part of the global domain this subdomain covers
           subdomain%global%ystart = jval
-          subdomain%global%ystop = subdomain%global%ystart + 2*hwidth + height - 1
+          subdomain%global%ystop = subdomain%global%ystart + height - 1
           ! Full height of this subdomain (incl. halo and boundary points)
           subdomain%global%ny = 2*hwidth + subdomain%internal%ny
 
-          if(print_tiles)then
+          if(print_tiles .and. get_rank() == 1)then
              write(*, "('subdomain[',I4,'](',I4,':',I4,')(',I4,':',I4,'),"// &
                   & " interior:(',I4,':',I4,')(',I4,':',I4,') ')")      &
                   ith,                                                  &
@@ -314,7 +316,7 @@ contains
     end do
 
     ! Print tile-size statistics
-    if(print_tiles)then
+    if(print_tiles .and. get_rank() == 1)then
        write(*, "(/'Mean sub-domain size = ',F8.1,' pts = ',F7.1,' KB')")    &
                                    real(nvects_sum) / real(decomp%ndomains), &
                             real(8*nvects_sum) / real(decomp%ndomains*1024)
