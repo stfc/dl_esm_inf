@@ -42,9 +42,9 @@ module grid_mod
   integer, parameter :: HALO_WIDTH_X = 1
   integer, parameter :: HALO_WIDTH_Y = 1
 
-  ! What boundary to align arrays (allocated within the library) to
-  ! AVX is 256 bit = 4 d.p. words
-  integer, parameter :: ALIGNMENT = 4
+  ! What boundary to align arrays (the contiguous dimension must be
+  ! divisible by the ALIGNMENT value.)
+  integer :: ALIGNMENT = 1
 
   type, public :: grid_type
      !> The type of grid this is (e.g. Arakawa C Grid)
@@ -301,7 +301,6 @@ contains
   !!                  the contents of the local domain. Need not be
   !!                  supplied if domain is all wet and has PBCs.
   subroutine grid_init(grid, dxarg, dyarg, tmask)
-    use global_parameters_mod, only: ALIGNMENT
     use decomposition_mod, only: subdomain_type, decomposition_type
     use parallel_mod, only: map_comms, get_rank, get_num_ranks
     use parallel_utils_mod, only: DIST_MEM_ENABLED
@@ -310,19 +309,42 @@ contains
     real(go_wp),              intent(in) :: dxarg, dyarg
     integer, allocatable, dimension(:,:), intent(in), optional :: tmask
     ! Locals
-    integer :: mlocal
+    integer :: padding
     integer :: ierr(5)
     integer :: ji, jj
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
+    character(len=2) :: strvalue = '  '
 
+
+    CALL get_environment_variable("ALIGNMENT", strvalue, status=ierr(1))
+    if(ierr(1) .eq. 1) then
+        ! By default use ALIGNMENT 1 (no padding)
+        ALIGNMENT = 1
+    else
+        read(strvalue,"(i1)", iostat=ierr(1)) ALIGNMENT
+        if(ierr(1) .ne. 0 .or. ALIGNMENT < 1) then
+            stop 'Error: Cannot convert ALIGNMENT value into a positive integer.'
+        endif
+    endif
     ! Extend the domain at least by unity and up to being exactly divisible
     ! by the ALIGNMENT in the contiguous dimension to allow for staggering
     ! of variables and an aligned access to the start of each row (by adding
     ! extra padding in the arrays).
-    mlocal = grid%subdomain%global%nx + 1
-    grid%nx = mlocal + mod(mlocal, ALIGNMENT)
-    write(*,*) "nx (with padding) is", grid%nx
+    padding = ALIGNMENT - mod(grid%subdomain%global%nx, ALIGNMENT)
+    grid%nx = grid%subdomain%global%nx + padding
+
+    if ( mod(grid%nx, ALIGNMENT) .ne. 0 ) then
+        ! This should never happen, it is a check for debugging purposes.
+        call gocean_stop("Error: Could not satisfy ALIGNMENT requierements.")
+    else
+        if (ALIGNMENT > 1 .and. (get_rank() == 1 .or. get_rank() == grid%decomp%nx)) then
+            ! Print master rank and the first rank potentially with less nx elements
+            write(*, "('Rank',I3,' contiguous dimension is',I4,' (it has'," // &
+                "I2,' padding elements to satisfy ',I2, '-wide alignment)' )") &
+                get_rank(), grid%nx, padding - 1, ALIGNMENT
+        endif
+    endif
 
     ! Extend the domain exactly by unity in the non-contiguous dimension to
     ! allow for staggering of variables.
