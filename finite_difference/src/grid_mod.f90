@@ -314,17 +314,22 @@ contains
     integer :: ji, jj
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
-    character(len=2) :: strvalue = '  '
+    character(len=3) :: strvalue = '   '
 
 
     CALL get_environment_variable("ALIGNMENT", strvalue, status=ierr(1))
     if(ierr(1) .eq. 1) then
-        ! By default use ALIGNMENT 1 (no padding)
+        ! ALIGNMENET not present, by default use ALIGNMENT = 1 (no padding)
         ALIGNMENT = 1
+    else if(ierr(1) .eq. -1) then
+        ! ALIGNMENT is present but didn't fit in strvalue
+        call gocean_stop("Error: Only numbers of up to 3 digits are supported" // &
+            " in the ALIGNMENT environment variable.")
     else
-        read(strvalue,"(i1)", iostat=ierr(1)) ALIGNMENT
+        read(strvalue,"(i3)", iostat=ierr(1)) ALIGNMENT
         if(ierr(1) .ne. 0 .or. ALIGNMENT < 1) then
-            stop 'Error: Cannot convert ALIGNMENT value into a positive integer.'
+            call gocean_stop("Error: Cannot convert ALIGNMENT value ("// &
+                             strvalue // ") into a positive integer.")
         endif
     endif
     ! Extend the domain at least by unity and up to being exactly divisible
@@ -341,7 +346,7 @@ contains
         if (ALIGNMENT > 1 .and. (get_rank() == 1 .or. get_rank() == grid%decomp%nx)) then
             ! Print master rank and the first rank potentially with less nx elements
             write(*, "('Rank',I3,' contiguous dimension is',I4,' (it has'," // &
-                "I2,' padding elements to satisfy ',I2, '-wide alignment)' )") &
+                "I4,' padding elements to satisfy ',I4, '-wide alignment)' )") &
                 get_rank(), grid%nx, padding - 1, ALIGNMENT
         endif
     endif
