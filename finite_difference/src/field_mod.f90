@@ -51,6 +51,17 @@ module field_mod
   !> A field that lives on all grid-points of the grid
   integer, public, parameter :: GO_ALL_POINTS = 4
 
+
+  abstract interface
+    subroutine read_from_device_interface(from, to, buf_size)
+        use iso_c_binding, only: c_intptr_t, c_int
+        integer(c_intptr_t) :: from
+        integer(c_intptr_t) :: to !real(go_wp), dimension(:,:) :: to
+        integer(c_int) :: buf_size
+    end subroutine read_from_device_interface
+  end interface
+
+
   !> The base field type. Intended to represent a global field
   !! such as the x-component of velocity.
   type, public :: field_type
@@ -72,6 +83,7 @@ module field_mod
      !> Whether the data for this field lives in a remote memory space
      !! (e.g. on a GPU)
      logical :: data_on_device
+     procedure(read_from_device_interface), POINTER, nopass :: read_from_device
 
   end type field_type
 
@@ -216,6 +228,8 @@ contains
     !! to where we're executing
     self%data_on_device = .FALSE.
 
+    nullify(self%read_from_device)
+
     ! Set-up the limits of the 'internal' region of this field
     !
     call set_field_bounds(self,fld_type,grid_points)
@@ -329,14 +343,23 @@ contains
     !! accelerator device (if using OpenACC or OpenCL).
     class(r2d_field), target :: self
     real(go_wp), dimension(:,:), pointer :: dptr
+    dptr => self%data
     if(self%data_on_device)then
-       !$acc update host(self%data)
+       write(*,*) "data on device"
+       if(associated(self%read_from_device))then
+          write(*,*) "In associated"
+          call self%read_from_device(self%device_ptr, c_loc(dptr), &
+                                     self%grid%nx*self%grid%ny)
+       else
+          call gocean_stop("ERROR: Data is on a device but no instructions " // &
+              "about how to retrieve the data have been provided."
+       endif
        ! If FortCL is compiled without OpenCL enabled then this
        ! call does nothing.
-       call read_buffer(self%device_ptr, self%data, &
-                        int(self%grid%nx*self%grid%ny, kind=8))
+       !call read_buffer(self%device_ptr, self%data, &
+       !                 int(self%grid%nx*self%grid%ny, kind=8))
+       !!$acc update host(self%data)
     end if
-    dptr => self%data
   end function get_data
 
   !===================================================
