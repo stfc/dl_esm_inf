@@ -34,7 +34,7 @@ program model
   use grid_mod
   use field_mod
   use gocean_mod
-  use parallel_mod, only: get_rank
+  use parallel_mod, only: get_rank, on_master
   implicit none
   ! Total size of the model domain
   integer :: jpiglo = 4, jpjglo = 10
@@ -98,7 +98,7 @@ program model
   f_sum = field_checksum(f_field)
 
   ! All done!
-  if (get_rank() == 1) then
+  if (on_master()) then
     write(*, '(/"U checksum = ", E15.8)') u_sum
     write(*, '("V checksum = ", E15.8)') v_sum
     write(*, '("T checksum = ", E15.8)') t_sum

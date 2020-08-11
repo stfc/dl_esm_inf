@@ -31,7 +31,7 @@
 !! are independent of whether or not we are building with MPI.
 module parallel_mod
   use parallel_utils_mod, only: parallel_finalise, parallel_abort, &
-                                get_rank, get_num_ranks
+                                get_rank, get_num_ranks, on_master
   use parallel_comms_mod, only: map_comms, exchmod_alloc
   use decomposition_mod, only: decomposition_type
   implicit none
@@ -42,7 +42,7 @@ module parallel_mod
   public parallel_init, parallel_finalise, parallel_abort, go_decompose
 
   ! Export routines from other modules
-  public map_comms, get_rank, get_num_ranks
+  public map_comms, get_rank, get_num_ranks, on_master
   public decomposition_type
 
 contains
@@ -192,7 +192,7 @@ contains
        ntiley = ndomainy
     end if ! automatic determination of tiling grid
 
-    if(get_rank() == 1) then
+    if(on_master()) then
         WRITE (*,"('go_decompose: using grid of ',I3,'x',I3)") ntilex, ntiley
     endif
     decomp%nx = ntilex
@@ -221,7 +221,7 @@ contains
        iunder = 0
     end if
 
-    if(print_tiles .and. get_rank() == 1)then
+    if(print_tiles .and. on_master())then
        write(*, "('Tile width = ',I4,', tile height = ',I4)") &
                                   internal_width, internal_height
        write(*, "('iunder, junder = ', I3, 1x, I3)") iunder, junder
@@ -238,7 +238,7 @@ contains
     decomp%max_width  = 0
     decomp%max_height = 0
 
-    if(print_tiles .and. get_rank() == 1) write(*, "(/'Sub-domains:')")
+    if(print_tiles .and. on_master()) write(*, "(/'Sub-domains:')")
 
     do jj = 1, ntiley, 1
 
@@ -288,7 +288,7 @@ contains
           ! Full height of this subdomain (incl. halo and boundary points)
           subdomain%global%ny = 2*hwidth + subdomain%internal%ny
 
-          if(print_tiles .and. get_rank() == 1)then
+          if(print_tiles .and. on_master())then
              write(*, "('subdomain[',I4,'](',I4,':',I4,')(',I4,':',I4,'),"// &
                   & " interior:(',I4,':',I4,')(',I4,':',I4,') ')")      &
                   ith,                                                  &
@@ -316,7 +316,7 @@ contains
     end do
 
     ! Print tile-size statistics
-    if(print_tiles .and. get_rank() == 1)then
+    if(print_tiles .and. on_master())then
        write(*, "(/'Mean sub-domain size = ',F8.1,' pts = ',F7.1,' KB')")    &
                                    real(nvects_sum) / real(decomp%ndomains), &
                             real(8*nvects_sum) / real(decomp%ndomains*1024)

@@ -61,7 +61,7 @@ contains
   !> Write log entry with one integer and one real arg
   SUBROUTINE write_log_ir(fmtstr, istep, fvar, all_ranks)
     use iso_fortran_env, only : output_unit ! access computing environment
-    use parallel_mod, only: get_rank
+    use parallel_mod, only: on_master
     IMPLICIT none
     CHARACTER(LEN=*), INTENT(in) :: fmtstr
     INTEGER,          INTENT(in) :: istep
@@ -75,7 +75,7 @@ contains
         all_ranks_value = .false.
     endif
 
-    if(all_ranks_value .or. get_rank() == 1) then
+    if(all_ranks_value .or. on_master()) then
       WRITE(output_unit,FMT=fmtstr) istep, fvar
     endif
 
@@ -86,7 +86,7 @@ contains
   !> Write log entry with one integer arg
   SUBROUTINE write_log_i(fmtstr, istep, all_ranks)
     use iso_fortran_env, only : output_unit ! access computing environment
-    use parallel_mod, only: get_rank
+    use parallel_mod, only: on_master
     IMPLICIT none
     CHARACTER(LEN=*), INTENT(in) :: fmtstr
     INTEGER,          INTENT(in) :: istep
@@ -99,7 +99,7 @@ contains
         all_ranks_value = .false.
     endif
 
-    if(all_ranks_value .or. get_rank() == 1) then
+    if(all_ranks_value .or. on_master()) then
       WRITE(output_unit,FMT=fmtstr) istep
     endif
 
@@ -110,7 +110,7 @@ contains
   !> Write log entry with one real arg
   subroutine write_log_r(fmtstr, fvar, all_ranks)
     use iso_fortran_env, only : output_unit ! access computing environment
-    use parallel_mod, only: get_rank
+    use parallel_mod, only: on_master
     implicit none
     character(len=*), intent(in) :: fmtstr
     real(go_wp),      intent(in) :: fvar
@@ -123,7 +123,7 @@ contains
         all_ranks_value = .false.
     endif
 
-    if(all_ranks_value .or. get_rank() == 1) then
+    if(all_ranks_value .or. on_master()) then
       write(output_unit,FMT=fmtstr) fvar
     endif
 
@@ -134,7 +134,7 @@ contains
   !> Write log entry with just a string
   subroutine write_log_a(fmtstr, msg, all_ranks)
     use iso_fortran_env, only : output_unit ! access computing environment
-    use parallel_mod, only: get_rank
+    use parallel_mod, only: on_master
     implicit none
     character(len=*), intent(in) :: fmtstr
     character(len=*), intent(in) :: msg
@@ -147,7 +147,7 @@ contains
         all_ranks_value = .false.
     endif
 
-    if(all_ranks_value .or. get_rank() == 1) then
+    if(all_ranks_value .or. on_master()) then
       write(output_unit,FMT=fmtstr) msg
     endif
 

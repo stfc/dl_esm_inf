@@ -302,7 +302,7 @@ contains
   !!                  supplied if domain is all wet and has PBCs.
   subroutine grid_init(grid, dxarg, dyarg, tmask)
     use decomposition_mod, only: subdomain_type, decomposition_type
-    use parallel_mod, only: map_comms, get_rank, get_num_ranks
+    use parallel_mod, only: map_comms, get_rank, get_num_ranks, on_master
     use parallel_utils_mod, only: DIST_MEM_ENABLED
     implicit none
     type(grid_type), intent(inout) :: grid
@@ -343,7 +343,7 @@ contains
         ! This should never happen, it is a check for debugging purposes.
         call gocean_stop("Error: Could not satisfy ALIGNMENT requierements.")
     else
-        if (ALIGNMENT > 1 .and. (get_rank() == 1 .or. get_rank() == grid%decomp%nx)) then
+        if (ALIGNMENT > 1 .and. (on_master() .or. get_rank() == grid%decomp%nx)) then
             ! Print master rank and the first rank potentially with less nx elements
             write(*, "('Rank',I3,' contiguous dimension is',I4,' (it has'," // &
                 "I4,' padding elements to satisfy ',I4, '-wide alignment)' )") &

@@ -63,7 +63,7 @@ module parallel_utils_mod
   integer, parameter :: MSG_REQUEST_NULL = MPI_REQUEST_NULL
 
   public parallel_init, parallel_finalise, parallel_abort, get_max_tag
-  public get_rank, get_num_ranks, post_receive, post_send, global_sum
+  public get_rank, get_num_ranks, post_receive, post_send, global_sum, on_master
   public msg_wait, msg_wait_all
   public MSG_UNDEFINED, MSG_REQUEST_NULL, DIST_MEM_ENABLED
 
@@ -117,6 +117,13 @@ contains
     integer :: get_rank
     get_rank = rank
   end function get_rank
+
+  !================================================
+
+  function on_master()
+    logical :: on_master
+    on_master = get_rank() == 1
+  end function on_master
 
   !================================================
 
