@@ -202,7 +202,6 @@ contains
     ! Locals
     integer :: ierr
     integer :: status(MPI_status_size)
-    integer :: astatus(MPI_status_size, nmsg)
 
     call MPI_waitany(nmsg, flags, irecv, status, ierr)
 

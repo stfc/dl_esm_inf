@@ -123,10 +123,6 @@ module field_mod
      module procedure r2d_free_field
   end interface
 
-  !> Info on the tile sizes
-  INTEGER, SAVE :: max_tile_width
-  INTEGER, SAVE :: max_tile_height
-
   public copy_field
   public set_field
   public field_checksum
