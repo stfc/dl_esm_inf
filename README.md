@@ -34,10 +34,10 @@ of how to construct a model grid and associate fields with it.
 
 The following environment variables can be set up to tune runtime options:
 
-- ALIGNMENT: Positive integer that specifies a value by which the grid contiguous
-dimension length should be divisible. If that is not the case for the selected
-problem dimensions, it will add padding elements in that dimension until the
-condition holds true. If not specified it defaults to 1.
+- `DL_ESM_ALIGNMENT`: Positive integer that specifies a value by which the grid
+contiguous dimension length should be divisible. If that is not the case for
+the selected problem dimensions, it will add padding elements in that dimension
+until the condition holds true. If not specified it defaults to 1.
 
 ## Documentation ##
 

@@ -31,7 +31,7 @@
 !! are independent of whether or not we are building with MPI.
 module parallel_mod
   use parallel_utils_mod, only: parallel_finalise, parallel_abort, &
-                                get_rank, get_num_ranks, on_master
+                                get_rank, get_num_ranks
   use parallel_comms_mod, only: map_comms, exchmod_alloc
   use decomposition_mod, only: decomposition_type
   implicit none
@@ -40,9 +40,10 @@ module parallel_mod
 
   ! The public routines implemented in this module
   public parallel_init, parallel_finalise, parallel_abort, go_decompose
+  public on_master
 
   ! Export routines from other modules
-  public map_comms, get_rank, get_num_ranks, on_master
+  public map_comms, get_rank, get_num_ranks
   public decomposition_type
 
 contains
@@ -329,5 +330,13 @@ contains
     end if
 
   end function go_decompose
+
+
+  !> Returns True if this is the master process in the parallel execution
+  !! environment, otherwise returns False.
+  function on_master()
+    logical :: on_master
+    on_master = get_rank() == 1
+  end function on_master
 
 end module parallel_mod

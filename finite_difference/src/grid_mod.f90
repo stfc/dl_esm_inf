@@ -317,18 +317,18 @@ contains
     character(len=3) :: strvalue = '   '
 
 
-    CALL get_environment_variable("ALIGNMENT", strvalue, status=ierr(1))
+    CALL get_environment_variable("DL_ESM_ALIGNMENT", strvalue, status=ierr(1))
     if(ierr(1) .eq. 1) then
-        ! ALIGNMENET not present, by default use ALIGNMENT = 1 (no padding)
+        ! DL_ESM_ALIGNMENT not present, by default use ALIGNMENT = 1 (no padding)
         ALIGNMENT = 1
     else if(ierr(1) .eq. -1) then
-        ! ALIGNMENT is present but didn't fit in strvalue
+        ! DL_ESM_ALIGNMENT is present but didn't fit in strvalue
         call gocean_stop("Error: Only numbers of up to 3 digits are supported" // &
-            " in the ALIGNMENT environment variable.")
+            " in the DL_ESM_ALIGNMENT environment variable.")
     else
         read(strvalue,"(i3)", iostat=ierr(1)) ALIGNMENT
         if(ierr(1) .ne. 0 .or. ALIGNMENT < 1) then
-            call gocean_stop("Error: Cannot convert ALIGNMENT value ("// &
+            call gocean_stop("Error: Cannot convert DL_ESM_ALIGNMENT value ("// &
                              strvalue // ") into a positive integer.")
         endif
     endif
@@ -341,7 +341,7 @@ contains
 
     if ( mod(grid%nx, ALIGNMENT) .ne. 0 ) then
         ! This should never happen, it is a check for debugging purposes.
-        call gocean_stop("Error: Could not satisfy ALIGNMENT requierements.")
+        call gocean_stop("Error: Could not satisfy alignment requierements.")
     else
         if (ALIGNMENT > 1 .and. (on_master() .or. get_rank() == grid%decomp%nx)) then
             ! Print master rank and the first rank potentially with less nx elements

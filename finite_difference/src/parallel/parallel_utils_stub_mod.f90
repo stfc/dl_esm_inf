@@ -45,7 +45,7 @@ module parallel_utils_mod
   logical, parameter :: DIST_MEM_ENABLED = .False.
 
   public parallel_init, parallel_finalise, parallel_abort
-  public get_rank, get_num_ranks, get_max_tag, on_master
+  public get_rank, get_num_ranks, get_max_tag
   public msg_wait, msg_wait_all, post_receive, post_send, global_sum
   public MSG_UNDEFINED, MSG_REQUEST_NULL, DIST_MEM_ENABLED
 
@@ -135,13 +135,6 @@ contains
     integer :: get_rank
     get_rank = rank
   end function get_rank
-
-  !================================================
-
-  function on_master()
-    logical :: on_master
-    on_master = .true.
-  end function on_master
 
   !================================================
 
