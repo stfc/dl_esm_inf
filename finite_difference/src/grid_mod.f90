@@ -42,10 +42,6 @@ module grid_mod
   integer, parameter :: HALO_WIDTH_X = 1
   integer, parameter :: HALO_WIDTH_Y = 1
 
-  ! What boundary to align arrays (the contiguous dimension must be
-  ! divisible by the ALIGNMENT value.)
-  integer :: ALIGNMENT = 1
-
   type, public :: grid_type
      !> The type of grid this is (e.g. Arakawa C Grid)
      integer :: name
@@ -315,7 +311,9 @@ contains
     integer :: xstart, ystart ! Start of internal region of T-pts
     integer :: xstop, ystop ! End of internal region of T-pts
     character(len=3) :: strvalue = '   '
-
+    ! What boundary to align arrays (the contiguous dimension must be
+    ! divisible by the ALIGNMENT value.)
+    integer :: ALIGNMENT = 1
 
     CALL get_environment_variable("DL_ESM_ALIGNMENT", strvalue, status=ierr(1))
     if(ierr(1) .eq. 1) then
