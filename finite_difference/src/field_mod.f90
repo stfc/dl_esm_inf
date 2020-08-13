@@ -55,8 +55,10 @@ module field_mod
   abstract interface
     subroutine read_from_device_interface(from, to, buf_size)
         use iso_c_binding, only: c_intptr_t, c_int
+        use kind_params_mod, only: go_wp
         integer(c_intptr_t) :: from
-        integer(c_intptr_t) :: to !real(go_wp), dimension(:,:) :: to
+        !integer(c_intptr_t) :: to
+        real(go_wp), dimension(:,:) :: to
         integer(c_int) :: buf_size
     end subroutine read_from_device_interface
   end interface
@@ -343,16 +345,15 @@ contains
     !! accelerator device (if using OpenACC or OpenCL).
     class(r2d_field), target :: self
     real(go_wp), dimension(:,:), pointer :: dptr
-    dptr => self%data
     if(self%data_on_device)then
        write(*,*) "data on device"
        if(associated(self%read_from_device))then
           write(*,*) "In associated"
-          call self%read_from_device(self%device_ptr, c_loc(dptr), &
+          call self%read_from_device(self%device_ptr, self%data, &
                                      self%grid%nx*self%grid%ny)
        else
           call gocean_stop("ERROR: Data is on a device but no instructions " // &
-              "about how to retrieve the data have been provided."
+              "about how to retrieve the data have been provided.")
        endif
        ! If FortCL is compiled without OpenCL enabled then this
        ! call does nothing.
@@ -360,6 +361,7 @@ contains
        !                 int(self%grid%nx*self%grid%ny, kind=8))
        !!$acc update host(self%data)
     end if
+    dptr => self%data
   end function get_data
 
   !===================================================
