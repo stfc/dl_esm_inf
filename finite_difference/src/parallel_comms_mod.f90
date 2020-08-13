@@ -1405,7 +1405,7 @@ contains
   integer function exchmod_alloc()
     implicit none
     ! Locals
-    integer :: ierr, ii
+    integer :: ierr
     maxExchItems = 20
     allocate(exch_flags(max_flags,MaxComm,2),   &
              exch_flags1d(MaxComm),             &
