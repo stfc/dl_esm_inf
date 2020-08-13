@@ -30,6 +30,15 @@ the latter you will of course need MPI installed.
 The `finite_difference/example` directory contains a very simple example
 of how to construct a model grid and associate fields with it.
 
+## Runtime configuration ##
+
+The following environment variables can be set up to tune runtime options:
+
+- `DL_ESM_ALIGNMENT`: Positive integer that specifies a value by which the grid
+contiguous dimension length should be divisible. If that is not the case for
+the selected problem dimensions, it will add padding elements in that dimension
+until the condition holds true. If not specified it defaults to 1.
+
 ## Documentation ##
 
 The documentation is in the top-level `doc` directory and can be built
@@ -41,10 +50,6 @@ working Python installation with sphinx and sphinxfortran installed:
 ``make latexpdf`` will build the PDF version of the documentation
 (using latex and pdflatex) while ``make html`` builds the html
 version.
-
-## Distributed-memory (MPI) support ##
-
-TBD
 
 ## OpenCL Support ##
 

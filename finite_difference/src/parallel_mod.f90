@@ -40,6 +40,7 @@ module parallel_mod
 
   ! The public routines implemented in this module
   public parallel_init, parallel_finalise, parallel_abort, go_decompose
+  public on_master
 
   ! Export routines from other modules
   public map_comms, get_rank, get_num_ranks
@@ -192,7 +193,9 @@ contains
        ntiley = ndomainy
     end if ! automatic determination of tiling grid
 
-    WRITE (*,"('go_decompose: using grid of ',I3,'x',I3)") ntilex, ntiley
+    if(on_master()) then
+        WRITE (*,"('go_decompose: using grid of ',I3,'x',I3)") ntilex, ntiley
+    endif
     decomp%nx = ntilex
     decomp%ny = ntiley
 
@@ -219,7 +222,7 @@ contains
        iunder = 0
     end if
 
-    if(print_tiles)then
+    if(print_tiles .and. on_master())then
        write(*, "('Tile width = ',I4,', tile height = ',I4)") &
                                   internal_width, internal_height
        write(*, "('iunder, junder = ', I3, 1x, I3)") iunder, junder
@@ -236,7 +239,7 @@ contains
     decomp%max_width  = 0
     decomp%max_height = 0
 
-    if(print_tiles) write(*, "(/'Sub-domains:')")
+    if(print_tiles .and. on_master()) write(*, "(/'Sub-domains:')")
 
     do jj = 1, ntiley, 1
 
@@ -286,7 +289,7 @@ contains
           ! Full height of this subdomain (incl. halo and boundary points)
           subdomain%global%ny = 2*hwidth + subdomain%internal%ny
 
-          if(print_tiles)then
+          if(print_tiles .and. on_master())then
              write(*, "('subdomain[',I4,'](',I4,':',I4,')(',I4,':',I4,'),"// &
                   & " interior:(',I4,':',I4,')(',I4,':',I4,') ')")      &
                   ith,                                                  &
@@ -314,7 +317,7 @@ contains
     end do
 
     ! Print tile-size statistics
-    if(print_tiles)then
+    if(print_tiles .and. on_master())then
        write(*, "(/'Mean sub-domain size = ',F8.1,' pts = ',F7.1,' KB')")    &
                                    real(nvects_sum) / real(decomp%ndomains), &
                             real(8*nvects_sum) / real(decomp%ndomains*1024)
@@ -327,5 +330,13 @@ contains
     end if
 
   end function go_decompose
+
+
+  !> Returns True if this is the master process in the parallel execution
+  !! environment, otherwise returns False.
+  function on_master()
+    logical :: on_master
+    on_master = get_rank() == 1
+  end function on_master
 
 end module parallel_mod
