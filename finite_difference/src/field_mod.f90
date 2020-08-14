@@ -53,14 +53,22 @@ module field_mod
 
 
   abstract interface
-    subroutine read_from_device_interface(from, to, buf_size)
+    subroutine read_from_device_c_interface(from, to, nx, ny, width)
+        use iso_c_binding, only: c_intptr_t, c_int
+        integer(c_intptr_t), intent(in), value :: from
+        integer(c_intptr_t), intent(in), value :: to
+        integer(c_int), intent(in), value :: nx, ny, width
+    end subroutine read_from_device_c_interface
+  end interface
+
+  abstract interface
+    subroutine read_from_device_f_interface(from, to, nx, ny, width)
         use iso_c_binding, only: c_intptr_t, c_int
         use kind_params_mod, only: go_wp
-        integer(c_intptr_t) :: from
-        !integer(c_intptr_t) :: to
-        real(go_wp), dimension(:,:) :: to
-        integer(c_int) :: buf_size
-    end subroutine read_from_device_interface
+        integer(c_intptr_t), intent(in) :: from
+        real(go_wp), dimension(:,:), intent(inout) :: to
+        integer, intent(in) :: nx, ny, width
+    end subroutine read_from_device_f_interface
   end interface
 
 
@@ -85,7 +93,8 @@ module field_mod
      !> Whether the data for this field lives in a remote memory space
      !! (e.g. on a GPU)
      logical :: data_on_device
-     procedure(read_from_device_interface), POINTER, nopass :: read_from_device
+     procedure(read_from_device_c_interface), POINTER, nopass :: read_from_device_c
+     procedure(read_from_device_f_interface), POINTER, nopass :: read_from_device_f
 
   end type field_type
 
@@ -226,7 +235,8 @@ contains
     !! to where we're executing
     self%data_on_device = .FALSE.
 
-    nullify(self%read_from_device)
+    nullify(self%read_from_device_c)
+    nullify(self%read_from_device_f)
 
     ! Set-up the limits of the 'internal' region of this field
     !
@@ -340,19 +350,16 @@ contains
     class(r2d_field), target :: self
     real(go_wp), dimension(:,:), pointer :: dptr
     if(self%data_on_device)then
-       write(*,*) "data on device"
-       if(associated(self%read_from_device))then
-          write(*,*) "In associated"
-          call self%read_from_device(self%device_ptr, self%data, &
-                                     self%grid%nx*self%grid%ny)
-       else
+       if(associated(self%read_from_device_c))then
+          call self%read_from_device_c(self%device_ptr, C_LOC(self%data), &
+             self%internal%xstop + 1, self%internal%ystop + 1, self%grid%nx)
+        else if(associated(self%read_from_device_f))then
+          call self%read_from_device_f(self%device_ptr, self%data, &
+             self%internal%xstop + 1, self%internal%ystop + 1, self%grid%nx)
+        else
           call gocean_stop("ERROR: Data is on a device but no instructions " // &
               "about how to retrieve the data have been provided.")
        endif
-       ! If FortCL is compiled without OpenCL enabled then this
-       ! call does nothing.
-       !call read_buffer(self%device_ptr, self%data, &
-       !                 int(self%grid%nx*self%grid%ny, kind=8))
        !!$acc update host(self%data)
     end if
     dptr => self%data
