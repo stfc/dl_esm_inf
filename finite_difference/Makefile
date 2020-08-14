@@ -42,9 +42,6 @@
 #
 # export F90=gfortran
 
-# FortCL is a git submodule of the dl_esm_inf repository.
-FORTCL_DIR = ../external/FortCL
-
 API_LIB ?= lib_fd.a
 F90 ?= gfortran
 
@@ -78,7 +75,6 @@ clean:
 	${MAKE} -C src clean
 
 allclean: clean
-	${MAKE} -C ${FORTCL_DIR} allclean
 	rm -f lib/${API_LIB}
 	rm -f include/*.[Mm][Oo][Dd]
 
