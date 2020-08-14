@@ -52,6 +52,9 @@ module field_mod
   integer, public, parameter :: GO_ALL_POINTS = 4
 
 
+  !> Abstract interfaces for C and Fortran subroutines to be implemented by
+  ! the infrastructure user to retrieve data from devices in the desired
+  ! programming model.
   abstract interface
     subroutine read_from_device_c_interface(from, to, nx, ny, width)
         use iso_c_binding, only: c_intptr_t, c_int
@@ -93,6 +96,7 @@ module field_mod
      !> Whether the data for this field lives in a remote memory space
      !! (e.g. on a GPU)
      logical :: data_on_device
+     !> Function pointers to the functions that read data from devices.
      procedure(read_from_device_c_interface), POINTER, nopass :: read_from_device_c
      procedure(read_from_device_f_interface), POINTER, nopass :: read_from_device_f
 
@@ -235,6 +239,7 @@ contains
     !! to where we're executing
     self%data_on_device = .FALSE.
 
+    !> The function pointers are initialized with NULL
     nullify(self%read_from_device_c)
     nullify(self%read_from_device_f)
 
@@ -343,10 +348,8 @@ contains
   !===================================================
 
   function get_data(self) result(dptr)
-    use FortCL, only: read_buffer
-    !> Getter for the data associated with a field. Ensures that
-    !! the local copy is up-to-date with that on any remove
-    !! accelerator device (if using OpenACC or OpenCL).
+    !> Getter for the data associated with a field. Ensures that the local
+    ! copy is up-to-date with that on any accelerator device.
     class(r2d_field), target :: self
     real(go_wp), dimension(:,:), pointer :: dptr
     if(self%data_on_device)then
@@ -360,7 +363,6 @@ contains
           call gocean_stop("ERROR: Data is on a device but no instructions " // &
               "about how to retrieve the data have been provided.")
        endif
-       !!$acc update host(self%data)
     end if
     dptr => self%data
   end function get_data
