@@ -43,7 +43,6 @@
 # export F90=gfortran
 
 MPI ?= no
-OCL ?= no
 
 ifeq ($(MPI), yes)
 	PARALLEL_MOD=parallel_utils_mod
@@ -53,12 +52,6 @@ else
 	PARALLEL_MOD=parallel_utils_stub_mod
 	F90 ?= gfortran
 	API_LIB ?= lib_fd.a
-endif
-
-ifeq ($(OCL), yes)
-	FORTCL_TARGET=
-else
-	FORTCL_TARGET=stub
 endif
 
 BASE_SOURCES = argument_mod.f90 \
@@ -90,24 +83,13 @@ SOURCES = $(BASE_SOURCES:%=$(ROOT)/%)
 MODULES := $(BASE_SOURCES:%.f90=%.o)
 MODULES := $(MODULES:%.F90=%.o)
 
-# Location of the FortCL library source (git sub-module)
-FORTCL_DIR = $(ROOT)../../external/FortCL/src
-
 .PHONY: install clean all distclean
 
 all: ${API_LIB}
 
-# Create the archive. Note that we include the FortCL objects in this
-# archive but take care to exclude clfortran.o (as that only has
-# interface definitions, not implementation). We could use filter-out
-# for this but that is specific to Gnu Make.
-${API_LIB}: fortcl ${MODULES}
+# Create the archive.
+${API_LIB}: ${MODULES}
 	${AR} ${ARFLAGS} ${API_LIB} *.o
-	${AR} d ${API_LIB} clfortran.o
-
-# FortCL is compiled in the CWD
-fortcl:
-	${MAKE} -f ${FORTCL_DIR}/Makefile F90="${F90}" ${FORTCL_TARGET}
 
 install:
 	${MAKE} -C .. install
@@ -116,7 +98,6 @@ clean:
 	rm -f *.o *.mod *.a
 
 distclean: clean
-	${MAKE} -C ${FORTCL_DIR} allclean
 
 # Inter-module dependencies, alphabetical order
 argument_mod.o: global_parameters_mod.o

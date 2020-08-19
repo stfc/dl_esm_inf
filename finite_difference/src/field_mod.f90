@@ -51,6 +51,30 @@ module field_mod
   !> A field that lives on all grid-points of the grid
   integer, public, parameter :: GO_ALL_POINTS = 4
 
+
+  !> Abstract interfaces for C and Fortran subroutines to be implemented by
+  ! the infrastructure user to retrieve data from devices in the desired
+  ! programming model.
+  abstract interface
+    subroutine read_from_device_c_interface(from, to, nx, ny, width)
+        use iso_c_binding, only: c_intptr_t, c_int
+        integer(c_intptr_t), intent(in), value :: from
+        integer(c_intptr_t), intent(in), value :: to
+        integer(c_int), intent(in), value :: nx, ny, width
+    end subroutine read_from_device_c_interface
+  end interface
+
+  abstract interface
+    subroutine read_from_device_f_interface(from, to, nx, ny, width)
+        use iso_c_binding, only: c_intptr_t, c_int
+        use kind_params_mod, only: go_wp
+        integer(c_intptr_t), intent(in) :: from
+        real(go_wp), dimension(:,:), intent(inout) :: to
+        integer, intent(in) :: nx, ny, width
+    end subroutine read_from_device_f_interface
+  end interface
+
+
   !> The base field type. Intended to represent a global field
   !! such as the x-component of velocity.
   type, public :: field_type
@@ -72,6 +96,9 @@ module field_mod
      !> Whether the data for this field lives in a remote memory space
      !! (e.g. on a GPU)
      logical :: data_on_device
+     !> Function pointers to the functions that read data from devices.
+     procedure(read_from_device_c_interface), POINTER, nopass :: read_from_device_c
+     procedure(read_from_device_f_interface), POINTER, nopass :: read_from_device_f
 
   end type field_type
 
@@ -212,6 +239,10 @@ contains
     !! to where we're executing
     self%data_on_device = .FALSE.
 
+    !> The function pointers are initialized with NULL
+    nullify(self%read_from_device_c)
+    nullify(self%read_from_device_f)
+
     ! Set-up the limits of the 'internal' region of this field
     !
     call set_field_bounds(self,fld_type,grid_points)
@@ -317,18 +348,21 @@ contains
   !===================================================
 
   function get_data(self) result(dptr)
-    use FortCL, only: read_buffer
-    !> Getter for the data associated with a field. Ensures that
-    !! the local copy is up-to-date with that on any remove
-    !! accelerator device (if using OpenACC or OpenCL).
+    !> Getter for the data associated with a field. Ensures that the local
+    ! copy is up-to-date with that on any accelerator device.
     class(r2d_field), target :: self
     real(go_wp), dimension(:,:), pointer :: dptr
     if(self%data_on_device)then
-       !$acc update host(self%data)
-       ! If FortCL is compiled without OpenCL enabled then this
-       ! call does nothing.
-       call read_buffer(self%device_ptr, self%data, &
-                        int(self%grid%nx*self%grid%ny, kind=8))
+       if(associated(self%read_from_device_c))then
+          call self%read_from_device_c(self%device_ptr, C_LOC(self%data), &
+             self%internal%xstop + 1, self%internal%ystop + 1, self%grid%nx)
+        else if(associated(self%read_from_device_f))then
+          call self%read_from_device_f(self%device_ptr, self%data, &
+             self%internal%xstop + 1, self%internal%ystop + 1, self%grid%nx)
+        else
+          call gocean_stop("ERROR: Data is on a device but no instructions " // &
+              "about how to retrieve the data have been provided.")
+       endif
     end if
     dptr => self%data
   end function get_data

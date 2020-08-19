@@ -1,3 +1,5 @@
+.. highlight:: fortran
+
 Introduction
 ++++++++++++
 
@@ -107,6 +109,9 @@ supported by this routine.
 Fields
 ++++++
 
+The field constructor method
+############################
+
 Once a model has a grid defined it will require one or more
 fields. dl_esm_inf contains a ``field_mod`` module which defines an
 ``r2d_field`` type (real, 2-dimensional field) and associated
@@ -133,6 +138,87 @@ Note that the grid object must have been fully configured (by a
 call to ``grid_init`` for instance) before it is passed into this
 constructor.
 
+
+Device infrastructure attributes
+################################
+
+The fields have some infrastructure capabilities to allow the allocation of
+the data in different memory regions (usually acceleration devices but it
+can also be a user provided data layout on the same host) and manage the
+synchronization between the original data and the device data.
+
+These capabilities are provided by the following field attributes:
+
+ - `field_type%data_on_device`: A boolean to indicate if the data has already
+   been allocated and copied in the device.
+
+ - `field_type%read_from_device_f` or `field_type%read_from_device_c`: Function
+   pointers that provide the synchronization method to copy the data back from
+   the device into the host. The user needs to provide one of these function
+   pointers implemented in the programming model of choice. The Fortran and C
+   function pointers need to have the following interfaces, respectively:
+
+    Fortran::
+
+      abstract interface
+        subroutine read_from_device_f_interface(from, to, nx, ny, width)
+          use iso_c_binding, only: c_intptr_t, c_int
+          use kind_params_mod, only: go_wp
+          integer(c_intptr_t), intent(in) :: from
+          real(go_wp), dimension(:,:), intent(inout) :: to
+          integer, intent(in) :: nx, ny, width
+        end subroutine read_from_device_f_interface
+      end interface
+
+    C::
+
+      abstract interface
+        subroutine read_from_device_c_interface(from, to, nx, ny, width)
+            use iso_c_binding, only: c_intptr_t, c_int
+            integer(c_intptr_t), intent(in), value :: from
+            integer(c_intptr_t), intent(in), value :: to
+            integer(c_int), intent(in), value :: nx, ny, width
+        end subroutine read_from_device_c_interface
+      end interface
+
+ - `r2d_field%device_ptr`: A pointer to the device memory location where the
+   copy of the field's data is located.
+
+These attributes do not conform to any specific device programming model with the
+idea that the specific model details are provided by the infrastructure user. See
+below an example using the FortCL library::
+
+  use field_mod
+  use FortCL, only: create_rw_buffer
+  ...
+  !> Declare and initialize the field
+  type(r2d_field) :: sshn_t
+  sshn_t = r2d_field(model_grid, GO_T_POINTS)
+  ...
+
+  sshn_t%device_ptr = create_rw_buffer(size_in_bytes)
+  sshn_t%data_on_device = .true.
+  sshn_t%read_from_device_f = read_function
+
+  ...
+
+  ! Code using sshn_t%device_ptr
+  ...
+
+  ! The data will be copied back from the device to the host at this point
+  write(*,*) sshn_t%get_data(10,10)
+
+  contains
+
+  subroutine read_function(from, to, nx, ny, width)
+    use FortCL, only: read_buffer
+    use iso_c_binding, only: c_intptr_t, c_int
+    integer(c_intptr_t), intent(in) :: from
+    real(go_wp), dimension(:,:), intent(inout) :: to
+    integer, intent(in) :: nx, ny, width
+    ! Use width instead of nx in case there is padding elements
+    call read_buffer(from, to, int(width*ny, kind=8))
+  end subroutine read_fortcl
 
 Example
 +++++++

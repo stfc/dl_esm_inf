@@ -20,8 +20,8 @@
 # -- Project information -----------------------------------------------------
 
 project = 'dl_esm_inf'
-copyright = '2018, Rupert Ford, Joerg Henrichs, Andrew Porter'
-author = 'Rupert Ford, Joerg Henrichs, Andrew Porter'
+copyright = '2018-2020, Rupert Ford, Joerg Henrichs, Andrew Porter, Sergi Siso'
+author = 'Rupert Ford, Joerg Henrichs, Andrew Porter, Sergi Siso'
 
 # The short X.Y version
 version = ''
@@ -133,7 +133,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'dl_esm_inf.tex', 'dl\\_esm\\_inf Documentation',
-     'Rupert Ford, Joerg Henrichs, Andrew Porter', 'manual'),
+     'Rupert Ford, Joerg Henrichs, Andrew Porter, Sergi Siso', 'manual'),
 ]
 
 

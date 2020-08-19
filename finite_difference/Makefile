@@ -29,7 +29,7 @@
 
 # Top-level Makefile for the dl_esm_inf library.
 # Default target is to build the library without MPI. Use the 'dm_fd_lib'
-# target to compile with MPI support or 'cl_fd_lib' for OpenCL support.
+# target to compile with MPI support.
 #
 # This Makefile picks up the compiler to use along with any flags from
 # environment variables. e.g. to use gfortran:
@@ -42,27 +42,20 @@
 #
 # export F90=gfortran
 
-# FortCL is a git submodule of the dl_esm_inf repository.
-FORTCL_DIR = ../external/FortCL
-
 API_LIB ?= lib_fd.a
 F90 ?= gfortran
 
-.PHONY: doc clean install fd_lib dm_fd_lib cl_fd_lib all
+.PHONY: doc clean install fd_lib dm_fd_lib all
 
 all: fd_lib
 
-# Build the library without MPI or OpenCL
+# Build the library without MPI
 fd_lib:
-	${MAKE} -C src API_LIB="${API_LIB}" MPI=no OCL=no
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=no
 
-# Build the library with MPI but no OpenCL
+# Build the library with MPI
 dm_fd_lib:
-	${MAKE} -C src API_LIB="${API_LIB}" MPI=yes OCL=no
-
-# OpenCL without MPI
-cl_fd_lib:
-	${MAKE} -C src API_LIB="${API_LIB}" MPI=no OCL=yes
+	${MAKE} -C src API_LIB="${API_LIB}" MPI=yes
 
 install: fd_lib lib include
 	cp src/${API_LIB} ./lib/.
@@ -78,7 +71,6 @@ clean:
 	${MAKE} -C src clean
 
 allclean: clean
-	${MAKE} -C ${FORTCL_DIR} allclean
 	rm -f lib/${API_LIB}
 	rm -f include/*.[Mm][Oo][Dd]
 
