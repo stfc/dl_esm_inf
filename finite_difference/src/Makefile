@@ -43,7 +43,6 @@
 # export F90=gfortran
 
 MPI ?= no
-OCL ?= no
 
 ifeq ($(MPI), yes)
 	PARALLEL_MOD=parallel_utils_mod
@@ -53,12 +52,6 @@ else
 	PARALLEL_MOD=parallel_utils_stub_mod
 	F90 ?= gfortran
 	API_LIB ?= lib_fd.a
-endif
-
-ifeq ($(OCL), yes)
-	FORTCL_TARGET=
-else
-	FORTCL_TARGET=stub
 endif
 
 BASE_SOURCES = argument_mod.f90 \
