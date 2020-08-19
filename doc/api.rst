@@ -1,3 +1,5 @@
+.. highlight:: fortran
+
 Introduction
 ++++++++++++
 
@@ -152,9 +154,9 @@ These capabilities are provided by the following field attributes:
 
  - `field_type%read_from_device_f` or `field_type%read_from_device_c`: Function
    pointers that provide the synchronization method to copy the data back from
-   the device into the host. The user needs to provide on one of these function
-   pointers implemented in the programming model of choice. The function pointers
-   need to have the following interfaces respectively:
+   the device into the host. The user needs to provide one of these function
+   pointers implemented in the programming model of choice. The Fortran and C
+   function pointers need to have the following interfaces, respectively:
 
     Fortran::
 
