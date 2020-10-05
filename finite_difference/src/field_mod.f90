@@ -57,6 +57,11 @@ module field_mod
   ! programming model.
   abstract interface
     subroutine read_from_device_c_interface(from, to, nx, ny, width)
+        ! Disable argument checking for Intel compiler to allow it to pass a
+        ! C_LOC() pointer into a C_INTPTR_T (what we miss here is the
+        ! checking that the pointer addresses are represented by the integers
+        ! of the same number of bits)
+        !DEC$ ATTRIBUTES NO_ARG_CHECK :: to
         use iso_c_binding, only: c_intptr_t, c_int
         integer(c_intptr_t), intent(in), value :: from
         integer(c_intptr_t), intent(in), value :: to
@@ -1059,7 +1064,11 @@ contains
     ! Locals
     integer :: exch  !> Handle for exchange
 
-    call exchange_generic(b2=self%get_data(), handle=exch, &
+    ! Synchronize the data if the data is in an external device
+    self%data = self%get_data()
+
+    ! Execute the halo exchange
+    call exchange_generic(b2=self%data, handle=exch, &
                           comm1=JPlus, comm2=Jminus, comm3=IPlus, comm4=IMinus)
   end subroutine halo_exchange
   

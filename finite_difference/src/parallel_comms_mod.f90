@@ -1504,12 +1504,12 @@ contains
                                 handle, comm1, comm2, comm3, comm4)
 
     ! ******************************************************************
-    ! Send boundary data elements to adjacent sub-domains.
+    ! Send and receive boundary data elements to adjacent sub-domains.
 
-    ! b2(:,:)                real   input       2D real*8 local array.
-    ! ib2(:,:)               int    input       2D integer local array.
-    ! b3(:,:,:)              real   input       3D real*8 local array.
-    ! ib3(:,:,:)             int    input       3D integer local array.
+    ! b2(:,:)                real   inout       2D real*8 local array.
+    ! ib2(:,:)               int    inout       2D integer local array.
+    ! b3(:,:,:)              real   inout       3D real*8 local array.
+    ! ib3(:,:,:)             int    inout       3D integer local array.
     ! rows/cols to exchange.
     ! handle                 int    output      Exchange handle.
     ! comm1                  int    input       Send in direction comm1.
