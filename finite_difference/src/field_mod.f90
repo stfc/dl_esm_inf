@@ -129,6 +129,10 @@ module field_mod
      !> Getter for the data associated with this field. Fetches data
      !! from remote accelerator if necessary.
      procedure, pass :: get_data
+     procedure, pass :: read_halo_from_device
+     procedure, pass :: write_halo_to_device
+     procedure, pass :: read_from_device
+     procedure, pass :: write_to_device
      procedure, public :: halo_exchange
   end type r2d_field
 
@@ -352,23 +356,109 @@ contains
 
   !===================================================
 
-  function get_data(self) result(dptr)
-    !> Getter for the data associated with a field. Ensures that the local
-    ! copy is up-to-date with that on any accelerator device.
+  subroutine read_from_device(self, startx, starty, nx, ny)
+    !> Update the host data with the device data.
+    ! The optional startx, starty, nx and ny parameters can be provided to
+    ! read from the device just a slice of the field.
+
     class(r2d_field), target :: self
-    real(go_wp), dimension(:,:), pointer :: dptr
+    integer, optional, intent(in) :: startx, starty, nx, ny
+    integer :: local_startx, local_starty, local_nx, local_ny
+
     if(self%data_on_device)then
+
+       if (present(startx)) then
+           local_startx = startx
+       else
+           local_startx = 1
+       endif
+
+       if (present(starty)) then
+           local_starty = starty
+       else
+           local_starty = 1
+       endif
+
+       if (present(nx)) then
+           local_nx = nx
+       else
+           !local_nx = self%whole%xstop
+           local_nx = self%grid%nx
+       endif
+
+       if (present(ny)) then
+           local_ny = ny
+       else
+           local_ny = self%whole%ystop
+       endif
+
        if(associated(self%read_from_device_c))then
-          call self%read_from_device_c(self%device_ptr, C_LOC(self%data), &
-             self%internal%xstop + 1, self%internal%ystop + 1, self%grid%nx)
+          call self%read_from_device_c( &
+             self%device_ptr, &
+             C_LOC(self%data), &
+             local_nx, local_ny, local_nx)
         else if(associated(self%read_from_device_f))then
-          call self%read_from_device_f(self%device_ptr, self%data, &
-             self%internal%xstop + 1, self%internal%ystop + 1, self%grid%nx)
+          call self%read_from_device_f( &
+             self%device_ptr, &
+             self%data, &
+             local_nx, local_ny, local_nx)
         else
           call gocean_stop("ERROR: Data is on a device but no instructions " // &
               "about how to retrieve the data have been provided.")
        endif
     end if
+  end subroutine read_from_device
+
+  subroutine write_to_device(self, startx, starty, nx, ny)
+    !> Update the host data with
+    class(r2d_field), target :: self
+    integer, optional, intent(in) :: startx, starty, nx, ny
+    integer :: local_startx, local_starty, local_nx, local_ny
+
+    if(self%data_on_device)then
+
+       if (present(startx)) then
+           local_startx = startx
+       else
+           local_startx = 1
+       endif
+
+       if (present(starty)) then
+           local_starty = starty
+       else
+           local_starty = 1
+       endif
+
+       if (present(nx)) then
+           local_nx = nx
+       else
+           local_nx = self%whole%xstop
+       endif
+
+       if (present(ny)) then
+           local_ny = ny
+       else
+           local_ny = self%whole%ystop
+       endif
+
+       call gocean_stop("ERROR: Write to device not implemented yet.")
+    endif
+  end subroutine write_to_device
+
+
+  function get_data(self) result(dptr)
+    !> Getter for the data associated with a field.
+    !
+    ! If the data is on a device, it ensures that the host copy is up-to-date
+    ! with that on any accelerator device.
+    !
+    class(r2d_field), target :: self
+    real(go_wp), dimension(:,:), pointer :: dptr
+
+    ! Synchronise the whole array
+    call self%read_from_device()
+
+    ! Return a reference to the data
     dptr => self%data
   end function get_data
 
@@ -1053,8 +1143,11 @@ contains
   !===================================================
 
   !> Provide access to exchange_generic for halo swaps for this field.
-  !> If the data is in a remote device, the field%get_data()
-  !> call will first bring it to the host.
+  !! If the data is in a remote device, it will be synchronised with the host
+  !! before and after the exchange.
+  !! The depth value is currently ignored and hardwired to 1: the device
+  !! synchonization and the halo_exchange communicators need to be updated
+  !! with the provided depth.
   subroutine halo_exchange(self, depth)
     use parallel_comms_mod, only: Iplus, Iminus, Jplus, Jminus, NONE, &
          exchange_generic
@@ -1063,15 +1156,58 @@ contains
     integer, intent(in) :: depth
     ! Locals
     integer :: exch  !> Handle for exchange
+    integer :: i
 
-    ! Synchronize the data if the data is in an external device
-    self%data = self%get_data()
+
+    ! Make sure the data from each halo is in the host before the communication
+    call self%read_halo_from_device(comm=JPlus)
+    call self%read_halo_from_device(comm=Jminus)
+    call self%read_halo_from_device(comm=IPlus)
+    call self%read_halo_from_device(comm=IMinus)
 
     ! Execute the halo exchange
     call exchange_generic(b2=self%data, handle=exch, &
                           comm1=JPlus, comm2=Jminus, comm3=IPlus, comm4=IMinus)
+
+    ! Synchronize the data back to the accelerator device if necessary
+    call self%write_halo_to_device(comm=JPlus)
+    call self%write_halo_to_device(comm=Jminus)
+    call self%write_halo_to_device(comm=IPlus)
+    call self%write_halo_to_device(comm=IMinus)
+
   end subroutine halo_exchange
   
+  subroutine read_halo_from_device(self, comm)
+    use parallel_comms_mod, only: isrcsend, jsrcsend, nxsend, nysend
+    implicit none
+    class(r2d_field), target, intent(inout) :: self
+    integer, intent(in) :: comm
+
+    ! Get location and dimension to read for the given communicator
+    if (isrcsend(comm) > 0) then
+        write(*,*) "Read halo from device: I=", isrcsend(comm), ", J=", &
+            jsrcsend(comm), ", NX=", nxsend(comm), ", NY=", nysend(comm)
+
+        call self%read_from_device(isrcsend(comm), jsrcsend(comm), &
+                                   nxsend(comm), nysend(comm))
+    endif
+  end subroutine read_halo_from_device
+
+  subroutine write_halo_to_device(self, comm)
+    use parallel_comms_mod, only: idesrecv, jdesrecv, nxrecv, nyrecv
+    implicit none
+    class(r2d_field), target, intent(inout) :: self
+    integer, intent(in) :: comm
+
+    ! Get location and dimension to read for the given communicator
+    if (idesrecv(comm) > 0) then
+        write(*,*) "Write halo to device: I=", idesrecv(comm), ", J=", &
+            jdesrecv(comm), ", NX=", nxrecv(comm), ", NY=", nyrecv(comm)
+
+        call self%write_to_device(idesrecv(comm), jdesrecv(comm), &
+                                  nxrecv(comm), nyrecv(comm))
+    endif
+  end subroutine write_halo_to_device
   !===================================================
 
   !> Compute the checksum of ALL of the elements of supplied array. Performs a
