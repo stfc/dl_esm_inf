@@ -51,32 +51,70 @@ module field_mod
   !> A field that lives on all grid-points of the grid
   integer, public, parameter :: GO_ALL_POINTS = 4
 
-
   !> Abstract interfaces for C and Fortran subroutines to be implemented by
-  ! the infrastructure user to retrieve data from devices in the desired
-  ! programming model.
+  ! the infrastructure user to retrieve data from, or push data to, devices
+  ! using the desired programming model.
+  !
+  ! All interfaces include a host and a device pointer (order depending on
+  ! the direction) and offset, nx, ny and stride_gap parameters that allow
+  ! to specify rectangular subregions of an array. For example, if we want
+  ! to send the S in the following array:
+  !
+  ! X X X X X
+  ! S X X X X
+  ! S X X X X
+  ! S X X X X
+  ! X X X X X
+  !
+  ! we would call it with:
+  !     offset=5, nx=1, ny=3, stride_gap=4
+  !
   abstract interface
-    subroutine read_from_device_c_interface(from, to, nx, ny, width)
+    subroutine read_from_device_c_interface(from, to, offset, nx, ny, stride_gap)
         ! Disable argument checking for Intel compiler to allow it to pass a
-        ! C_LOC() pointer into a C_INTPTR_T (what we miss here is the
-        ! checking that the pointer addresses are represented by the integers
-        ! of the same number of bits)
+        ! C_LOC() pointer into a C_INTPTR_T. This disables the checking that
+        ! the pointer addresses are represented by the integers of the same
+        ! number of bits.
         !DEC$ ATTRIBUTES NO_ARG_CHECK :: to
         use iso_c_binding, only: c_intptr_t, c_int
         integer(c_intptr_t), intent(in), value :: from
         integer(c_intptr_t), intent(in), value :: to
-        integer(c_int), intent(in), value :: nx, ny, width
+        integer(c_int), intent(in), value :: offset, nx, ny, stride_gap
     end subroutine read_from_device_c_interface
   end interface
 
   abstract interface
-    subroutine read_from_device_f_interface(from, to, nx, ny, width)
+    subroutine read_from_device_f_interface(from, to, offset, nx, ny, stride_gap)
         use iso_c_binding, only: c_intptr_t, c_int
         use kind_params_mod, only: go_wp
         integer(c_intptr_t), intent(in) :: from
         real(go_wp), dimension(:,:), intent(inout) :: to
-        integer, intent(in) :: nx, ny, width
+        integer, intent(in) :: offset, nx, ny, stride_gap
     end subroutine read_from_device_f_interface
+  end interface
+
+  abstract interface
+    subroutine write_to_device_c_interface(from, to, offset, nx, ny, stride_gap)
+        ! Disable argument checking for Intel compiler to allow it to pass a
+        ! C_LOC() pointer into a C_INTPTR_T. This disables the checking that
+        ! the pointer addresses are represented by the integers of the same
+        ! number of bits.
+        !DEC$ ATTRIBUTES NO_ARG_CHECK :: to
+        use iso_c_binding, only: c_intptr_t, c_int
+        integer(c_intptr_t), intent(in), value :: from
+        integer(c_intptr_t), intent(in), value :: to
+        integer(c_int), intent(in), value :: offset, nx, ny, stride_gap
+    end subroutine write_to_device_c_interface
+  end interface
+
+  abstract interface
+    subroutine write_to_device_f_interface(from, to, offset, nx, ny, stride_gap)
+        use iso_c_binding, only: c_intptr_t, c_int
+        use kind_params_mod, only: go_wp
+        real(go_wp), dimension(:,:), intent(in) :: from
+        integer(c_intptr_t), intent(in) :: to !,value?
+        integer, intent(in) :: offset, nx, ny, stride_gap
+    end subroutine write_to_device_f_interface
   end interface
 
 
@@ -101,9 +139,12 @@ module field_mod
      !> Whether the data for this field lives in a remote memory space
      !! (e.g. on a GPU)
      logical :: data_on_device
-     !> Function pointers to the functions that read data from devices.
+     !> Function pointers to the functions that read/write data from/to
+     ! devices.
      procedure(read_from_device_c_interface), POINTER, nopass :: read_from_device_c
      procedure(read_from_device_f_interface), POINTER, nopass :: read_from_device_f
+     procedure(write_to_device_c_interface), POINTER, nopass :: write_to_device_c
+     procedure(write_to_device_f_interface), POINTER, nopass :: write_to_device_f
 
   end type field_type
 
@@ -363,9 +404,13 @@ contains
 
     class(r2d_field), target :: self
     integer, optional, intent(in) :: startx, starty, nx, ny
-    integer :: local_startx, local_starty, local_nx, local_ny
+    integer :: local_startx, local_starty, local_nx, local_ny, offset, gap
+    integer :: sizex, sizey
 
     if(self%data_on_device)then
+
+       sizex = size(self%data, 1)
+       sizey = size(self%data, 2)
 
        if (present(startx)) then
            local_startx = startx
@@ -379,29 +424,30 @@ contains
            local_starty = 1
        endif
 
+       offset = (local_starty - 1) * sizex + (local_startx - 1)
+
        if (present(nx)) then
            local_nx = nx
+           gap = sizex - nx
        else
-           !local_nx = self%whole%xstop
-           local_nx = self%grid%nx
+           local_nx = sizex
+           gap = 0
        endif
 
        if (present(ny)) then
            local_ny = ny
        else
-           local_ny = self%whole%ystop
+           local_ny = sizey
        endif
 
        if(associated(self%read_from_device_c))then
           call self%read_from_device_c( &
-             self%device_ptr, &
-             C_LOC(self%data), &
-             local_nx, local_ny, local_nx)
+             self%device_ptr, C_LOC(self%data), &
+             offset, local_nx, local_ny, gap)
         else if(associated(self%read_from_device_f))then
           call self%read_from_device_f( &
-             self%device_ptr, &
-             self%data, &
-             local_nx, local_ny, local_nx)
+             self%device_ptr, self%data, &
+             offset, local_nx, local_ny, gap)
         else
           call gocean_stop("ERROR: Data is on a device but no instructions " // &
               "about how to retrieve the data have been provided.")
@@ -413,9 +459,13 @@ contains
     !> Update the host data with
     class(r2d_field), target :: self
     integer, optional, intent(in) :: startx, starty, nx, ny
-    integer :: local_startx, local_starty, local_nx, local_ny
+    integer :: local_startx, local_starty, local_nx, local_ny, offset, gap
+    integer :: sizex, sizey
 
     if(self%data_on_device)then
+
+       sizex = size(self%data, 1)
+       sizey = size(self%data, 2)
 
        if (present(startx)) then
            local_startx = startx
@@ -429,19 +479,34 @@ contains
            local_starty = 1
        endif
 
+       offset = (local_starty - 1) * sizex + (local_startx - 1)
+
        if (present(nx)) then
            local_nx = nx
+           gap = sizex - nx
        else
-           local_nx = self%whole%xstop
+           local_nx = sizex
+           gap = 0
        endif
 
        if (present(ny)) then
            local_ny = ny
        else
-           local_ny = self%whole%ystop
+           local_ny = sizey
        endif
 
-       call gocean_stop("ERROR: Write to device not implemented yet.")
+       if(associated(self%write_to_device_c))then
+          call self%write_to_device_c( &
+             C_LOC(self%data), self%device_ptr, &
+             offset, local_nx, local_ny, gap)
+        else if(associated(self%write_to_device_f))then
+          call self%write_to_device_f( &
+             self%data, self%device_ptr, &
+             offset, local_nx, local_ny, gap)
+        else
+          call gocean_stop("ERROR: Data is on a device but no instructions " // &
+              "about how to push new data have been provided.")
+       endif
     endif
   end subroutine write_to_device
 
@@ -1156,8 +1221,6 @@ contains
     integer, intent(in) :: depth
     ! Locals
     integer :: exch  !> Handle for exchange
-    integer :: i
-
 
     ! Make sure the data from each halo is in the host before the communication
     call self%read_halo_from_device(comm=JPlus)
@@ -1185,9 +1248,8 @@ contains
 
     ! Get location and dimension to read for the given communicator
     if (isrcsend(comm) > 0) then
-        write(*,*) "Read halo from device: I=", isrcsend(comm), ", J=", &
-            jsrcsend(comm), ", NX=", nxsend(comm), ", NY=", nysend(comm)
-
+        !write(*,*) "Read halo from device: I=", isrcsend(comm), ", J=", &
+        !    jsrcsend(comm), ", NX=", nxsend(comm), ", NY=", nysend(comm)
         call self%read_from_device(isrcsend(comm), jsrcsend(comm), &
                                    nxsend(comm), nysend(comm))
     endif
@@ -1201,9 +1263,8 @@ contains
 
     ! Get location and dimension to read for the given communicator
     if (idesrecv(comm) > 0) then
-        write(*,*) "Write halo to device: I=", idesrecv(comm), ", J=", &
-            jdesrecv(comm), ", NX=", nxrecv(comm), ", NY=", nyrecv(comm)
-
+        !write(*,*) "Write halo to device: I=", idesrecv(comm), ", J=", &
+        !    jdesrecv(comm), ", NX=", nxrecv(comm), ", NY=", nyrecv(comm)
         call self%write_to_device(idesrecv(comm), jdesrecv(comm), &
                                   nxrecv(comm), nyrecv(comm))
     endif
