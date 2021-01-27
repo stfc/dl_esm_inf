@@ -76,9 +76,9 @@ module field_mod
         ! the pointer addresses are represented by the integers of the same
         ! number of bits.
         !DEC$ ATTRIBUTES NO_ARG_CHECK :: to
-        use iso_c_binding, only: c_intptr_t, c_int
+        use iso_c_binding, only: c_intptr_t, c_int, c_ptr
         integer(c_intptr_t), intent(in), value :: from
-        integer(c_intptr_t), intent(in), value :: to
+        type(c_ptr), intent(in), value :: to
         integer(c_int), intent(in), value :: offset, nx, ny, stride_gap
     end subroutine read_from_device_c_interface
   end interface
@@ -100,8 +100,8 @@ module field_mod
         ! the pointer addresses are represented by the integers of the same
         ! number of bits.
         !DEC$ ATTRIBUTES NO_ARG_CHECK :: to
-        use iso_c_binding, only: c_intptr_t, c_int
-        integer(c_intptr_t), intent(in), value :: from
+        use iso_c_binding, only: c_intptr_t, c_int, c_ptr
+        type(c_ptr), intent(in), value :: from
         integer(c_intptr_t), intent(in), value :: to
         integer(c_int), intent(in), value :: offset, nx, ny, stride_gap
     end subroutine write_to_device_c_interface
@@ -428,16 +428,20 @@ contains
 
        if (present(nx)) then
            local_nx = nx
-           gap = sizex - nx
        else
            local_nx = sizex
-           gap = 0
        endif
 
        if (present(ny)) then
            local_ny = ny
        else
            local_ny = sizey
+       endif
+
+       if (local_ny > 1 .and. local_nx < sizex) then
+          gap = sizex - local_nx
+       else
+          gap = 0
        endif
 
        if(associated(self%read_from_device_c))then
@@ -483,10 +487,8 @@ contains
 
        if (present(nx)) then
            local_nx = nx
-           gap = sizex - nx
        else
            local_nx = sizex
-           gap = 0
        endif
 
        if (present(ny)) then
@@ -495,11 +497,17 @@ contains
            local_ny = sizey
        endif
 
+       if (local_ny > 1 .and. local_nx < sizex) then
+          gap = sizex - local_nx
+       else
+          gap = 0
+       endif
+
        if(associated(self%write_to_device_c))then
           call self%write_to_device_c( &
              C_LOC(self%data), self%device_ptr, &
              offset, local_nx, local_ny, gap)
-        else if(associated(self%write_to_device_f))then
+       else if(associated(self%write_to_device_f))then
           call self%write_to_device_f( &
              self%data, self%device_ptr, &
              offset, local_nx, local_ny, gap)
