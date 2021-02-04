@@ -42,3 +42,4 @@ script:
   - make -C finite_difference/example serial-test
   - make -C finite_difference/example parallel-test
   - make -C finite_difference/tests/dist_mem
+  - make -C finite_difference/tests/device_computation

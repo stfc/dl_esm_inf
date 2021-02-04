@@ -71,13 +71,8 @@ module field_mod
   !
   abstract interface
     subroutine read_from_device_c_interface(from, to, offset, nx, ny, stride_gap)
-        ! Disable argument checking for Intel compiler to allow it to pass a
-        ! C_LOC() pointer into a C_INTPTR_T. This disables the checking that
-        ! the pointer addresses are represented by the integers of the same
-        ! number of bits.
-        !DEC$ ATTRIBUTES NO_ARG_CHECK :: to
-        use iso_c_binding, only: c_intptr_t, c_int, c_ptr
-        integer(c_intptr_t), intent(in), value :: from
+        use iso_c_binding, only: c_ptr, c_int
+        type(c_ptr), intent(in), value :: from
         type(c_ptr), intent(in), value :: to
         integer(c_int), intent(in), value :: offset, nx, ny, stride_gap
     end subroutine read_from_device_c_interface
@@ -85,9 +80,9 @@ module field_mod
 
   abstract interface
     subroutine read_from_device_f_interface(from, to, offset, nx, ny, stride_gap)
-        use iso_c_binding, only: c_intptr_t, c_int
+        use iso_c_binding, only: c_ptr
         use kind_params_mod, only: go_wp
-        integer(c_intptr_t), intent(in) :: from
+        type(c_ptr), intent(in) :: from
         real(go_wp), dimension(:,:), intent(inout) :: to
         integer, intent(in) :: offset, nx, ny, stride_gap
     end subroutine read_from_device_f_interface
@@ -95,24 +90,19 @@ module field_mod
 
   abstract interface
     subroutine write_to_device_c_interface(from, to, offset, nx, ny, stride_gap)
-        ! Disable argument checking for Intel compiler to allow it to pass a
-        ! C_LOC() pointer into a C_INTPTR_T. This disables the checking that
-        ! the pointer addresses are represented by the integers of the same
-        ! number of bits.
-        !DEC$ ATTRIBUTES NO_ARG_CHECK :: to
-        use iso_c_binding, only: c_intptr_t, c_int, c_ptr
+        use iso_c_binding, only: c_int, c_ptr
         type(c_ptr), intent(in), value :: from
-        integer(c_intptr_t), intent(in), value :: to
+        type(c_ptr), intent(in), value :: to
         integer(c_int), intent(in), value :: offset, nx, ny, stride_gap
     end subroutine write_to_device_c_interface
   end interface
 
   abstract interface
     subroutine write_to_device_f_interface(from, to, offset, nx, ny, stride_gap)
-        use iso_c_binding, only: c_intptr_t, c_int
+        use iso_c_binding, only: c_ptr
         use kind_params_mod, only: go_wp
         real(go_wp), dimension(:,:), intent(in) :: from
-        integer(c_intptr_t), intent(in) :: to !,value?
+        type(c_ptr), intent(in) :: to
         integer, intent(in) :: offset, nx, ny, stride_gap
     end subroutine write_to_device_f_interface
   end interface
@@ -163,7 +153,7 @@ module field_mod
      !> Pointer to corresponding buffer on remote device (if any).
      !! This requires variables that are declared to be of this type
      !! have the 'target' attribute.
-     integer(c_intptr_t) :: device_ptr
+     type(c_ptr) :: device_ptr
    contains
      !> Setter for the data associated with this field
      procedure, pass :: set_data
@@ -292,6 +282,8 @@ contains
     !> The function pointers are initialized with NULL
     nullify(self%read_from_device_c)
     nullify(self%read_from_device_f)
+    nullify(self%write_to_device_c)
+    nullify(self%write_to_device_f)
 
     ! Set-up the limits of the 'internal' region of this field
     !

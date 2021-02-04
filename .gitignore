@@ -6,3 +6,4 @@
 *.a
 *.exe
 gnu_opt_report.txt
+*.optrpt

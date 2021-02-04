@@ -27,6 +27,87 @@
 !------------------------------------------------------------------------------
 ! Author: S. Siso, STFC Daresbury Laboratory
 
+! Mock device implementation using separate host memory
+module virtual_device
+    use field_mod
+    use iso_c_binding
+    implicit none
+
+contains
+
+    subroutine init_device_memory(field)
+        type(r2d_field), intent(inout) :: field
+        real, dimension(:), allocatable, target :: device_memory
+
+        allocate(device_memory(size(field%data,1) * size(field%data,2)))
+        field%device_ptr = C_LOC(device_memory)
+        field%data_on_device = .true.
+        field%read_from_device_f => read_from_device_impl
+        field%write_to_device_f => write_to_device_impl
+    end subroutine
+
+    subroutine read_from_device_impl(from, to, offset, nx, ny, stride_gap)
+        use kind_params_mod, only: go_wp
+        type(c_ptr), intent(in) :: from
+        real(go_wp), dimension(:,:), intent(inout) :: to
+        integer, intent(in) :: offset, nx, ny, stride_gap
+        real, dimension(:), pointer :: device_memory
+        integer :: i, startx, starty
+        integer :: ii, jj, next_offset
+
+        write(*, *) "Read operation", offset, nx, ny, stride_gap
+        call C_F_POINTER(from, device_memory, [size(to,1) * size(to,2)])
+
+        startx = mod(offset,size(to,1)) + 1
+        starty = offset / size(to,1) + 1
+
+        next_offset = offset
+        do i = starty, starty + ny - 1
+            ! Copy next contiguous chunk
+            write(*,*) i
+            to(startx:startx+nx-1, i) = device_memory(next_offset+1:next_offset+nx+1)
+            next_offset = next_offset + nx + stride_gap
+        enddo
+
+    end subroutine read_from_device_impl
+
+    subroutine write_to_device_impl(from, to, offset, nx, ny, stride_gap)
+        use kind_params_mod, only: go_wp
+        real(go_wp), dimension(:,:), intent(in) :: from
+        type(c_ptr), intent(in) :: to
+        integer, intent(in) :: offset, nx, ny, stride_gap
+        real, dimension(:), pointer :: device_memory
+        integer :: i, startx, starty, next_offset
+
+        write(*, *) "Write operation",  offset, nx, ny, stride_gap
+        call C_F_POINTER(to, device_memory, [size(from,1) * size(from,2)])
+
+        startx = mod(offset,size(from,1)) + 1
+        starty = offset / size(from,1) + 1
+
+        next_offset = offset
+        do i = starty, starty + ny - 1
+            ! Copy next contiguous chunk
+            device_memory(next_offset+1:next_offset+nx) = from(startx:startx+nx-1, i)
+            next_offset = next_offset + nx + stride_gap
+        enddo
+
+    end subroutine write_to_device_impl
+
+    subroutine simulate_device_computation(buffer, total_size)
+        type(c_ptr), intent(in) :: buffer
+        integer, intent(in) :: total_size
+        real, dimension(:), pointer :: device_memory
+
+        write(*, *) "Device computation"
+        call C_F_POINTER(buffer, device_memory, [total_size])
+
+        device_memory = device_memory * 2
+
+    end subroutine simulate_device_computation
+
+end module virtual_device
+
 !> Tests for the field read and write to device functionality.
 program test_device_io
     use kind_params_mod
@@ -34,6 +115,7 @@ program test_device_io
     use grid_mod
     use field_mod
     use gocean_mod
+    use virtual_device
     implicit none
     ! Total size of the model domain
     integer :: jpiglo = 5, jpjglo = 5
@@ -78,56 +160,30 @@ program test_device_io
     test_field = r2d_field(model_grid, GO_U_POINTS)
     call init_device_memory(test_field)
 
+    test_field%data = 0
+    call test_field%write_to_device()  ! All device data is 0
     test_field%data = 1
-    call test_field%write_to_device()
+    call test_field%write_to_device(2, 2, 5, 5)  ! A 5x5 block starting at 2,2 is 1
+    call simulate_device_computation(test_field%device_ptr, 8*8) ! Double device values
+    call test_field%read_from_device(5, 5, 4, 4) ! Read the bottom-right quadrant
 
+    write(*,*) "Resulting array:"
     do i=1, 8
-    write(*, "(10f5.1)") test_field%data(i, :)
+        write(*, "(10f5.1)") test_field%data(:, i)
     enddo
 
+    if ( &
+        ! Data not read back must be 1.0
+        test_field%data(1, 1) /= 1.0 .and. &
+        ! Data written, doubled and read is 2.0
+        test_field%data(5, 5) /= 2.0 .and. &
+        ! Data not written but read back is still 0.0
+        test_field%data(7, 7) /= 0.0 ) then
+        stop "Error - Results are incorrect"
+    endif
+
+    write(*,*) "This test should still pass when changing the ", &
+               "DL_ESM_ALIGNMENT environment variable."
     call gocean_finalise()
-
-contains
-
-    ! Mock device implementation using separate host memory
-    subroutine init_device_memory(field)
-        type(r2d_field), intent(inout) :: field
-        real, dimension(:), allocatable, target :: device_memory
-
-        allocate(device_memory(size(field%data,1) * size(field%data,2)))
-        field%device_ptr = C_LOC(device_memory)
-        field%read_from_device_f => read_from_device_impl
-        field%write_to_device_f => write_to_device_impl
-
-    end subroutine
-
-    subroutine read_from_device_impl(from, to, offset, nx, ny, stride_gap)
-        use iso_c_binding, only: c_intptr_t, c_int
-        use kind_params_mod, only: go_wp
-        integer(c_intptr_t), intent(in) :: from
-        real(go_wp), dimension(:,:), intent(inout) :: to
-        integer, intent(in) :: offset, nx, ny, stride_gap
-
-    end subroutine read_from_device_impl
-
-    subroutine write_to_device_impl(from, to, offset, nx, ny, stride_gap)
-        use iso_c_binding, only: c_intptr_t, c_int
-        use kind_params_mod, only: go_wp
-        real(go_wp), dimension(:,:), intent(in) :: from
-        integer(c_intptr_t), intent(in) :: to
-        integer, intent(in) :: offset, nx, ny, stride_gap
-        real, dimension(:), pointer :: device_memory
-        integer :: i, startx, starty
-
-        call C_F_POINTER(to, device_memory)
-        
-        startx = 1
-        starty = 1
-
-        do i = starty, ny
-            device_memory(offset+startx:offset+startx+nx) = from(i,startx:startx+nx) 
-        enddo
-
-    end subroutine write_to_device_impl
 
 end program test_device_io

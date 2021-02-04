@@ -61,8 +61,8 @@ test_device_io.exe: inf_lib test_device_io.o
 	${F90} -o $@ ${LDFLAGS} test_device_io.o ${INF_LIB}
 
 %.o: %.[fF]90
-	$(F90) $(F90FLAGS) ${OMPFLAGS} -I${INF_INC} -c $<
+	$(F90) $(F90FLAGS) -I${INF_INC} -c $<
 
 clean: 
 	${MAKE} -C ${INF_DIR} clean
-	rm -f *.o *.mod *.MOD *~ *.exe gnu_opt_report.txt
+	rm -f *.o *.mod *.MOD *~ *.exe gnu_opt_report.txt *.optrpt

@@ -95,7 +95,7 @@ install:
 	${MAKE} -C .. install
 
 clean:
-	rm -f *.o *.mod *.a
+	rm -f *.o *.mod *.a *.optrpt
 
 distclean: clean
 
