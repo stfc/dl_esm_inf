@@ -512,11 +512,9 @@ contains
 
 
   function get_data(self) result(dptr)
-    !> Getter for the data associated with a field.
-    !
-    ! If the data is on a device, it ensures that the host copy is up-to-date
-    ! with that on any accelerator device.
-    !
+    !> Getter for the data associated with a field. If the data is on a
+    ! device it ensures that the host copy is up-to-date with that on
+    ! any accelerator device.
     class(r2d_field), target :: self
     real(go_wp), dimension(:,:), pointer :: dptr
 
@@ -531,17 +529,16 @@ contains
 
   function set_data(self, array) result(flag)
     !> Setter for the data associated with a field. If data is on a
-    !! remote OpenACC device then the device copy is updated too.
+    !! remote accelerator device then the device copy is updated too.
     implicit none
     class(r2d_field) :: self
     integer :: flag
     real(go_wp), dimension(:,:) :: array
     self%data = array
-    if(self%data_on_device)then
-       !$acc update device(self%data)
-       !> \TODO #29 update data on OpenCL device. Requires that FortCL
-       !! be extended.
-    end if
+
+    ! Synchronise the whole array
+    call self%write_to_device()
+
     flag = 0
   end function set_data
 

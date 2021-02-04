@@ -30,6 +30,7 @@
 ! Mock device implementation using separate host memory
 module virtual_device
     use field_mod
+    use kind_params_mod, only: go_wp
     use iso_c_binding
     implicit none
 
@@ -37,7 +38,7 @@ contains
 
     subroutine init_device_memory(field)
         type(r2d_field), intent(inout) :: field
-        real, dimension(:), allocatable, target :: device_memory
+        real(go_wp), dimension(:), allocatable, target :: device_memory
 
         allocate(device_memory(size(field%data,1) * size(field%data,2)))
         field%device_ptr = C_LOC(device_memory)
@@ -47,13 +48,11 @@ contains
     end subroutine
 
     subroutine read_from_device_impl(from, to, offset, nx, ny, stride_gap)
-        use kind_params_mod, only: go_wp
         type(c_ptr), intent(in) :: from
         real(go_wp), dimension(:,:), intent(inout) :: to
         integer, intent(in) :: offset, nx, ny, stride_gap
-        real, dimension(:), pointer :: device_memory
-        integer :: i, startx, starty
-        integer :: ii, jj, next_offset
+        real(go_wp), dimension(:), pointer :: device_memory
+        integer :: i, startx, starty, next_offset
 
         write(*, *) "Read operation", offset, nx, ny, stride_gap
         call C_F_POINTER(from, device_memory, [size(to,1) * size(to,2)])
@@ -64,19 +63,17 @@ contains
         next_offset = offset
         do i = starty, starty + ny - 1
             ! Copy next contiguous chunk
-            write(*,*) i
-            to(startx:startx+nx-1, i) = device_memory(next_offset+1:next_offset+nx+1)
+            to(startx:startx+nx-1, i) = device_memory(next_offset+1:next_offset+nx)
             next_offset = next_offset + nx + stride_gap
         enddo
 
     end subroutine read_from_device_impl
 
     subroutine write_to_device_impl(from, to, offset, nx, ny, stride_gap)
-        use kind_params_mod, only: go_wp
         real(go_wp), dimension(:,:), intent(in) :: from
         type(c_ptr), intent(in) :: to
         integer, intent(in) :: offset, nx, ny, stride_gap
-        real, dimension(:), pointer :: device_memory
+        real(go_wp), dimension(:), pointer :: device_memory
         integer :: i, startx, starty, next_offset
 
         write(*, *) "Write operation",  offset, nx, ny, stride_gap
@@ -97,7 +94,7 @@ contains
     subroutine simulate_device_computation(buffer, total_size)
         type(c_ptr), intent(in) :: buffer
         integer, intent(in) :: total_size
-        real, dimension(:), pointer :: device_memory
+        real(go_wp), dimension(:), pointer :: device_memory
 
         write(*, *) "Device computation"
         call C_F_POINTER(buffer, device_memory, [total_size])
@@ -182,8 +179,8 @@ program test_device_io
         stop "Error - Results are incorrect"
     endif
 
-    write(*,*) "This test should still pass when changing the ", &
-               "DL_ESM_ALIGNMENT environment variable."
+    write(*,*) "Test passed successfuly! Note that this test should still ", &
+               "succeed when changing the DL_ESM_ALIGNMENT environment variable."
     call gocean_finalise()
 
 end program test_device_io
