@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------
 # BSD 3-Clause License
 #
-# Copyright (c) 2019, Science and Technology Facilities Council
+# Copyright (c) 2021, Science and Technology Facilities Council.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -31,15 +31,33 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 # -----------------------------------------------------------------------------
+# Author S. Siso, STFC Daresbury Lab
+#
+# This workflow will compile dl_esm_inf and check that the various examples
+# and tests compile and run.
 
-language: c
-sudo: required
-before_install:
-  - sudo apt-get install gfortran valgrind libopenmpi-dev openmpi-bin
+name: DL_ESM_INF CI tests
 
-script:
-  - . compiler_setup/gnu.sh
-  - make -C finite_difference/example serial-test
-  - make -C finite_difference/example parallel-test
-  - make -C finite_difference/tests/dist_mem
-  - make -C finite_difference/tests/device_computation
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install dependencies
+      run: >
+          sudo apt-get install build-essential gfortran valgrind libopenmpi-dev
+          openmpi-bin
+    - name: Run tests
+      run: >
+        source compiler_setup/gnu.sh && export MPIRUN="mpirun --oversubscribe" &&
+        make -C finite_difference/example serial-test &&
+        make -C finite_difference/example parallel-test &&
+        make -C finite_difference/tests/dist_mem &&
+        make -C finite_difference/tests/device_computation
