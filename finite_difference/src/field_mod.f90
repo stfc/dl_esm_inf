@@ -451,7 +451,10 @@ contains
   end subroutine read_from_device
 
   subroutine write_to_device(self, startx, starty, nx, ny)
-    !> Update the host data with
+    !> Update the device data with host data.
+    ! The optional startx, starty, nx and ny parameters can be provided to
+    ! write to the device just a slice of the field.
+
     class(r2d_field), target :: self
     integer, optional, intent(in) :: startx, starty, nx, ny
     integer :: local_startx, local_starty, local_nx, local_ny, offset, gap
@@ -1242,7 +1245,7 @@ contains
     class(r2d_field), target, intent(inout) :: self
     integer, intent(in) :: comm
 
-    ! Get location and dimension to read for the given communicator
+    ! Get location and dimension to read data for the given communicator
     if (isrcsend(comm) > 0) then
         !write(*,*) "Read halo from device: I=", isrcsend(comm), ", J=", &
         !    jsrcsend(comm), ", NX=", nxsend(comm), ", NY=", nysend(comm)
@@ -1257,7 +1260,7 @@ contains
     class(r2d_field), target, intent(inout) :: self
     integer, intent(in) :: comm
 
-    ! Get location and dimension to read for the given communicator
+    ! Get location and dimension to write data for the given communicator
     if (idesrecv(comm) > 0) then
         !write(*,*) "Write halo to device: I=", idesrecv(comm), ", J=", &
         !    jdesrecv(comm), ", NX=", nxrecv(comm), ", NY=", nyrecv(comm)
