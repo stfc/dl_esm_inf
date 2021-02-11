@@ -30,7 +30,6 @@
 !> Module for describing all aspects of a field (which exists on some
 !! grid).
 module field_mod
-  use iso_c_binding, only: c_intptr_t
   use kind_params_mod
   use region_mod
   use halo_mod
@@ -83,7 +82,7 @@ module field_mod
         use iso_c_binding, only: c_ptr
         use kind_params_mod, only: go_wp
         type(c_ptr), intent(in) :: from
-        real(go_wp), dimension(:,:), intent(inout) :: to
+        real(go_wp), dimension(:,:), target, intent(inout) :: to
         integer, intent(in) :: offset, nx, ny, stride_gap
     end subroutine read_from_device_f_interface
   end interface
@@ -101,7 +100,7 @@ module field_mod
     subroutine write_to_device_f_interface(from, to, offset, nx, ny, stride_gap)
         use iso_c_binding, only: c_ptr
         use kind_params_mod, only: go_wp
-        real(go_wp), dimension(:,:), intent(in) :: from
+        real(go_wp), dimension(:,:), target, intent(in) :: from
         type(c_ptr), intent(in) :: to
         integer, intent(in) :: offset, nx, ny, stride_gap
     end subroutine write_to_device_f_interface
@@ -505,7 +504,7 @@ contains
              offset, local_nx, local_ny, gap)
         else
           call gocean_stop("ERROR: Data is on a device but no instructions " // &
-              "about how to push new data have been provided.")
+              "about how to write new data have been provided.")
        endif
     endif
   end subroutine write_to_device

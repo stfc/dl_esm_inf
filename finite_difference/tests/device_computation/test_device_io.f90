@@ -49,7 +49,7 @@ contains
 
     subroutine read_from_device_impl(from, to, offset, nx, ny, stride_gap)
         type(c_ptr), intent(in) :: from
-        real(go_wp), dimension(:,:), intent(inout) :: to
+        real(go_wp), dimension(:,:), target, intent(inout) :: to
         integer, intent(in) :: offset, nx, ny, stride_gap
         real(go_wp), dimension(:), pointer :: device_memory
         integer :: i, startx, starty, next_offset
@@ -70,7 +70,7 @@ contains
     end subroutine read_from_device_impl
 
     subroutine write_to_device_impl(from, to, offset, nx, ny, stride_gap)
-        real(go_wp), dimension(:,:), intent(in) :: from
+        real(go_wp), dimension(:,:), target, intent(in) :: from
         type(c_ptr), intent(in) :: to
         integer, intent(in) :: offset, nx, ny, stride_gap
         real(go_wp), dimension(:), pointer :: device_memory
