@@ -69,40 +69,40 @@ module field_mod
   !     offset=5, nx=1, ny=3, stride_gap=4
   !
   abstract interface
-    subroutine read_from_device_c_interface(from, to, offset, nx, ny, stride_gap)
+    subroutine read_from_device_c_interface(from, to, startx, starty, nx, ny)
         use iso_c_binding, only: c_ptr, c_int
         type(c_ptr), intent(in), value :: from
         type(c_ptr), intent(in), value :: to
-        integer(c_int), intent(in), value :: offset, nx, ny, stride_gap
+        integer(c_int), intent(in), value :: startx, starty, nx, ny
     end subroutine read_from_device_c_interface
   end interface
 
   abstract interface
-    subroutine read_from_device_f_interface(from, to, offset, nx, ny, stride_gap)
+    subroutine read_from_device_f_interface(from, to, startx, starty, nx, ny)
         use iso_c_binding, only: c_ptr
         use kind_params_mod, only: go_wp
         type(c_ptr), intent(in) :: from
         real(go_wp), dimension(:,:), target, intent(inout) :: to
-        integer, intent(in) :: offset, nx, ny, stride_gap
+        integer, intent(in) ::  startx, starty, nx, ny
     end subroutine read_from_device_f_interface
   end interface
 
   abstract interface
-    subroutine write_to_device_c_interface(from, to, offset, nx, ny, stride_gap)
+    subroutine write_to_device_c_interface(from, to, startx, starty, nx, ny)
         use iso_c_binding, only: c_int, c_ptr
         type(c_ptr), intent(in), value :: from
         type(c_ptr), intent(in), value :: to
-        integer(c_int), intent(in), value :: offset, nx, ny, stride_gap
+        integer(c_int), intent(in), value :: startx, starty, nx, ny
     end subroutine write_to_device_c_interface
   end interface
 
   abstract interface
-    subroutine write_to_device_f_interface(from, to, offset, nx, ny, stride_gap)
+    subroutine write_to_device_f_interface(from, to, startx, starty, nx, ny)
         use iso_c_binding, only: c_ptr
         use kind_params_mod, only: go_wp
         real(go_wp), dimension(:,:), target, intent(in) :: from
         type(c_ptr), intent(in) :: to
-        integer, intent(in) :: offset, nx, ny, stride_gap
+        integer, intent(in) ::  startx, starty, nx, ny
     end subroutine write_to_device_f_interface
   end interface
 
@@ -395,13 +395,9 @@ contains
 
     class(r2d_field), target :: self
     integer, optional, intent(in) :: startx, starty, nx, ny
-    integer :: local_startx, local_starty, local_nx, local_ny, offset, gap
-    integer :: sizex, sizey
+    integer :: local_startx, local_starty, local_nx, local_ny
 
     if(self%data_on_device)then
-
-       sizex = size(self%data, 1)
-       sizey = size(self%data, 2)
 
        if (present(startx)) then
            local_startx = startx
@@ -415,34 +411,24 @@ contains
            local_starty = 1
        endif
 
-       offset = (local_starty - 1) * sizex + (local_startx - 1)
-
        if (present(nx)) then
            local_nx = nx
        else
-           local_nx = sizex
+           local_nx = size(self%data, 1)
        endif
 
        if (present(ny)) then
            local_ny = ny
        else
-           local_ny = sizey
-       endif
-
-       if (local_ny > 1 .and. local_nx < sizex) then
-          gap = sizex - local_nx
-       else
-          gap = 0
+           local_ny = size(self%data, 2)
        endif
 
        if(associated(self%read_from_device_c))then
-          call self%read_from_device_c( &
-             self%device_ptr, C_LOC(self%data), &
-             offset, local_nx, local_ny, gap)
+          call self%read_from_device_c(self%device_ptr, C_LOC(self%data), &
+                local_startx, local_starty, local_nx, local_ny)
         else if(associated(self%read_from_device_f))then
-          call self%read_from_device_f( &
-             self%device_ptr, self%data, &
-             offset, local_nx, local_ny, gap)
+          call self%read_from_device_f(self%device_ptr, self%data, &
+                local_startx, local_starty, local_nx, local_ny)
         else
           call gocean_stop("ERROR: Data is on a device but no instructions " // &
               "about how to retrieve the data have been provided.")
@@ -457,13 +443,9 @@ contains
 
     class(r2d_field), target :: self
     integer, optional, intent(in) :: startx, starty, nx, ny
-    integer :: local_startx, local_starty, local_nx, local_ny, offset, gap
-    integer :: sizex, sizey
+    integer :: local_startx, local_starty, local_nx, local_ny
 
     if(self%data_on_device)then
-
-       sizex = size(self%data, 1)
-       sizey = size(self%data, 2)
 
        if (present(startx)) then
            local_startx = startx
@@ -477,34 +459,24 @@ contains
            local_starty = 1
        endif
 
-       offset = (local_starty - 1) * sizex + (local_startx - 1)
-
        if (present(nx)) then
            local_nx = nx
        else
-           local_nx = sizex
+           local_nx = size(self%data, 1)
        endif
 
        if (present(ny)) then
            local_ny = ny
        else
-           local_ny = sizey
-       endif
-
-       if (local_ny > 1 .and. local_nx < sizex) then
-          gap = sizex - local_nx
-       else
-          gap = 0
+           local_ny = size(self%data, 2)
        endif
 
        if(associated(self%write_to_device_c))then
-          call self%write_to_device_c( &
-             C_LOC(self%data), self%device_ptr, &
-             offset, local_nx, local_ny, gap)
+          call self%write_to_device_c(C_LOC(self%data), self%device_ptr, &
+                local_startx, local_starty, local_nx, local_ny)
        else if(associated(self%write_to_device_f))then
-          call self%write_to_device_f( &
-             self%data, self%device_ptr, &
-             offset, local_nx, local_ny, gap)
+          call self%write_to_device_f(self%data, self%device_ptr, &
+                local_startx, local_starty, local_nx, local_ny)
         else
           call gocean_stop("ERROR: Data is on a device but no instructions " // &
               "about how to write new data have been provided.")

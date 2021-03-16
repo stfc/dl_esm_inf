@@ -47,46 +47,42 @@ contains
         field%write_to_device_f => write_to_device_impl
     end subroutine
 
-    subroutine read_from_device_impl(from, to, offset, nx, ny, stride_gap)
+    subroutine read_from_device_impl(from, to, startx, starty, nx, ny)
         type(c_ptr), intent(in) :: from
         real(go_wp), dimension(:,:), target, intent(inout) :: to
-        integer, intent(in) :: offset, nx, ny, stride_gap
+        integer, intent(in) :: startx, starty, nx, ny
         real(go_wp), dimension(:), pointer :: device_memory
-        integer :: i, startx, starty, next_offset
+        integer :: next_offset, gap, i
 
-        write(*, *) "Read operation", offset, nx, ny, stride_gap
+        write(*, *) "Read operation", startx, starty, nx, ny
         call C_F_POINTER(from, device_memory, [size(to,1) * size(to,2)])
 
-        startx = mod(offset,size(to,1)) + 1
-        starty = offset / size(to,1) + 1
+        next_offset = ((starty - 1) * size(to,1) + (startx-1)) + 1
 
-        next_offset = offset
         do i = starty, starty + ny - 1
             ! Copy next contiguous chunk
-            to(startx:startx+nx-1, i) = device_memory(next_offset+1:next_offset+nx)
-            next_offset = next_offset + nx + stride_gap
+            to(startx:startx+nx, i) = device_memory(next_offset:next_offset+nx)
+            next_offset = next_offset + size(to,1)
         enddo
 
     end subroutine read_from_device_impl
 
-    subroutine write_to_device_impl(from, to, offset, nx, ny, stride_gap)
+    subroutine write_to_device_impl(from, to, startx, starty, nx, ny)
         real(go_wp), dimension(:,:), target, intent(in) :: from
         type(c_ptr), intent(in) :: to
-        integer, intent(in) :: offset, nx, ny, stride_gap
+        integer, intent(in) ::  startx, starty, nx, ny
         real(go_wp), dimension(:), pointer :: device_memory
-        integer :: i, startx, starty, next_offset
+        integer :: i, next_offset, gap
 
-        write(*, *) "Write operation",  offset, nx, ny, stride_gap
+        write(*, *) "Write operation", startx, starty, nx, ny
         call C_F_POINTER(to, device_memory, [size(from,1) * size(from,2)])
 
-        startx = mod(offset,size(from,1)) + 1
-        starty = offset / size(from,1) + 1
+        next_offset = ((starty - 1) * size(from,1) + (startx-1)) + 1
 
-        next_offset = offset
         do i = starty, starty + ny - 1
             ! Copy next contiguous chunk
-            device_memory(next_offset+1:next_offset+nx) = from(startx:startx+nx-1, i)
-            next_offset = next_offset + nx + stride_gap
+            device_memory(next_offset:next_offset+nx) = from(startx:startx+nx, i)
+            next_offset = next_offset + size(from,1)
         enddo
 
     end subroutine write_to_device_impl
@@ -98,7 +94,6 @@ contains
 
         write(*, *) "Device computation"
         call C_F_POINTER(buffer, device_memory, [total_size])
-
         device_memory = device_memory * 2
 
     end subroutine simulate_device_computation
@@ -171,9 +166,9 @@ program test_device_io
 
     if ( &
         ! Data not read back must be 1.0
-        test_field%data(1, 1) /= 1.0 .and. &
+        test_field%data(1, 1) /= 1.0 .or. &
         ! Data written, doubled and read is 2.0
-        test_field%data(5, 5) /= 2.0 .and. &
+        test_field%data(5, 5) /= 2.0 .or. &
         ! Data not written but read back is still 0.0
         test_field%data(7, 7) /= 0.0 ) then
         stop "Error - Results are incorrect"
