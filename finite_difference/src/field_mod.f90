@@ -54,55 +54,52 @@ module field_mod
   ! the infrastructure user to retrieve data from, or push data to, devices
   ! using the desired programming model.
   !
-  ! All interfaces include a host and a device pointer (order depending on
-  ! the direction) and offset, nx, ny and stride_gap parameters that allow
-  ! to specify rectangular subregions of an array. For example, if we want
-  ! to send the S in the following array:
-  !
-  ! X X X X X
-  ! S X X X X
-  ! S X X X X
-  ! S X X X X
-  ! X X X X X
-  !
-  ! we would call it with:
-  !     offset=5, nx=1, ny=3, stride_gap=4
+  ! All interfaces include:
+  !  - A host and a device pointer specifying where the data is copied from/to.
+  !  - startx, starty, nx, and ny integers to specify if copying just a sub-
+  !  region of the field is enough (the implementation may copy a larger part).
+  !  - A blocking boolean to specify if the data copy operation should have
+  !  finished on the routine return or just been dispatched.
   !
   abstract interface
-    subroutine read_from_device_c_interface(from, to, startx, starty, nx, ny)
-        use iso_c_binding, only: c_ptr, c_int
+    subroutine read_from_device_c_interface(from, to, startx, starty, nx, ny, blocking)
+        use iso_c_binding, only: c_ptr, c_int, c_bool
         type(c_ptr), intent(in), value :: from
         type(c_ptr), intent(in), value :: to
         integer(c_int), intent(in), value :: startx, starty, nx, ny
+        logical(c_bool), intent(in), value :: blocking
     end subroutine read_from_device_c_interface
   end interface
 
   abstract interface
-    subroutine read_from_device_f_interface(from, to, startx, starty, nx, ny)
+    subroutine read_from_device_f_interface(from, to, startx, starty, nx, ny, blocking)
         use iso_c_binding, only: c_ptr
         use kind_params_mod, only: go_wp
         type(c_ptr), intent(in) :: from
         real(go_wp), dimension(:,:), target, intent(inout) :: to
         integer, intent(in) ::  startx, starty, nx, ny
+        logical, intent(in) :: blocking
     end subroutine read_from_device_f_interface
   end interface
 
   abstract interface
-    subroutine write_to_device_c_interface(from, to, startx, starty, nx, ny)
-        use iso_c_binding, only: c_int, c_ptr
+    subroutine write_to_device_c_interface(from, to, startx, starty, nx, ny, blocking)
+        use iso_c_binding, only: c_ptr, c_int, c_bool
         type(c_ptr), intent(in), value :: from
         type(c_ptr), intent(in), value :: to
         integer(c_int), intent(in), value :: startx, starty, nx, ny
+        logical(c_bool), intent(in), value :: blocking
     end subroutine write_to_device_c_interface
   end interface
 
   abstract interface
-    subroutine write_to_device_f_interface(from, to, startx, starty, nx, ny)
+    subroutine write_to_device_f_interface(from, to, startx, starty, nx, ny, blocking)
         use iso_c_binding, only: c_ptr
         use kind_params_mod, only: go_wp
         real(go_wp), dimension(:,:), target, intent(in) :: from
         type(c_ptr), intent(in) :: to
         integer, intent(in) ::  startx, starty, nx, ny
+        logical, intent(in) :: blocking
     end subroutine write_to_device_f_interface
   end interface
 
@@ -388,14 +385,18 @@ contains
 
   !===================================================
 
-  subroutine read_from_device(self, startx, starty, nx, ny)
+  subroutine read_from_device(self, startx, starty, nx, ny, blocking)
     !> Update the host data with the device data.
     ! The optional startx, starty, nx and ny parameters can be provided to
-    ! read from the device just a slice of the field.
+    ! read to the device just from a sub-region of the field.
+    ! The blocking optional parameter specifies if the data transfer should
+    ! have finished on the return from this routine.
 
     class(r2d_field), target :: self
     integer, optional, intent(in) :: startx, starty, nx, ny
+    logical, optional, intent(in) :: blocking
     integer :: local_startx, local_starty, local_nx, local_ny
+    logical :: local_blocking
 
     if(self%data_on_device)then
 
@@ -423,12 +424,20 @@ contains
            local_ny = size(self%data, 2)
        endif
 
+       if (present(blocking)) then
+           local_blocking = blocking
+       else
+           local_blocking = .true.
+       endif
+
        if(associated(self%read_from_device_c))then
           call self%read_from_device_c(self%device_ptr, C_LOC(self%data), &
-                local_startx, local_starty, local_nx, local_ny)
+                int(local_startx, c_int), int(local_starty, c_int), &
+                int(local_nx, c_int), int(local_ny, c_int), &
+                logical(local_blocking, c_bool))
         else if(associated(self%read_from_device_f))then
           call self%read_from_device_f(self%device_ptr, self%data, &
-                local_startx, local_starty, local_nx, local_ny)
+                local_startx, local_starty, local_nx, local_ny, local_blocking)
         else
           call gocean_stop("ERROR: Data is on a device but no instructions " // &
               "about how to retrieve the data have been provided.")
@@ -436,14 +445,18 @@ contains
     end if
   end subroutine read_from_device
 
-  subroutine write_to_device(self, startx, starty, nx, ny)
+  subroutine write_to_device(self, startx, starty, nx, ny, blocking)
     !> Update the device data with host data.
     ! The optional startx, starty, nx and ny parameters can be provided to
-    ! write to the device just a slice of the field.
+    ! write to the device just a sub-region of the field.
+    ! The blocking optional parameter specifies if the data transfer should
+    ! have finished on the return from this routine.
 
     class(r2d_field), target :: self
     integer, optional, intent(in) :: startx, starty, nx, ny
+    logical, optional, intent(in) :: blocking
     integer :: local_startx, local_starty, local_nx, local_ny
+    logical :: local_blocking
 
     if(self%data_on_device)then
 
@@ -471,12 +484,20 @@ contains
            local_ny = size(self%data, 2)
        endif
 
+       if (present(blocking)) then
+           local_blocking = blocking
+       else
+           local_blocking = .true.
+       endif
+
        if(associated(self%write_to_device_c))then
           call self%write_to_device_c(C_LOC(self%data), self%device_ptr, &
-                local_startx, local_starty, local_nx, local_ny)
+                int(local_startx, c_int), int(local_starty, c_int), &
+                int(local_nx, c_int), int(local_ny, c_int), &
+                logical(local_blocking, c_bool))
        else if(associated(self%write_to_device_f))then
           call self%write_to_device_f(self%data, self%device_ptr, &
-                local_startx, local_starty, local_nx, local_ny)
+                local_startx, local_starty, local_nx, local_ny, local_blocking)
         else
           call gocean_stop("ERROR: Data is on a device but no instructions " // &
               "about how to write new data have been provided.")
@@ -1194,50 +1215,52 @@ contains
     integer :: exch  !> Handle for exchange
 
     ! Make sure the data from each halo is in the host before the communication
-    call self%read_halo_from_device(comm=JPlus)
-    call self%read_halo_from_device(comm=Jminus)
-    call self%read_halo_from_device(comm=IPlus)
-    call self%read_halo_from_device(comm=IMinus)
+    call self%read_halo_from_device(comm=JPlus, blocking=.false.)
+    call self%read_halo_from_device(comm=Jminus, blocking=.false.)
+    call self%read_halo_from_device(comm=IPlus, blocking=.false.)
+    call self%read_halo_from_device(comm=IMinus, blocking=.true.)
 
     ! Execute the halo exchange
     call exchange_generic(b2=self%data, handle=exch, &
                           comm1=JPlus, comm2=Jminus, comm3=IPlus, comm4=IMinus)
 
     ! Synchronize the data back to the accelerator device if necessary
-    call self%write_halo_to_device(comm=JPlus)
-    call self%write_halo_to_device(comm=Jminus)
-    call self%write_halo_to_device(comm=IPlus)
-    call self%write_halo_to_device(comm=IMinus)
+    call self%write_halo_to_device(comm=JPlus, blocking=.false.)
+    call self%write_halo_to_device(comm=Jminus, blocking=.false.)
+    call self%write_halo_to_device(comm=IPlus, blocking=.false.)
+    call self%write_halo_to_device(comm=IMinus, blocking=.true.)
 
   end subroutine halo_exchange
   
-  subroutine read_halo_from_device(self, comm)
+  subroutine read_halo_from_device(self, comm, blocking)
     use parallel_comms_mod, only: isrcsend, jsrcsend, nxsend, nysend
     implicit none
     class(r2d_field), target, intent(inout) :: self
     integer, intent(in) :: comm
+    logical, intent(in) :: blocking
 
     ! Get location and dimension to read data for the given communicator
     if (isrcsend(comm) > 0) then
         !write(*,*) "Read halo from device: I=", isrcsend(comm), ", J=", &
         !    jsrcsend(comm), ", NX=", nxsend(comm), ", NY=", nysend(comm)
         call self%read_from_device(isrcsend(comm), jsrcsend(comm), &
-                                   nxsend(comm), nysend(comm))
+            nxsend(comm), nysend(comm), blocking)
     endif
   end subroutine read_halo_from_device
 
-  subroutine write_halo_to_device(self, comm)
+  subroutine write_halo_to_device(self, comm, blocking)
     use parallel_comms_mod, only: idesrecv, jdesrecv, nxrecv, nyrecv
     implicit none
     class(r2d_field), target, intent(inout) :: self
     integer, intent(in) :: comm
+    logical, intent(in) :: blocking
 
     ! Get location and dimension to write data for the given communicator
     if (idesrecv(comm) > 0) then
         !write(*,*) "Write halo to device: I=", idesrecv(comm), ", J=", &
         !    jdesrecv(comm), ", NX=", nxrecv(comm), ", NY=", nyrecv(comm)
         call self%write_to_device(idesrecv(comm), jdesrecv(comm), &
-                                  nxrecv(comm), nyrecv(comm))
+            nxrecv(comm), nyrecv(comm), blocking)
     endif
   end subroutine write_halo_to_device
   !===================================================

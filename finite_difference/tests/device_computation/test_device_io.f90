@@ -47,14 +47,15 @@ contains
         field%write_to_device_f => write_to_device_impl
     end subroutine
 
-    subroutine read_from_device_impl(from, to, startx, starty, nx, ny)
+    subroutine read_from_device_impl(from, to, startx, starty, nx, ny, blocking)
         type(c_ptr), intent(in) :: from
         real(go_wp), dimension(:,:), target, intent(inout) :: to
         integer, intent(in) :: startx, starty, nx, ny
+        logical, intent(in) :: blocking
         real(go_wp), dimension(:), pointer :: device_memory
-        integer :: next_offset, gap, i
+        integer :: next_offset, i
 
-        write(*, *) "Read operation", startx, starty, nx, ny
+        write(*, *) "Read operation", startx, starty, nx, ny, blocking
         call C_F_POINTER(from, device_memory, [size(to,1) * size(to,2)])
 
         next_offset = ((starty - 1) * size(to,1) + (startx-1)) + 1
@@ -67,14 +68,15 @@ contains
 
     end subroutine read_from_device_impl
 
-    subroutine write_to_device_impl(from, to, startx, starty, nx, ny)
+    subroutine write_to_device_impl(from, to, startx, starty, nx, ny, blocking)
         real(go_wp), dimension(:,:), target, intent(in) :: from
         type(c_ptr), intent(in) :: to
         integer, intent(in) ::  startx, starty, nx, ny
+        logical, intent(in) :: blocking
         real(go_wp), dimension(:), pointer :: device_memory
-        integer :: i, next_offset, gap
+        integer :: i, next_offset
 
-        write(*, *) "Write operation", startx, starty, nx, ny
+        write(*, *) "Write operation", startx, starty, nx, ny, blocking
         call C_F_POINTER(to, device_memory, [size(from,1) * size(from,2)])
 
         next_offset = ((starty - 1) * size(from,1) + (startx-1)) + 1
