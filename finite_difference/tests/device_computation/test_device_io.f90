@@ -27,7 +27,7 @@
 !------------------------------------------------------------------------------
 ! Author: S. Siso, STFC Daresbury Laboratory
 
-! Mock device implementation using separate host memory
+! Mock device implementation using separate 1D host memory
 module virtual_device
     use field_mod
     use kind_params_mod, only: go_wp
@@ -62,7 +62,7 @@ contains
 
         do i = starty, starty + ny - 1
             ! Copy next contiguous chunk
-            to(startx:startx+nx, i) = device_memory(next_offset:next_offset+nx)
+            to(startx:startx+nx-1, i) = device_memory(next_offset:next_offset+nx-1)
             next_offset = next_offset + size(to,1)
         enddo
 
@@ -83,7 +83,7 @@ contains
 
         do i = starty, starty + ny - 1
             ! Copy next contiguous chunk
-            device_memory(next_offset:next_offset+nx) = from(startx:startx+nx, i)
+            device_memory(next_offset:next_offset+nx-1) = from(startx:startx+nx-1, i)
             next_offset = next_offset + size(from,1)
         enddo
 
