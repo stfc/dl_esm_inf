@@ -388,7 +388,7 @@ contains
   subroutine read_from_device(self, startx, starty, nx, ny, blocking)
     !> Update the host data with the device data.
     ! The optional startx, starty, nx and ny parameters can be provided to
-    ! read to the device just from a sub-region of the field.
+    ! read just from a sub-region of the field.
     ! The blocking optional parameter specifies if the data transfer should
     ! have finished on the return from this routine.
 
@@ -448,7 +448,7 @@ contains
   subroutine write_to_device(self, startx, starty, nx, ny, blocking)
     !> Update the device data with host data.
     ! The optional startx, starty, nx and ny parameters can be provided to
-    ! write to the device just a sub-region of the field.
+    ! write just a sub-region of the field to the device.
     ! The blocking optional parameter specifies if the data transfer should
     ! have finished on the return from this routine.
 
@@ -1205,6 +1205,8 @@ contains
   !! The depth value is currently ignored and hardwired to 1: the device
   !! synchonization and the halo_exchange communicators need to be updated
   !! with the provided depth.
+  !!
+  !! TODO #58: This method could benefit from an asynchronous execution model.
   subroutine halo_exchange(self, depth)
     use parallel_comms_mod, only: Iplus, Iminus, Jplus, Jminus, NONE, &
          exchange_generic
@@ -1241,8 +1243,6 @@ contains
 
     ! Get location and dimension to read data for the given communicator
     if (isrcsend(comm) > 0) then
-        !write(*,*) "Read halo from device: I=", isrcsend(comm), ", J=", &
-        !    jsrcsend(comm), ", NX=", nxsend(comm), ", NY=", nysend(comm)
         call self%read_from_device(isrcsend(comm), jsrcsend(comm), &
             nxsend(comm), nysend(comm), blocking)
     endif
@@ -1257,8 +1257,6 @@ contains
 
     ! Get location and dimension to write data for the given communicator
     if (idesrecv(comm) > 0) then
-        !write(*,*) "Write halo to device: I=", idesrecv(comm), ", J=", &
-        !    jdesrecv(comm), ", NX=", nxrecv(comm), ", NY=", nyrecv(comm)
         call self%write_to_device(idesrecv(comm), jdesrecv(comm), &
             nxrecv(comm), nyrecv(comm), blocking)
     endif
