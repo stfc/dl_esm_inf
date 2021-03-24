@@ -31,7 +31,7 @@
 module virtual_device
     use field_mod
     use kind_params_mod, only: go_wp
-    use iso_c_binding
+    use iso_c_binding, only: c_loc, c_ptr, c_f_pointer
     implicit none
 
 contains
