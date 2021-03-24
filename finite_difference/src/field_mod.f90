@@ -30,7 +30,6 @@
 !> Module for describing all aspects of a field (which exists on some
 !! grid).
 module field_mod
-  use iso_c_binding, only: c_intptr_t
   use kind_params_mod
   use region_mod
   use halo_mod
@@ -51,32 +50,57 @@ module field_mod
   !> A field that lives on all grid-points of the grid
   integer, public, parameter :: GO_ALL_POINTS = 4
 
-
   !> Abstract interfaces for C and Fortran subroutines to be implemented by
-  ! the infrastructure user to retrieve data from devices in the desired
-  ! programming model.
+  ! the infrastructure user to retrieve data from, or push data to, devices
+  ! using the desired programming model.
+  !
+  ! All interfaces include:
+  !  - A host and a device pointer specifying where the data is copied from/to.
+  !  - startx, starty, nx, and ny integers to specify if copying just a sub-
+  !  region of the field is enough (the implementation may copy a larger part).
+  !  - A blocking boolean to specify if the data copy operation should have
+  !  finished on the routine return or just been dispatched.
+  !
   abstract interface
-    subroutine read_from_device_c_interface(from, to, nx, ny, width)
-        ! Disable argument checking for Intel compiler to allow it to pass a
-        ! C_LOC() pointer into a C_INTPTR_T (what we miss here is the
-        ! checking that the pointer addresses are represented by the integers
-        ! of the same number of bits)
-        !DEC$ ATTRIBUTES NO_ARG_CHECK :: to
-        use iso_c_binding, only: c_intptr_t, c_int
-        integer(c_intptr_t), intent(in), value :: from
-        integer(c_intptr_t), intent(in), value :: to
-        integer(c_int), intent(in), value :: nx, ny, width
+    subroutine read_from_device_c_interface(from, to, startx, starty, nx, ny, blocking)
+        use iso_c_binding, only: c_ptr, c_int, c_bool
+        type(c_ptr), intent(in), value :: from
+        type(c_ptr), intent(in), value :: to
+        integer(c_int), intent(in), value :: startx, starty, nx, ny
+        logical(c_bool), intent(in), value :: blocking
     end subroutine read_from_device_c_interface
   end interface
 
   abstract interface
-    subroutine read_from_device_f_interface(from, to, nx, ny, width)
-        use iso_c_binding, only: c_intptr_t, c_int
+    subroutine read_from_device_f_interface(from, to, startx, starty, nx, ny, blocking)
+        use iso_c_binding, only: c_ptr
         use kind_params_mod, only: go_wp
-        integer(c_intptr_t), intent(in) :: from
-        real(go_wp), dimension(:,:), intent(inout) :: to
-        integer, intent(in) :: nx, ny, width
+        type(c_ptr), intent(in) :: from
+        real(go_wp), dimension(:,:), target, intent(inout) :: to
+        integer, intent(in) ::  startx, starty, nx, ny
+        logical, intent(in) :: blocking
     end subroutine read_from_device_f_interface
+  end interface
+
+  abstract interface
+    subroutine write_to_device_c_interface(from, to, startx, starty, nx, ny, blocking)
+        use iso_c_binding, only: c_ptr, c_int, c_bool
+        type(c_ptr), intent(in), value :: from
+        type(c_ptr), intent(in), value :: to
+        integer(c_int), intent(in), value :: startx, starty, nx, ny
+        logical(c_bool), intent(in), value :: blocking
+    end subroutine write_to_device_c_interface
+  end interface
+
+  abstract interface
+    subroutine write_to_device_f_interface(from, to, startx, starty, nx, ny, blocking)
+        use iso_c_binding, only: c_ptr
+        use kind_params_mod, only: go_wp
+        real(go_wp), dimension(:,:), target, intent(in) :: from
+        type(c_ptr), intent(in) :: to
+        integer, intent(in) ::  startx, starty, nx, ny
+        logical, intent(in) :: blocking
+    end subroutine write_to_device_f_interface
   end interface
 
 
@@ -101,9 +125,12 @@ module field_mod
      !> Whether the data for this field lives in a remote memory space
      !! (e.g. on a GPU)
      logical :: data_on_device
-     !> Function pointers to the functions that read data from devices.
+     !> Function pointers to the functions that read/write data from/to
+     ! devices.
      procedure(read_from_device_c_interface), POINTER, nopass :: read_from_device_c
      procedure(read_from_device_f_interface), POINTER, nopass :: read_from_device_f
+     procedure(write_to_device_c_interface), POINTER, nopass :: write_to_device_c
+     procedure(write_to_device_f_interface), POINTER, nopass :: write_to_device_f
 
   end type field_type
 
@@ -122,13 +149,17 @@ module field_mod
      !> Pointer to corresponding buffer on remote device (if any).
      !! This requires variables that are declared to be of this type
      !! have the 'target' attribute.
-     integer(c_intptr_t) :: device_ptr
+     type(c_ptr) :: device_ptr
    contains
      !> Setter for the data associated with this field
      procedure, pass :: set_data
      !> Getter for the data associated with this field. Fetches data
      !! from remote accelerator if necessary.
      procedure, pass :: get_data
+     procedure, pass :: read_halo_from_device
+     procedure, pass :: write_halo_to_device
+     procedure, pass :: read_from_device
+     procedure, pass :: write_to_device
      procedure, public :: halo_exchange
   end type r2d_field
 
@@ -247,6 +278,8 @@ contains
     !> The function pointers are initialized with NULL
     nullify(self%read_from_device_c)
     nullify(self%read_from_device_f)
+    nullify(self%write_to_device_c)
+    nullify(self%write_to_device_f)
 
     ! Set-up the limits of the 'internal' region of this field
     !
@@ -352,23 +385,138 @@ contains
 
   !===================================================
 
-  function get_data(self) result(dptr)
-    !> Getter for the data associated with a field. Ensures that the local
-    ! copy is up-to-date with that on any accelerator device.
+  subroutine read_from_device(self, startx, starty, nx, ny, blocking)
+    !> Update the host data with the device data.
+    ! The optional startx, starty, nx and ny parameters can be provided to
+    ! read just from a sub-region of the field.
+    ! The blocking optional parameter specifies if the data transfer should
+    ! have finished on the return from this routine.
+
     class(r2d_field), target :: self
-    real(go_wp), dimension(:,:), pointer :: dptr
+    integer, optional, intent(in) :: startx, starty, nx, ny
+    logical, optional, intent(in) :: blocking
+    integer :: local_startx, local_starty, local_nx, local_ny
+    logical :: local_blocking
+
     if(self%data_on_device)then
+
+       if (present(startx)) then
+           local_startx = startx
+       else
+           local_startx = 1
+       endif
+
+       if (present(starty)) then
+           local_starty = starty
+       else
+           local_starty = 1
+       endif
+
+       if (present(nx)) then
+           local_nx = nx
+       else
+           local_nx = size(self%data, 1)
+       endif
+
+       if (present(ny)) then
+           local_ny = ny
+       else
+           local_ny = size(self%data, 2)
+       endif
+
+       if (present(blocking)) then
+           local_blocking = blocking
+       else
+           local_blocking = .true.
+       endif
+
        if(associated(self%read_from_device_c))then
           call self%read_from_device_c(self%device_ptr, C_LOC(self%data), &
-             self%internal%xstop + 1, self%internal%ystop + 1, self%grid%nx)
+                int(local_startx, c_int), int(local_starty, c_int), &
+                int(local_nx, c_int), int(local_ny, c_int), &
+                logical(local_blocking, c_bool))
         else if(associated(self%read_from_device_f))then
           call self%read_from_device_f(self%device_ptr, self%data, &
-             self%internal%xstop + 1, self%internal%ystop + 1, self%grid%nx)
+                local_startx, local_starty, local_nx, local_ny, local_blocking)
         else
           call gocean_stop("ERROR: Data is on a device but no instructions " // &
               "about how to retrieve the data have been provided.")
        endif
     end if
+  end subroutine read_from_device
+
+  subroutine write_to_device(self, startx, starty, nx, ny, blocking)
+    !> Update the device data with host data.
+    ! The optional startx, starty, nx and ny parameters can be provided to
+    ! write just a sub-region of the field to the device.
+    ! The blocking optional parameter specifies if the data transfer should
+    ! have finished on the return from this routine.
+
+    class(r2d_field), target :: self
+    integer, optional, intent(in) :: startx, starty, nx, ny
+    logical, optional, intent(in) :: blocking
+    integer :: local_startx, local_starty, local_nx, local_ny
+    logical :: local_blocking
+
+    if(self%data_on_device)then
+
+       if (present(startx)) then
+           local_startx = startx
+       else
+           local_startx = 1
+       endif
+
+       if (present(starty)) then
+           local_starty = starty
+       else
+           local_starty = 1
+       endif
+
+       if (present(nx)) then
+           local_nx = nx
+       else
+           local_nx = size(self%data, 1)
+       endif
+
+       if (present(ny)) then
+           local_ny = ny
+       else
+           local_ny = size(self%data, 2)
+       endif
+
+       if (present(blocking)) then
+           local_blocking = blocking
+       else
+           local_blocking = .true.
+       endif
+
+       if(associated(self%write_to_device_c))then
+          call self%write_to_device_c(C_LOC(self%data), self%device_ptr, &
+                int(local_startx, c_int), int(local_starty, c_int), &
+                int(local_nx, c_int), int(local_ny, c_int), &
+                logical(local_blocking, c_bool))
+       else if(associated(self%write_to_device_f))then
+          call self%write_to_device_f(self%data, self%device_ptr, &
+                local_startx, local_starty, local_nx, local_ny, local_blocking)
+        else
+          call gocean_stop("ERROR: Data is on a device but no instructions " // &
+              "about how to write new data have been provided.")
+       endif
+    endif
+  end subroutine write_to_device
+
+
+  function get_data(self) result(dptr)
+    !> Getter for the data associated with a field. If the data is on a
+    ! device it ensures that the host copy is up-to-date with that on
+    ! any accelerator device.
+    class(r2d_field), target :: self
+    real(go_wp), dimension(:,:), pointer :: dptr
+
+    ! Synchronise the whole array
+    call self%read_from_device()
+
+    ! Return a reference to the data
     dptr => self%data
   end function get_data
 
@@ -376,17 +524,16 @@ contains
 
   function set_data(self, array) result(flag)
     !> Setter for the data associated with a field. If data is on a
-    !! remote OpenACC device then the device copy is updated too.
+    !! remote accelerator device then the device copy is updated too.
     implicit none
     class(r2d_field) :: self
     integer :: flag
     real(go_wp), dimension(:,:) :: array
     self%data = array
-    if(self%data_on_device)then
-       !$acc update device(self%data)
-       !> \TODO #29 update data on OpenCL device. Requires that FortCL
-       !! be extended.
-    end if
+
+    ! Synchronise the whole array
+    call self%write_to_device()
+
     flag = 0
   end function set_data
 
@@ -1053,8 +1200,13 @@ contains
   !===================================================
 
   !> Provide access to exchange_generic for halo swaps for this field.
-  !> If the data is in a remote device, the field%get_data()
-  !> call will first bring it to the host.
+  !! If the data is in a remote device, it will be synchronised with the host
+  !! before and after the exchange.
+  !! The depth value is currently ignored and hardwired to 1: the device
+  !! synchonization and the halo_exchange communicators need to be updated
+  !! with the provided depth.
+  !!
+  !! TODO #58: This method could benefit from an asynchronous execution model.
   subroutine halo_exchange(self, depth)
     use parallel_comms_mod, only: Iplus, Iminus, Jplus, Jminus, NONE, &
          exchange_generic
@@ -1064,14 +1216,51 @@ contains
     ! Locals
     integer :: exch  !> Handle for exchange
 
-    ! Synchronize the data if the data is in an external device
-    self%data = self%get_data()
+    ! Make sure the data from each halo is in the host before the communication
+    call self%read_halo_from_device(comm=JPlus, blocking=.false.)
+    call self%read_halo_from_device(comm=Jminus, blocking=.false.)
+    call self%read_halo_from_device(comm=IPlus, blocking=.false.)
+    call self%read_halo_from_device(comm=IMinus, blocking=.true.)
 
     ! Execute the halo exchange
     call exchange_generic(b2=self%data, handle=exch, &
                           comm1=JPlus, comm2=Jminus, comm3=IPlus, comm4=IMinus)
+
+    ! Synchronize the data back to the accelerator device if necessary
+    call self%write_halo_to_device(comm=JPlus, blocking=.false.)
+    call self%write_halo_to_device(comm=Jminus, blocking=.false.)
+    call self%write_halo_to_device(comm=IPlus, blocking=.false.)
+    call self%write_halo_to_device(comm=IMinus, blocking=.true.)
+
   end subroutine halo_exchange
   
+  subroutine read_halo_from_device(self, comm, blocking)
+    use parallel_comms_mod, only: isrcsend, jsrcsend, nxsend, nysend
+    implicit none
+    class(r2d_field), target, intent(inout) :: self
+    integer, intent(in) :: comm
+    logical, intent(in) :: blocking
+
+    ! Get location and dimension to read data for the given communicator
+    if (isrcsend(comm) > 0) then
+        call self%read_from_device(isrcsend(comm), jsrcsend(comm), &
+            nxsend(comm), nysend(comm), blocking)
+    endif
+  end subroutine read_halo_from_device
+
+  subroutine write_halo_to_device(self, comm, blocking)
+    use parallel_comms_mod, only: idesrecv, jdesrecv, nxrecv, nyrecv
+    implicit none
+    class(r2d_field), target, intent(inout) :: self
+    integer, intent(in) :: comm
+    logical, intent(in) :: blocking
+
+    ! Get location and dimension to write data for the given communicator
+    if (idesrecv(comm) > 0) then
+        call self%write_to_device(idesrecv(comm), jdesrecv(comm), &
+            nxrecv(comm), nyrecv(comm), blocking)
+    endif
+  end subroutine write_halo_to_device
   !===================================================
 
   !> Compute the checksum of ALL of the elements of supplied array. Performs a
