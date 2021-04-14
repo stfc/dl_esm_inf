@@ -444,14 +444,14 @@ contains
           ! of border.
           CALL addsend (nsend,Iplus,iproc-1, &
                         isrcs,jsrcs,idess,jdess,   &
-                        nxs,nys,tmask,ierr)
+                        nxs,nys,ierr)
           if ( ierr.NE.0 ) RETURN
 
           ! This is a receive for data _from_ the neighbouring domain
           ! - it is NOT the corresponding receive for the above send.
           CALL addrecv (nrecv,Iminus,iproc-1, &
                         isrcr,jsrcr,idesr,jdesr,    &
-                        nxr,nyr,tmask,ierr)
+                        nxr,nyr,ierr)
           if ( ierr.NE.0 ) RETURN
           if(DEBUG)then
              if ( lwp ) then
@@ -618,12 +618,12 @@ contains
           ! of border.
           CALL addsend (nsend,Iminus,iproc-1,            &
                         isrcs,jsrcs,idess,jdess,nxs,nys, &
-                        tmask,ierr)
+                        ierr)
           if ( ierr.NE.0 ) RETURN
 
           CALL addrecv (nrecv,Iplus,iproc-1,       &
                         isrcr,jsrcr,idesr,jdesr,nxr,nyr, &
-                        tmask,ierr)
+                        ierr)
           if ( ierr.NE.0 ) RETURN
 
           ! Move the start point to one beyond this strip.
@@ -799,12 +799,12 @@ contains
 
           CALL addsend (nsend,Jplus,iproc-1,       &
                         isrcs,jsrcs,idess,jdess,nxs,nys, &
-                        tmask,ierr)
+                        ierr)
           if ( ierr.NE.0 ) RETURN
 
           CALL addrecv (nrecv,Jminus,iproc-1,      &
                         isrcr,jsrcr,idesr,jdesr,nxr,nyr, &
-                        tmask,ierr)
+                        ierr)
           if ( ierr.NE.0 ) RETURN
 
           ! Move the start point to one beyond this strip.
@@ -967,12 +967,12 @@ contains
           ! of border.
           CALL addsend (nsend,Jminus,iproc-1,      &
                         isrcs,jsrcs,idess,jdess,nxs,nys, &
-                        tmask,ierr)
+                        ierr)
           if ( ierr.NE.0 ) RETURN
 
           CALL addrecv (nrecv,Jplus,iproc-1,       &
                         isrcr,jsrcr,idesr,jdesr,nxr,nyr, &
-                        tmask,ierr)
+                        ierr)
           if ( ierr.NE.0 ) RETURN
 
           ! Move the start point to one beyond this strip.
@@ -1147,7 +1147,7 @@ contains
           end if
           call addsend (nsend,idirn,iproc-1,            &
                         isrcs,jsrcs,idess,jdess,nxs,nys, &
-                        tmask, ierr)
+                        ierr)
           if ( ierr.NE.0 ) then
             call parallel_abort("Call to addsend failed.")
           end if
@@ -1161,7 +1161,7 @@ contains
           end if
           call addrecv (nrecv,j,iproc-1,          &
                         isrcr,jsrcr,idesr,jdesr,nxr,nyr, &
-                        tmask, ierr)
+                        ierr)
           if ( ierr.NE.0 ) then
              call parallel_abort("Call to addrecv failed")
           end if
@@ -1172,7 +1172,7 @@ contains
     end subroutine map_comms
 
   subroutine addsend (icomm, dir, proc, isrc, jsrc, &
-                      ides, jdes, nx, ny, tmask, ierr )
+                      ides, jdes, nx, ny, ierr )
     !!------------------------------------------------------------------
     !   Adds a send communication specified by the parameters dir through 
     !   to ny to the send communication list at the next position. 
@@ -1199,7 +1199,6 @@ contains
     ! Subroutine arguments.
     integer,                    intent(inout) :: icomm
     integer,                    intent( in  ) :: dir, proc
-    integer, dimension(:,:),    intent( in  ) :: tmask
     integer,                    intent( out ) :: ierr
     integer, dimension(:), intent( in  ) :: isrc, jsrc, ides, jdes, nx, ny
     integer :: irank
@@ -1268,7 +1267,7 @@ contains
   end subroutine addsend
 
   subroutine addrecv ( icomm, dir, proc, isrc, jsrc, &
-                       ides, jdes, nx, ny, tmask, ierr )
+                       ides, jdes, nx, ny, ierr )
     !!------------------------------------------------------------------
     !   Adds a recv communication specified by the parameters dir through 
     !   to ny to the recv communication list at the next position. 
@@ -1294,7 +1293,6 @@ contains
     integer,                 intent(inout) :: icomm
     integer,                 intent( in  ) :: dir, proc
     integer,                 intent(out)   :: ierr
-    integer, dimension(:,:), intent( in  ) :: tmask
     integer, dimension(halo_depthx)        :: isrc, jsrc, ides, jdes, nx, ny
     ! Local variables.
     integer :: irank

@@ -518,7 +518,7 @@ contains
                    &  //'periodic boundary conditions.')
     end if
     
-    call map_comms(grid%decomp, tmask, .false., (/1,1/), ierr(1))
+    call map_comms(grid%decomp, grid%tmask, .false., (/1,1/), ierr(1))
 
     if(ierr(1) /= 0)call gocean_stop('Set-up of communication tables (call ' &
                                  & //'to map_comms()) failed.')
