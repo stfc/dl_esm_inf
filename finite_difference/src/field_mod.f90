@@ -1190,7 +1190,7 @@ contains
     type(r2d_field), intent(in) :: field
     real(go_wp) :: val
 
-    val = array_checksum(field%get_data(), field%data_on_device,           &
+    val = array_checksum(field%get_data(),           &
                          field%internal%xstart, field%internal%xstop, &
                          field%internal%ystart, field%internal%ystop)
     return
@@ -1265,21 +1265,14 @@ contains
 
   !> Compute the checksum of ALL of the elements of supplied array. Performs a
   !! global sum if built with distributed-memory support.
-  function array_checksum(field, update, &
+  function array_checksum(field, &
                           xstart, xstop, &
                           ystart, ystop) result(val)
     use parallel_comms_mod, only: global_sum
     implicit none
     real(go_wp), dimension(:,:), intent(in) :: field
-    logical, optional, intent(in) :: update
     integer, optional, intent(in) :: xstart, xstop, ystart, ystop
     real(go_wp) :: val
-
-    if( present(update) )then
-       if(update)then
-          !$acc update host(field)
-       end if
-    end if
 
     if( present(xstart) )then
        val = SUM( ABS(field(xstart:xstop,ystart:ystop) ) )
