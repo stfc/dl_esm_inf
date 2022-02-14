@@ -49,7 +49,7 @@ Three types of boundary condition are currently supported:
 Name             Description
 ===============  =========================================
 GO_BC_NONE       No boundary conditions are applied.
-GO_BC_EXTERNAL   Some external forcing is applied. This must be implemented by a kernel. The domain must be defined with a T-point mask (see :ref:`gocean1.0-grid-init`).
+GO_BC_EXTERNAL   Some external forcing is applied. This must be implemented by a kernel.
 GO_BC_PERIODIC   Periodic boundary conditions are applied.
 ===============  =========================================
 
@@ -98,11 +98,8 @@ object. This is done via a call to the ``grid_init`` subroutine::
     !! wet (1), dry (0) or external (-1).
     integer, dimension(m,n), intent(in), optional :: tmask
 
-If no T-mask is supplied then this routine configures the grid
-appropriately for an all-wet domain with periodic boundary conditions
-in both the *x*- and *y*-dimensions. It should also be noted that
-currently only grids with constant resolution in *x* and *y* are
-supported by this routine.
+It should be noted that currently only grids with constant
+resolution in *x* and *y* are supported by this routine.
 
 .. _gocean1.0-fields:
 

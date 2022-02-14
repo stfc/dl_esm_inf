@@ -67,9 +67,8 @@ module grid_mod
      !! This is the key quantity that determines the region that
      !! is actually simulated. However, we also support the
      !! specification of a model consisting entirely of wet points
-     !! with periodic boundary conditions. Since this does not
-     !! require a T-mask, we do not allocate this array for that
-     !! case.
+     !! Since this does not require a T-mask, we do not allocate
+     !! this array for that case.
      integer, allocatable :: tmask(:,:)
      !> Pointer to tmask on remote device (if any)
      type(c_ptr) :: tmask_device
@@ -294,8 +293,7 @@ contains
   !! @param[in] dxarg Grid spacing in x dimension
   !! @param[in] dyarg Grid spacing in y dimension
   !! @param[in] tmask Array holding the T-point mask which defines
-  !!                  the contents of the local domain. Need not be
-  !!                  supplied if domain is all wet and has PBCs.
+  !!                  the contents of the local domain.
   subroutine grid_init(grid, dxarg, dyarg, tmask)
     use decomposition_mod, only: subdomain_type, decomposition_type
     use parallel_mod, only: map_comms, get_rank, get_num_ranks, on_master
@@ -395,18 +393,6 @@ contains
        do ji = xstop+2, grid%nx
           grid%tmask(ji, :) = grid%tmask(xstop+1, :)
        end do
-    else
-       ! No T-mask supplied. Check that grid has PBCs in both
-       ! x and y dimensions otherwise we won't know what to do.
-       if( .not. ( (grid%boundary_conditions(1) == GO_BC_PERIODIC) .and. &
-                   (grid%boundary_conditions(2) == GO_BC_PERIODIC) ) )then
-          call gocean_stop('grid_init: ERROR: No T-mask supplied and '// &
-                           'grid does not have periodic boundary conditions!')
-       end if
-       !> TODO add support for PBCs in parallel
-       if(get_num_ranks() > 1)then
-          call gocean_stop('grid_init: PBCs not yet implemented with MPI')
-       end if
     end if ! T-mask supplied
 
     ! For a regular, orthogonal mesh the spatial resolution is constant
