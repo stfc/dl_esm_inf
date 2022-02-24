@@ -161,6 +161,7 @@ module field_mod
      procedure, pass :: read_from_device
      procedure, pass :: write_to_device
      procedure, public :: halo_exchange
+     procedure, public :: gather_inner_data
   end type r2d_field
 
   !> Interface for the copy_field operation. Overloaded to take
@@ -237,9 +238,10 @@ contains
 
   !===================================================
 
-  function r2d_field_constructor(grid,    &
+  function r2d_field_constructor(grid,        &
                                  grid_points, &
-                                 do_tile) result(self)
+                                 do_tile,     &
+                                 init_global_data) result(self)
     use parallel_mod, only: go_decompose, on_master
 !$    use omp_lib, only : omp_get_max_threads
     implicit none
@@ -252,6 +254,9 @@ contains
     !> a single field should be allocated (which is not currently
     !> supported by PSyclone)
     logical, intent(in), optional :: do_tile
+    !> An optional global array with which the field in each domain
+    !> will be  initialsed
+    real(go_wp), dimension(:,:), intent(in), optional :: init_global_data
     ! Local declarations
     type(r2d_field), target :: self
     logical :: local_do_tiling = .false.
@@ -261,7 +266,7 @@ contains
     !> The upper bounds actually used to allocate arrays (as opposed
     !! to the limits carried around with the field)
     integer :: upper_x_bound, upper_y_bound
-    integer :: itile, nthreads, ntilex, ntiley
+    integer :: itile, nthreads, ntilex, ntiley, dx, dy
 
     if (present(do_tile)) then
        local_do_tiling = do_tile
@@ -349,7 +354,7 @@ contains
     end if
 
     ! Since we're allocating the arrays to be larger than strictly
-    ! required we explicitly set all elements to -999 in case the code
+    ! required we explicitly set all elements to 0 in case the code
     ! does access 'out-of-bounds' elements during speculative
     ! execution. If we're running with OpenMP this also gives
     ! us the opportunity to do a 'first touch' policy to aid with
@@ -367,6 +372,17 @@ contains
 !$OMP END PARALLEL DO
     else
        self%data(:,:) = 0.0_go_wp
+    end if
+
+    if (present(init_global_data)) then
+        dx = grid%subdomain%global%xstart - self%internal%xstart
+        dy = grid%subdomain%global%ystart - self%internal%ystart
+
+        do jj = grid%subdomain%internal%ystart, grid%subdomain%internal%ystop
+            do ji = grid%subdomain%internal%xstart, grid%subdomain%internal%xstop
+                self%data(ji, jj) = init_global_data(ji+dx, jj+dy)
+            end do
+        end do
     end if
   end function r2d_field_constructor
    
@@ -505,6 +521,8 @@ contains
     endif
   end subroutine write_to_device
 
+
+  !===================================================
 
   function get_data(self) result(dptr)
     !> Getter for the data associated with a field. If the data is on a
@@ -1284,6 +1302,74 @@ contains
     call global_sum(val)
 
   end function array_checksum
+
+  !===================================================
+
+  ! Collect a distributed array into a global array
+  subroutine gather_inner_data(self, global_data)
+    use parallel_utils_mod, only: get_num_ranks
+    use parallel_mod, only: on_master
+
+    use MPI
+    !, only: MPI_COMM_WORLD, MPI_DOUBLE_PRECISION&
+    !, MPI_Comm_size, MPI_Barrier, MPI_GATHERV
+    implicit none
+    class(r2d_field), intent(in) :: self
+    real(go_wp), dimension(:,:),           &
+        allocatable, intent(out) :: global_data
+
+    real(go_wp), dimension(:), allocatable :: send_buffer, recv_buffer
+
+    integer :: dx, dy, ji, jj, i, n, ierr, rank
+    integer :: x_start, x_stop, y_start, y_stop
+
+    allocate(global_data(self%grid%global_nx, self%grid%global_ny))
+
+    ! No MPI (or single process), just copy the data out
+    if (get_num_ranks() == 1) then
+        ! Compute size of inner area only
+        dx = self%internal%xstart - 1
+        dy = self%internal%ystart - 1
+        do jj= self%internal%ystart, self%internal%ystop
+           do ji = self%internal%xstart, self%internal%xstop
+              global_data(ji-dx,jj-dy) = self%data(ji,jj)
+           end do
+        end do
+        return
+    endif
+
+    n = self%grid%decomp%max_width *self%grid%decomp%max_height
+    allocate(send_buffer(n))
+    i = 0
+    do jj= self%internal%ystart, self%internal%ystop
+        do ji = self%internal%xstart, self%internal%xstop
+            i = i + 1
+            send_buffer(i) = self%data(ji,jj)
+        end do
+    end do
+
+    allocate(recv_buffer(get_num_ranks()*n))
+    call MPI_Gather(send_buffer, n, MPI_DOUBLE_PRECISION, &
+                    recv_buffer, n, MPI_DOUBLE_PRECISION, &
+                    0, MPI_COMM_WORLD, ierr)
+
+    if (on_master()) then
+        do rank=1, get_num_ranks()
+            x_start = self%grid%decomp%subdomains(rank)%global%xstart
+            x_stop = self%grid%decomp%subdomains(rank)%global%xstop
+            y_start = self%grid%decomp%subdomains(rank)%global%ystart
+            y_stop = self%grid%decomp%subdomains(rank)%global%ystop
+            i = (rank-1) * n
+            do jj= y_start, y_stop
+                do ji = x_start, x_stop
+                    i = i + 1
+                    global_data(ji, jj) = recv_buffer(i)
+                end do
+            end do
+        enddo
+    endif
+
+  end subroutine gather_inner_data
 
   !===================================================
 
