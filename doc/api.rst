@@ -125,11 +125,17 @@ constructor::
   sshn_v = r2d_field(model_grid, GO_V_POINTS)
   sshn_t = r2d_field(model_grid, GO_T_POINTS)
 
-The constructor takes two arguments:
+The constructor takes two mandatory and two optional arguments:
 
  1. The grid on which the field exists
  2. The type of grid point at which the field is defined
     (``GO_U_POINTS``, ``GO_V_POINTS``, ``GO_T_POINTS`` or ``GO_F_POINTS``)
+ 3. ``do_tile``: If the field should be tiled among all threads, or if only
+    a single field should be allocated (which is not currently
+    supported by PSyclone).
+ 4. ``init_global_data``: a global 2D Fortran array, which must be
+    provided on each rank. On each rank the field will be initialised
+    with the data from the corresponding subdomain.
 
 Note that the grid object must have been fully configured (by a
 call to ``grid_init`` for instance) before it is passed into this
