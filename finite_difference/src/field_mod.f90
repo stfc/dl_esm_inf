@@ -1305,15 +1305,12 @@ contains
 
   !===================================================
 
-  ! Collect a distributed array into a global array
+  !> Collect a (distributed) field into a global array
+  !! on the master node.
   subroutine gather_inner_data(self, global_data)
-    use parallel_utils_mod, only: get_num_ranks
+    use parallel_utils_mod, only: get_num_ranks, gather
     use parallel_mod, only: on_master
 
-    use MPI
-    !, only: MPI_COMM_WORLD, MPI_DOUBLE_PRECISION&
-    !, MPI_Comm_size, MPI_Barrier, MPI_GATHERV
-    implicit none
     class(r2d_field), intent(in) :: self
     real(go_wp), dimension(:,:),           &
         allocatable, intent(out) :: global_data
@@ -1340,6 +1337,7 @@ contains
 
     n = self%grid%decomp%max_width *self%grid%decomp%max_height
     allocate(send_buffer(n))
+    allocate(recv_buffer(n*get_num_ranks()))
     i = 0
     do jj= self%internal%ystart, self%internal%ystop
         do ji = self%internal%xstart, self%internal%xstop
@@ -1348,10 +1346,7 @@ contains
         end do
     end do
 
-    allocate(recv_buffer(get_num_ranks()*n))
-    call MPI_Gather(send_buffer, n, MPI_DOUBLE_PRECISION, &
-                    recv_buffer, n, MPI_DOUBLE_PRECISION, &
-                    0, MPI_COMM_WORLD, ierr)
+    call gather(send_buffer, recv_buffer)
 
     if (on_master()) then
         do rank=1, get_num_ranks()
