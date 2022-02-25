@@ -1317,7 +1317,7 @@ contains
 
     real(go_wp), dimension(:), allocatable :: send_buffer, recv_buffer
 
-    integer :: dx, dy, ji, jj, i, n, ierr, rank
+    integer :: dx, dy, ji, jj, i, n, rank, halo_x, halo_y
     integer :: x_start, x_stop, y_start, y_stop
 
     allocate(global_data(self%grid%global_nx, self%grid%global_ny))
@@ -1335,9 +1335,17 @@ contains
         return
     endif
 
-    n = self%grid%decomp%max_width *self%grid%decomp%max_height
+    ! Determine maximum size of data to be sent. We don't need
+    ! to sent the halo, so reduce max_width and max_height by
+    ! 2*halo size.
+    halo_x = self%internal%xstart-1
+    halo_y = self%internal%ystart-1
+    n = (self%grid%decomp%max_width - 2*halo_x) *  &
+        (self%grid%decomp%max_height - 2*halo_y)
     allocate(send_buffer(n))
     allocate(recv_buffer(n*get_num_ranks()))
+
+    ! Copy data into 1D send buffer.
     i = 0
     do jj= self%internal%ystart, self%internal%ystop
         do ji = self%internal%xstart, self%internal%xstop
@@ -1346,9 +1354,11 @@ contains
         end do
     end do
 
+    ! Collect all send_buffers on the master:
     call gather(send_buffer, recv_buffer)
 
     if (on_master()) then
+        ! Copy the data from each process into the global array
         do rank=1, get_num_ranks()
             x_start = self%grid%decomp%subdomains(rank)%global%xstart
             x_stop = self%grid%decomp%subdomains(rank)%global%xstop
