@@ -89,7 +89,7 @@ all: ${API_LIB}
 
 # Create the archive.
 ${API_LIB}: ${MODULES}
-	${AR} ${ARFLAGS} ${API_LIB} *.o
+	${AR} ${ARFLAGS} ${API_LIB} $(MODULES)
 
 install:
 	${MAKE} -C .. install
