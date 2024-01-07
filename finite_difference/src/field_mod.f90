@@ -1318,9 +1318,13 @@ contains
     real(go_wp), dimension(:), allocatable :: send_buffer, recv_buffer
 
     integer :: dx, dy, ji, jj, i, n, rank, halo_x, halo_y
-    integer :: x_start, x_stop, y_start, y_stop
+    integer :: x_start, x_stop, y_start, y_stop, ierr
 
-    allocate(global_data(self%grid%global_nx, self%grid%global_ny))
+    allocate(global_data(self%grid%global_nx, self%grid%global_ny), &
+             stat=ierr)
+    if(ierr /= 0)then
+       call gocean_stop('gather_inner_data failed to allocate global result array')
+    end if
 
     ! No MPI (or single process), just copy the data out
     if (get_num_ranks() == 1) then
@@ -1342,8 +1346,14 @@ contains
     halo_y = self%internal%ystart-1
     n = (self%grid%decomp%max_width - 2*halo_x) *  &
         (self%grid%decomp%max_height - 2*halo_y)
-    allocate(send_buffer(n))
-    allocate(recv_buffer(n*get_num_ranks()))
+    allocate(send_buffer(n), stat=ierr)
+    if(ierr /= 0)then
+       call gocean_stop('gather_inner_data failed to allocate send buffer')
+    end if
+    allocate(recv_buffer(n*get_num_ranks()), stat=ierr)
+    if(ierr /= 0)then
+       call gocean_stop('gather_inner_data failed to allocate receive buffer')
+    end if
 
     ! Copy data into 1D send buffer.
     i = 0
