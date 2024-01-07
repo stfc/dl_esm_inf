@@ -393,6 +393,7 @@ contains
        do ji = xstop+2, grid%nx
           grid%tmask(ji, :) = grid%tmask(xstop+1, :)
        end do
+       !> TODO add support for PBCs in parallel
     end if ! T-mask supplied
 
     ! For a regular, orthogonal mesh the spatial resolution is constant
