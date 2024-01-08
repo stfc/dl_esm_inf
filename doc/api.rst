@@ -133,9 +133,13 @@ The constructor takes two mandatory and two optional arguments:
  3. ``do_tile``: If the field should be tiled among all threads, or if only
     a single field should be allocated (which is not currently
     supported by PSyclone).
- 4. ``init_global_data``: a global 2D Fortran array, which must be
+ 4. ``init_global_data``: an optional global 2D Fortran array, which must be
     provided on each rank. On each rank the field will be initialised
-    with the data from the corresponding subdomain.
+    with the data from the corresponding subdomain. This is just a convenience
+    for users with a small problem size, since typically for large data sets
+    using a global array will create scalability problems. In general, it is
+    the responsibility of the user to initialise an array with the required
+    local data.
 
 Note that the grid object must have been fully configured (by a
 call to ``grid_init`` for instance) before it is passed into this
