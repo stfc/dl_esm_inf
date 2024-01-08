@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 # BSD 2-Clause License
 # 
-# Copyright (c) 2019-2020, Science and Technology Facilities Council.
+# Copyright (c) 2019-2024, Science and Technology Facilities Council.
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -27,6 +27,7 @@
 #------------------------------------------------------------------------------
 # Author: A. R. Porter, STFC Daresbury Laboratory
 # Modified: S. Siso, STFC Daresbury Laboratory
+# Modified: J. Henrichs, Bureau of Meteorology
 
 # Makefile for dist_mem tests for the dl_esm_inf finite difference library.
 #
@@ -39,6 +40,12 @@
 # export AR=ar
 # make
 #
+
+# Set some useful default values
+F90 ?= mpif90
+MPIRUN ?= mpirun
+F90FLAGS ?= -g
+
 all: tests
 
 # How we launch MPI jobs
@@ -49,10 +56,10 @@ INF_DIR=../..
 INF_INC = ${INF_DIR}/src
 INF_LIB = ${INF_DIR}/src/lib_fd.a
 
-.PHONY: test_xsplit test_ysplit test_xysplit inf_lib
+.PHONY: test_xsplit test_ysplit test_xysplit test_reduction inf_lib
 
 # Compile and run tests. This is a very basic target.
-tests: test_xsplit test_ysplit test_xysplit test_gsum
+tests: test_xsplit test_ysplit test_xysplit test_gsum test_reduction
 
 test_xsplit: inf_lib test_halos.exe
 	JPIGLO=10 JPJGLO=4 ${MPIRUN} -np 2 ./test_halos.exe
@@ -68,12 +75,19 @@ test_gsum: inf_lib test_gsum.exe
 	JPIGLO=4 JPJGLO=10 ${MPIRUN} -np 4 ./test_gsum.exe
 	JPIGLO=4 JPJGLO=10 ${MPIRUN} -np 6 ./test_gsum.exe
 
+test_reduction: inf_lib test_reduction.exe
+	JPIGLO=10 JPJGLO=10 ${MPIRUN} -np 4 ./test_reduction.exe
+	JPIGLO=10 JPJGLO=10 ${MPIRUN} -np 6 ./test_reduction.exe
+
 inf_lib:
 	${MAKE} -C ${INF_DIR} F90="${F90}" dm_fd_lib
 
 # Normal targets
 test_halos.exe: inf_lib test_halos.o
 	${F90} -o $@ ${LDFLAGS} test_halos.o ${INF_LIB}
+
+test_reduction.exe: inf_lib test_reduction.o
+	${F90} -o $@ ${LDFLAGS} test_reduction.o ${INF_LIB}
 
 test_gsum.exe: inf_lib test_gsum.o
 	${F90} -o $@ ${LDFLAGS} test_gsum.o ${INF_LIB}
