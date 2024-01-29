@@ -378,6 +378,8 @@ contains
         dx = grid%subdomain%global%xstart - self%internal%xstart
         dy = grid%subdomain%global%ystart - self%internal%ystart
 
+!$OMP PARALLEL DO schedule(runtime), default(none), &
+!$OMP private(ji,jj), shared(self, grid, init_global_data, dx, dy)
         do jj = grid%subdomain%internal%ystart, grid%subdomain%internal%ystop
             do ji = grid%subdomain%internal%xstart, grid%subdomain%internal%xstop
                 self%data(ji, jj) = init_global_data(ji+dx, jj+dy)
