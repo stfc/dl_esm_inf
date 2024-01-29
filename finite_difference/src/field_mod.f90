@@ -26,6 +26,7 @@
 ! OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 !------------------------------------------------------------------------------
 ! Author: A. R. Porter, STFC Daresbury Laboratory
+! Modified: J. Henrichs, Australian Bureau of Meteorology
 
 !> Module for describing all aspects of a field (which exists on some
 !! grid).
