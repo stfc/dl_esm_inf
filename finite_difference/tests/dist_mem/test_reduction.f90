@@ -1,7 +1,7 @@
 !------------------------------------------------------------------------------
 ! BSD 2-Clause License
 ! 
-! Copyright (c) 2019, Science and Technology Facilities Council
+! Copyright (c) 2024, Science and Technology Facilities Council
 ! All rights reserved.
 ! 
 ! Redistribution and use in source and binary forms, with or without
@@ -28,7 +28,7 @@
 ! Author: J. Henrichs, Bureau of Meteorology
 ! Author: A. R. Porter, STFC Daresbury Laboratory
 
-!> Tests for the halo-exchange functionality of the dl_esm_inf library.
+!> Tests for the reduction functionality of the dl_esm_inf library.
 !! Domain size must be supplied via the JPIGLO and JPJGLO environment
 !! variables.
 program test_reduction
@@ -183,8 +183,7 @@ contains
          if (global_field(ji, jj) /= global_value) then
             print *, "Incorrect global field data gathered for ", ji, jj, &
                      global_field(ji, jj), global_value
-            !call gocean_stop('Failed to gather local data')
-           endif
+         endif
            
        end do
     end do
