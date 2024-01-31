@@ -430,13 +430,15 @@ contains
        !> TODO add support for PBCs in parallel
     else
        ! No T-mask supplied. Check if grid has PBCs, which isn't
-       ! supported yet
-       if( (get_num_ranks() > 1) .and.  &
-           ( (grid%boundary_conditions(1) == GO_BC_PERIODIC) .or. &
-             (grid%boundary_conditions(2) == GO_BC_PERIODIC) )  ) then
+       ! supported yet in case of distributed memory usage (i.e.
+       ! if there is more than one process)
+       if ( (get_num_ranks() > 1) .and.  &
+            ( (grid%boundary_conditions(1) == GO_BC_PERIODIC) .or. &
+              (grid%boundary_conditions(2) == GO_BC_PERIODIC) )  ) then
           call gocean_stop('grid_init: ERROR: Periodic boundary conditions ' &
                       & // 'are not yet supported.')
        end if
+
        ! Initialise an artificial all-wet tmask. If using OpenMP then apply
        ! first-touch policy for data locality.
        !$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
