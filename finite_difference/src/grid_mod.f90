@@ -387,15 +387,18 @@ contains
     ystart = grid%subdomain%internal%ystart
     ystop  = grid%subdomain%internal%ystop
 
-    ! Copy-in the externally-supplied T-mask, if any. If using OpenMP
-    ! then apply first-touch policy for data locality.
+    ! Even if no tmask is supplied, we will create one (with all wet points)
+    ! so that kernels that query the tmask will get useful values
+    allocate(grid%tmask(grid%nx, grid%ny), stat=ierr(1))
+    if( ierr(1) /= 0 )then
+       call gocean_stop('grid_init: failed to allocate array for T mask')
+    end if
+
     if( present(tmask) )then
-       allocate(grid%tmask(grid%nx, grid%ny), stat=ierr(1))
-       if( ierr(1) /= 0 )then
-          call gocean_stop('grid_init: failed to allocate array for T mask')
-       end if
-!> TODO should use thread tiling here but that is currently only set-up
-!! inside a field object.
+      ! Copy-in the externally-supplied T-mask, if any. If using OpenMP
+      ! then apply first-touch policy for data locality.
+      !> TODO should use thread tiling here but that is currently only set-up
+      !! inside a field object.
 !$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
 !$OMP shared(grid, tmask, ystart, ystop, xstart, xstop)
        do jj = ystart-1, ystop+1
@@ -424,6 +427,25 @@ contains
           grid%tmask(ji, :) = grid%tmask(xstop+1, :)
        end do
        !> TODO add support for PBCs in parallel
+    else
+       ! No T-mask supplied. Check if grid has PBCs, which isn't
+       ! supported yet
+       if( (grid%boundary_conditions(1) == GO_BC_PERIODIC) .or. &
+           (grid%boundary_conditions(2) == GO_BC_PERIODIC) ) then
+          call gocean_stop('grid_init: ERROR: Periodic boundary conditions ' &
+                      & // 'are not yet supported.')
+       end if
+       ! Initialise an artificial all-wet tmask. If using OpenMP then apply
+       ! first-touch policy for data locality.
+       !$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
+       !$OMP shared(grid, ystart, ystop, xstart, xstop)
+       do jj = ystart-1, ystop+1
+          do ji = xstart-1, xstop+1
+             grid%tmask(ji,jj) = 1
+          end do
+       end do
+       !$OMP END PARALLEL DO
+
     end if ! T-mask supplied
 
     ! For a regular, orthogonal mesh the spatial resolution is constant
