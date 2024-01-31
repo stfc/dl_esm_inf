@@ -183,7 +183,8 @@ contains
   subroutine decompose(self, domainx, domainy,       &
                        ndomains, ndomainx, ndomainy, &
                        halo_width)
-    use parallel_mod, only: get_num_ranks, get_rank, go_decompose
+    use parallel_mod, only: get_num_ranks, get_num_ranks, get_rank, &
+                            go_decompose
     implicit none
     class (grid_type), target, intent(inout) :: self
     !> Dimensions of the domain to decompose
@@ -430,8 +431,9 @@ contains
     else
        ! No T-mask supplied. Check if grid has PBCs, which isn't
        ! supported yet
-       if( (grid%boundary_conditions(1) == GO_BC_PERIODIC) .or. &
-           (grid%boundary_conditions(2) == GO_BC_PERIODIC) ) then
+       if( (get_num_ranks() > 1) .and.  &
+           ( (grid%boundary_conditions(1) == GO_BC_PERIODIC) .or. &
+             (grid%boundary_conditions(2) == GO_BC_PERIODIC) )  ) then
           call gocean_stop('grid_init: ERROR: Periodic boundary conditions ' &
                       & // 'are not yet supported.')
        end if
