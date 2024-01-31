@@ -50,11 +50,17 @@ Name             Description
 ===============  =========================================
 GO_BC_NONE       No boundary conditions are applied.
 GO_BC_EXTERNAL   Some external forcing is applied. This must be implemented by a kernel.
+                 The domain can be specified using a ``tmask``, but if no ``tmask`` is
+                 specified, a dummy ``tmask`` is created that will define an all ocean
+                 domain.
 GO_BC_PERIODIC   Periodic boundary conditions are applied.
 ===============  =========================================
 
 The infrastructure requires this information in order to determine the
 extent of the model grid.
+
+Note that at this stage ``GO_BC_PERIODIC`` is not supported when
+using distributed memory. This is tracked in issue #54.
 
 The index offset is required because a model (kernel) developer has
 choice in how they actually implement the staggering of variables on a
@@ -98,8 +104,12 @@ object. This is done via a call to the ``grid_init`` subroutine::
     !! wet (1), dry (0) or external (-1).
     integer, dimension(m,n), intent(in), optional :: tmask
 
-It should be noted that currently only grids with constant
-resolution in *x* and *y* are supported by this routine.
+
+If no T-mask is supplied then this routine configures the grid
+appropriately for an all-wet domain by allocating a default
+T-mask. It should also be noted that currently only grids with
+constant resolution in *x* and *y* are supported by this routine.
+
 
 .. _gocean1.0-fields:
 

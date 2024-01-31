@@ -96,9 +96,9 @@ module grid_mod
      !!                        -1 == wet outside simulated region
      !! This is the key quantity that determines the region that
      !! is actually simulated. However, we also support the
-     !! specification of a model consisting entirely of wet points
-     !! Since this does not require a T-mask, we do not allocate
-     !! this array for that case.
+     !! specification of a model consisting entirely of wet points.
+     !! In this case a dummy tmask will be allocated, set to indicate
+     !! an all wet domain.
      integer, allocatable :: tmask(:,:)
      !> Pointer to tmask on remote device (if any)
      type(c_ptr) :: tmask_device
@@ -324,7 +324,9 @@ contains
   !! @param[in] dxarg Grid spacing in x dimension
   !! @param[in] dyarg Grid spacing in y dimension
   !! @param[in] tmask Array holding the T-point mask which defines
-  !!                  the contents of the local domain.
+  !!                  the contents of the local domain. Need not be
+  !!                  supplied if domain is all wet, in which case a
+  !!                  dummy all-wet tmask will be created internally.
   subroutine grid_init(grid, dxarg, dyarg, tmask)
     use decomposition_mod, only: subdomain_type, decomposition_type
     use parallel_mod, only: map_comms, get_rank, get_num_ranks, on_master
