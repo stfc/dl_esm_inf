@@ -49,12 +49,18 @@ Three types of boundary condition are currently supported:
 Name             Description
 ===============  =========================================
 GO_BC_NONE       No boundary conditions are applied.
-GO_BC_EXTERNAL   Some external forcing is applied. This must be implemented by a kernel. The domain must be defined with a T-point mask (see :ref:`gocean1.0-grid-init`).
+GO_BC_EXTERNAL   Some external forcing is applied. This must be implemented by a kernel.
+                 The domain can be specified using a ``tmask``, but if no ``tmask`` is
+                 specified, a dummy ``tmask`` is created that will define an all ocean
+                 domain.
 GO_BC_PERIODIC   Periodic boundary conditions are applied.
 ===============  =========================================
 
 The infrastructure requires this information in order to determine the
 extent of the model grid.
+
+Note that at this stage ``GO_BC_PERIODIC`` is not supported when
+using distributed memory. This is tracked in issue #54.
 
 The index offset is required because a model (kernel) developer has
 choice in how they actually implement the staggering of variables on a
@@ -98,11 +104,12 @@ object. This is done via a call to the ``grid_init`` subroutine::
     !! wet (1), dry (0) or external (-1).
     integer, dimension(m,n), intent(in), optional :: tmask
 
+
 If no T-mask is supplied then this routine configures the grid
-appropriately for an all-wet domain with periodic boundary conditions
-in both the *x*- and *y*-dimensions. It should also be noted that
-currently only grids with constant resolution in *x* and *y* are
-supported by this routine.
+appropriately for an all-wet domain by allocating a default
+T-mask. It should also be noted that currently only grids with
+constant resolution in *x* and *y* are supported by this routine.
+
 
 .. _gocean1.0-fields:
 
@@ -128,11 +135,21 @@ constructor::
   sshn_v = r2d_field(model_grid, GO_V_POINTS)
   sshn_t = r2d_field(model_grid, GO_T_POINTS)
 
-The constructor takes two arguments:
+The constructor takes two mandatory and two optional arguments:
 
  1. The grid on which the field exists
  2. The type of grid point at which the field is defined
     (``GO_U_POINTS``, ``GO_V_POINTS``, ``GO_T_POINTS`` or ``GO_F_POINTS``)
+ 3. ``do_tile``: If the field should be tiled among all threads, or if only
+    a single field should be allocated (which is not currently
+    supported by PSyclone).
+ 4. ``init_global_data``: an optional global 2D Fortran array, which must be
+    provided on each rank. On each rank the field will be initialised
+    with the data from the corresponding subdomain. This is just a convenience
+    for users with a small problem size, since typically for large data sets
+    using a global array will create scalability problems. In general, it is
+    the responsibility of the user to initialise an array with the required
+    local data.
 
 Note that the grid object must have been fully configured (by a
 call to ``grid_init`` for instance) before it is passed into this

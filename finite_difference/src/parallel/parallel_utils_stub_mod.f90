@@ -45,7 +45,7 @@ module parallel_utils_mod
   logical, parameter :: DIST_MEM_ENABLED = .False.
 
   public parallel_init, parallel_finalise, parallel_abort
-  public get_rank, get_num_ranks, get_max_tag
+  public get_rank, get_num_ranks, get_max_tag, gather
   public msg_wait, msg_wait_all, post_receive, post_send, global_sum
   public MSG_UNDEFINED, MSG_REQUEST_NULL, DIST_MEM_ENABLED
 
@@ -148,5 +148,17 @@ contains
   subroutine global_sum(var)
     real(go_wp), intent(inout) :: var
   end subroutine global_sum
+
+  !================================================
+
+  subroutine gather(send_buffer, recv_buffer)
+    !> Gathers the data in the send buffer from all
+    !> processes into the receive buffer.
+    real(go_wp), dimension(:) :: send_buffer, recv_buffer
+
+    recv_buffer = send_buffer
+
+  end subroutine gather
+
 
 end module parallel_utils_mod

@@ -64,7 +64,7 @@ module parallel_utils_mod
 
   public parallel_init, parallel_finalise, parallel_abort, get_max_tag
   public get_rank, get_num_ranks, post_receive, post_send, global_sum
-  public msg_wait, msg_wait_all
+  public msg_wait, msg_wait_all, gather
   public MSG_UNDEFINED, MSG_REQUEST_NULL, DIST_MEM_ENABLED
 
 contains
@@ -103,7 +103,6 @@ contains
   !! @param[in] msg Message to print - reason we're stopping
   subroutine parallel_abort(msg)
     use iso_fortran_env, only : error_unit ! access computing environment
-    implicit none
     character(len=*), intent(in) :: msg
 
     write(error_unit, *) msg
@@ -237,5 +236,22 @@ contains
     call MPI_allreduce(MPI_IN_PLACE, var, 1, MPI_DOUBLE, MPI_SUM, comm, ierr)
 
   end subroutine global_sum
+
+  !================================================
+
+  subroutine gather(send_buffer, recv_buffer)
+    !> Gathers the data in the send buffer from all
+    !> processes into the receive buffer.
+    real(go_wp), dimension(:) :: send_buffer, recv_buffer
+
+    integer :: ierr
+    integer :: n
+
+    n = size(send_buffer)
+    call MPI_Gather(send_buffer, n, MPI_DOUBLE_PRECISION, &
+                    recv_buffer, n, MPI_DOUBLE_PRECISION, &
+                    0, MPI_COMM_WORLD, ierr)
+
+  end subroutine gather
 
 end module parallel_utils_mod

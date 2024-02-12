@@ -1,3 +1,33 @@
+!------------------------------------------------------------------------------
+! BSD 2-Clause License
+! 
+! Copyright (c) 2017-2024, Science and Technology Facilities Council
+! All rights reserved.
+! 
+! Redistribution and use in source and binary forms, with or without
+! modification, are permitted provided that the following conditions are met:
+! 
+! * Redistributions of source code must retain the above copyright notice, this
+!   list of conditions and the following disclaimer.
+! 
+! * Redistributions in binary form must reproduce the above copyright notice,
+!   this list of conditions and the following disclaimer in the documentation
+!   and/or other materials provided with the distribution.
+! 
+! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+! AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+! IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+! DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+! FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+! DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+! SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+! CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+! OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+! OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+!------------------------------------------------------------------------------
+! Author: A. R. Porter, STFC Daresbury Laboratory
+! Modified: J. Henrichs, Australian Bureau of Meteorology
+
 !> Module for describing and storing all information related to
 !! a finite-difference grid.
 module grid_mod
@@ -66,10 +96,9 @@ module grid_mod
      !!                        -1 == wet outside simulated region
      !! This is the key quantity that determines the region that
      !! is actually simulated. However, we also support the
-     !! specification of a model consisting entirely of wet points
-     !! with periodic boundary conditions. Since this does not
-     !! require a T-mask, we do not allocate this array for that
-     !! case.
+     !! specification of a model consisting entirely of wet points.
+     !! In this case a dummy tmask will be allocated, set to indicate
+     !! an all wet domain.
      integer, allocatable :: tmask(:,:)
      !> Pointer to tmask on remote device (if any)
      type(c_ptr) :: tmask_device
@@ -154,7 +183,8 @@ contains
   subroutine decompose(self, domainx, domainy,       &
                        ndomains, ndomainx, ndomainy, &
                        halo_width)
-    use parallel_mod, only: get_num_ranks, get_rank, go_decompose
+    use parallel_mod, only: get_num_ranks, get_num_ranks, get_rank, &
+                            go_decompose
     implicit none
     class (grid_type), target, intent(inout) :: self
     !> Dimensions of the domain to decompose
@@ -295,7 +325,8 @@ contains
   !! @param[in] dyarg Grid spacing in y dimension
   !! @param[in] tmask Array holding the T-point mask which defines
   !!                  the contents of the local domain. Need not be
-  !!                  supplied if domain is all wet and has PBCs.
+  !!                  supplied if domain is all wet, in which case a
+  !!                  dummy all-wet tmask will be created internally.
   subroutine grid_init(grid, dxarg, dyarg, tmask)
     use decomposition_mod, only: subdomain_type, decomposition_type
     use parallel_mod, only: map_comms, get_rank, get_num_ranks, on_master
@@ -359,15 +390,18 @@ contains
     ystart = grid%subdomain%internal%ystart
     ystop  = grid%subdomain%internal%ystop
 
-    ! Copy-in the externally-supplied T-mask, if any. If using OpenMP
-    ! then apply first-touch policy for data locality.
+    ! Even if no tmask is supplied, we will create one (with all wet points)
+    ! so that kernels that query the tmask will get useful values
+    allocate(grid%tmask(grid%nx, grid%ny), stat=ierr(1))
+    if( ierr(1) /= 0 )then
+       call gocean_stop('grid_init: failed to allocate array for T mask')
+    end if
+
     if( present(tmask) )then
-       allocate(grid%tmask(grid%nx, grid%ny), stat=ierr(1))
-       if( ierr(1) /= 0 )then
-          call gocean_stop('grid_init: failed to allocate array for T mask')
-       end if
-!> TODO should use thread tiling here but that is currently only set-up
-!! inside a field object.
+      ! Copy-in the externally-supplied T-mask, if any. If using OpenMP
+      ! then apply first-touch policy for data locality.
+      !> TODO should use thread tiling here but that is currently only set-up
+      !! inside a field object.
 !$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
 !$OMP shared(grid, tmask, ystart, ystop, xstart, xstop)
        do jj = ystart-1, ystop+1
@@ -395,18 +429,29 @@ contains
        do ji = xstop+2, grid%nx
           grid%tmask(ji, :) = grid%tmask(xstop+1, :)
        end do
-    else
-       ! No T-mask supplied. Check that grid has PBCs in both
-       ! x and y dimensions otherwise we won't know what to do.
-       if( .not. ( (grid%boundary_conditions(1) == GO_BC_PERIODIC) .and. &
-                   (grid%boundary_conditions(2) == GO_BC_PERIODIC) ) )then
-          call gocean_stop('grid_init: ERROR: No T-mask supplied and '// &
-                           'grid does not have periodic boundary conditions!')
-       end if
        !> TODO add support for PBCs in parallel
-       if(get_num_ranks() > 1)then
-          call gocean_stop('grid_init: PBCs not yet implemented with MPI')
+    else
+       ! No T-mask supplied. Check if grid has PBCs, which isn't
+       ! supported yet in case of distributed memory usage (i.e.
+       ! if there is more than one process)
+       if ( (get_num_ranks() > 1) .and.  &
+            ( (grid%boundary_conditions(1) == GO_BC_PERIODIC) .or. &
+              (grid%boundary_conditions(2) == GO_BC_PERIODIC) )  ) then
+          call gocean_stop('grid_init: ERROR: Periodic boundary conditions ' &
+                      & // 'are not yet supported.')
        end if
+
+       ! Initialise an artificial all-wet tmask. If using OpenMP then apply
+       ! first-touch policy for data locality.
+       !$OMP PARALLEL DO schedule(runtime), default(none), private(ji,jj), &
+       !$OMP shared(grid, ystart, ystop, xstart, xstop)
+       do jj = ystart-1, ystop+1
+          do ji = xstart-1, xstop+1
+             grid%tmask(ji,jj) = 1
+          end do
+       end do
+       !$OMP END PARALLEL DO
+
     end if ! T-mask supplied
 
     ! For a regular, orthogonal mesh the spatial resolution is constant
