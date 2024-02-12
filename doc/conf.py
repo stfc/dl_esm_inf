@@ -20,7 +20,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'dl_esm_inf'
-copyright = '2018-2020, Rupert Ford, Joerg Henrichs, Andrew Porter, Sergi Siso'
+copyright = '2018-2024, Rupert Ford, Joerg Henrichs, Andrew Porter, Sergi Siso'
 author = 'Rupert Ford, Joerg Henrichs, Andrew Porter, Sergi Siso'
 
 # The short X.Y version
