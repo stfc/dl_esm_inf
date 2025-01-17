@@ -1,4 +1,4 @@
-# dl_esm_inf
+# dl_esm_inf - 1.0.0
 Daresbury Laboratory Earth-System Modelling Infrastructure library.
 
 A small library to aid the creation of earth-system models. Currently
@@ -6,6 +6,9 @@ supports two-dimensional, finite-difference models in Fortran.
 
 The first version of this library was developed to support 2D finite-
 difference shallow-water models in the GOcean Project.
+
+## News ##
+  * 17/01/2025 Version 1.0.0 released.
 
 ## Building ##
 

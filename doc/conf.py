@@ -20,13 +20,13 @@
 # -- Project information -----------------------------------------------------
 
 project = 'dl_esm_inf'
-copyright = '2018-2024, Rupert Ford, Joerg Henrichs, Andrew Porter, Sergi Siso'
+copyright = '2018-2025, Rupert Ford, Joerg Henrichs, Andrew Porter, Sergi Siso'
 author = 'Rupert Ford, Joerg Henrichs, Andrew Porter, Sergi Siso'
 
 # The short X.Y version
-version = ''
+version = '1.0.0'
 # The full version, including alpha/beta/rc tags
-release = '1.0'
+release = '1.0.0'
 
 
 # -- General configuration ---------------------------------------------------
